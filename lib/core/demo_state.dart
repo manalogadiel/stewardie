@@ -76,7 +76,7 @@ class DemoController extends Notifier<DemoState> {
     } on DemoException catch (exception) {
       error = exception.message;
     } catch (_) {
-      error = 'Could not save this demo action. Try again.';
+      error = 'Could not save. Try again.';
     }
     if (!ref.mounted) {
       return;

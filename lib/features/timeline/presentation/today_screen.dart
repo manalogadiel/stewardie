@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../core/clay.dart';
 import '../../../core/demo_state.dart';
+import '../../../core/people_filter.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets.dart';
+import '../../calendar/calendar_view.dart';
 import '../../moods/mood_sheet.dart';
 import '../domain/models.dart';
-import 'task_detail.dart';
+import 'task_widgets.dart';
 
 class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
@@ -16,528 +18,396 @@ class TodayScreen extends ConsumerStatefulWidget {
 }
 
 class _TodayScreenState extends ConsumerState<TodayScreen> {
-  bool week = false;
-  DateTime selectedDay = dateOnly(DateTime.now());
+  final scroll = ScrollController();
+  final offsets = <String, double>{};
+  bool showDone = false;
+  int historyDay = 0;
+  String scope = '';
+  @override
+  void dispose() {
+    scroll.dispose();
+    super.dispose();
+  }
+
+  void selectTab(bool done) {
+    if (done == showDone) return;
+    offsets['$scope/$showDone'] = scroll.offset;
+    final target = offsets['$scope/$done'] ?? scroll.offset;
+    setState(() => showDone = done);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && scroll.hasClients) {
+        scroll.jumpTo(target.clamp(0, scroll.position.maxScrollExtent));
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(demoProvider);
     final repo = ref.read(repositoryProvider);
-    final space = repo.spaces.firstWhere((space) => space.id == state.spaceId);
-    final now = DateTime.now();
-    final today = dateOnly(now);
-    final day = week ? selectedDay : today;
-    final tasks =
-        state.tasks
+    final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
+    final currentScope = '${space.id}/${state.personId}';
+    if (scope != currentScope) {
+      scope = currentScope;
+      showDone = false;
+      historyDay = 0;
+    }
+    final now = DateTime.now(), today = dateOnly(DateTime.now());
+    final tasks = state.tasks
+        .where(
+          (t) =>
+              t.spaceId == space.id &&
+              !t.isEvent &&
+              t.matchesPerson(state.personId) &&
+              visibleToBasic(t, now),
+        )
+        .toList();
+    final active = tasks
+        .where((t) => !t.isDone && !dateOnly(t.day).isAfter(today))
+        .toList();
+    final pending = active
+        .where((t) => t.status != Responsibility.accepted)
+        .toList()
+        .reversed
+        .toList();
+    final covered =
+        active.where((t) => t.status == Responsibility.accepted).toList()
+          ..sort((a, b) => (a.hour ?? 25).compareTo(b.hour ?? 25));
+    final completionDay = DateTime(
+      today.year,
+      today.month,
+      today.day - historyDay,
+    );
+    final completed =
+        tasks
             .where(
-              (task) =>
-                  task.spaceId == space.id &&
-                  visibleToBasic(task, now) &&
-                  task.matchesPerson(state.personId) &&
-                  (dateOnly(
-                            task.isDone
-                                ? task.completedAt ?? task.day
-                                : task.day,
-                          ) ==
-                          day ||
-                      (!week && !task.isDone && task.day.isBefore(today))),
+              (t) =>
+                  t.isDone && dateOnly(t.completedAt ?? t.day) == completionDay,
             )
             .toList()
-          ..sort((a, b) {
-            final hourCompare = (a.hour ?? 25).compareTo(b.hour ?? 25);
-            return hourCompare != 0
-                ? hourCompare
-                : a.minute.compareTo(b.minute);
-          });
-    final active = tasks.where((task) => !task.isDone).toList();
-    final done = tasks.where((task) => task.isDone).toList();
-    final help = active
-        .where((task) => task.status == Responsibility.needsHelp)
-        .toList();
-    final needs = active
-        .where(
-          (task) =>
-              !task.isEvent &&
-              (task.status == Responsibility.unclaimed ||
-                  task.status == Responsibility.requested),
-        )
-        .length;
-    final covered = active
-        .where((task) => !task.isEvent && task.ownerId != null)
-        .length;
-    final mood = repo.checkIn(space.id, 'me');
-    final largeText = MediaQuery.textScalerOf(context).scale(16) > 22;
-    final heading = Text(
-      week ? 'This week' : 'Today',
-      style: Theme.of(context).textTheme.headlineLarge,
-    );
-    final weekButton = TextButton(
-      onPressed: () => setState(() {
-        week = !week;
-        selectedDay = today;
-      }),
-      child: Text(week ? 'Back to today' : 'View week'),
-    );
-    final moodSummary = mood == null
-        ? const Text('A shared day, a little lighter.')
-        : Row(
-            children: [
-              MoodFace(mood.mood, size: 24),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'You · ${mood.mood.label}\n${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(mood.sharedAt))} · Today',
-                ),
-              ),
-            ],
+          ..sort(
+            (a, b) =>
+                (b.completedAt ?? b.day).compareTo(a.completedAt ?? a.day),
           );
-    final moodButton = TextButton.icon(
-      onPressed: () => showMoodSheet(context, space),
-      icon: const Icon(Icons.add_reaction_outlined, size: 20),
-      label: Text(mood == null ? 'Check in' : 'Update mood'),
-    );
-    return PageBody(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 96),
-      children: [
-        const DemoNotice(),
-        if (largeText)
-          Column(
+    final doneToday = tasks
+        .where((t) => t.isDone && dateOnly(t.completedAt ?? t.day) == today)
+        .length;
+    final large = MediaQuery.textScalerOf(context).scale(16) > 22;
+    final mood = repo.checkIn(space.id, 'me');
+    final moodCard = ClayPanel(
+      color: const Color(0xFFF9EEE9),
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () => showMoodSheet(context, space),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [heading, weekButton],
-          )
-        else
-          Row(
             children: [
-              Expanded(child: heading),
-              weekButton,
-            ],
-          ),
-        Text(
-          MaterialLocalizations.of(context).formatFullDate(day),
-          style: Theme.of(context).textTheme.bodyLarge,
-        ),
-        const SizedBox(height: 12),
-        if (week) ...[
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(7, (index) {
-                final date = DateTime(
-                  today.year,
-                  today.month,
-                  today.day - today.weekday + 1 + index,
-                );
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(
-                      MaterialLocalizations.of(context).formatShortDate(date),
-                    ),
-                    selected: date == selectedDay,
-                    onSelected: (_) => setState(() => selectedDay = date),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _filter('Everyone', null, state.personId, null),
-              for (final member in space.members)
-                _filter(
-                  member.id == 'me' ? 'Me' : member.name,
-                  member.id,
-                  state.personId,
-                  member,
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (largeText)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [moodSummary, moodButton],
-          )
-        else
-          Row(
-            children: [
-              Expanded(child: moodSummary),
-              moodButton,
-            ],
-          ),
-        const SizedBox(height: 8),
-        Paper(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 12,
-            children: [
-              _count(needs, 'needs someone', SoftPop.butter),
-              _count(covered, 'covered', SoftPop.sky),
-              _count(done.length, 'done', SoftPop.rose),
-            ],
-          ),
-        ),
-        if (help.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Paper(
-            color: SoftPop.blueSoft,
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+              Text('Your mood', style: Theme.of(context).textTheme.labelLarge),
+              Center(
+                child: mood == null
+                    ? const ClayArt('mood', height: 78)
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 17),
+                        child: MoodFace(mood.mood, size: 44),
+                      ),
               ),
-              leading: const Icon(
-                Icons.front_hand_outlined,
-                color: SoftPop.blue,
-              ),
-              title: Text(
-                '${help.length} could use a hand',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              subtitle: const Text('View help requests'),
-              trailing: const Icon(
-                Icons.chevron_right_rounded,
-                color: SoftPop.blue,
-              ),
-              onTap: () => _showHelp(context, help, space),
-            ),
-          ),
-        ],
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                state.personId == null
-                    ? 'Our day'
-                    : '${personName(space, state.personId)} · Plans',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            Text('${tasks.length} entries'),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (tasks.isEmpty)
-          Paper(
-            color: SoftPop.warm,
-            child: Column(
-              children: [
-                const Icon(
-                  Icons.wb_sunny_outlined,
-                  size: 40,
-                  color: SoftPop.blue,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'A little breathing room',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  state.personId == null
-                      ? 'No plans here yet. Add a little thing to get started.'
-                      : 'No plans for this person on this day.',
-                  textAlign: TextAlign.center,
-                ),
-                if (state.personId != null)
-                  TextButton(
-                    onPressed: () =>
-                        ref.read(demoProvider.notifier).selectPerson(null),
-                    child: const Text('Show everyone'),
-                  ),
-              ],
-            ),
-          ),
-        for (var i = 0; i < active.length; i++) ...[
-          if (i == 0 ||
-              taskTime(context, active[i]) != taskTime(context, active[i - 1]))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10, top: 4),
-              child: Text(
-                taskTime(context, active[i]),
-                style: Theme.of(context).textTheme.labelLarge
-                    ?.copyWith(color: SoftPop.secondary),
-              ),
-            ),
-          TaskCard(task: active[i], space: space),
-          const SizedBox(height: 16),
-        ],
-        if (done.isNotEmpty)
-          ExpansionTile(
-            initiallyExpanded: done.length <= 2,
-            tilePadding: EdgeInsets.zero,
-            title: Text(
-              'Done & dusted · ${done.length}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            children: [
-              for (final task in done)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: TaskCard(task: task, space: space),
-                ),
-            ],
-          ),
-      ],
-    );
-  }
-
-  Widget _filter(String label, String? id, String? selected, Member? member) =>
-      Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: FilterChip(
-          selected: id == selected,
-          avatar: member == null ? null : MemberAvatar(member, size: 26),
-          label: Text(label),
-          onSelected: (_) => ref.read(demoProvider.notifier).selectPerson(id),
-        ),
-      );
-
-  Widget _count(int value, String label, Color color) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      ),
-      const SizedBox(width: 8),
-      Text('$value ', style: Theme.of(context).textTheme.titleMedium),
-      Text(label),
-    ],
-  );
-
-  Future<void> _showHelp(
-    BuildContext context,
-    List<Task> tasks,
-    Space space,
-  ) => showModalBottomSheet<void>(
-    useRootNavigator: true,
-    context: context,
-    useSafeArea: true,
-    isScrollControlled: true,
-    builder: (sheetContext) => ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .7,
-      ),
-      child: ListView(
-        shrinkWrap: true,
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            'A hand for ${space.name}',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 16),
-          for (final task in tasks)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(task.title),
-              subtitle: Text(
-                '${personName(space, task.ownerId)} · ${task.offeredId == null ? 'Needs help' : 'Handoff pending'}',
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                context.push('/task/${task.id}');
-              },
-            ),
-        ],
-      ),
-    ),
-  );
-}
-
-class TaskCard extends StatelessWidget {
-  const TaskCard({super.key, required this.task, required this.space});
-  final Task task;
-  final Space space;
-  @override
-  Widget build(BuildContext context) => Material(
-    color: SoftPop.surface,
-    borderRadius: BorderRadius.circular(20),
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
-      onTap: () => context.push('/task/${task.id}'),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    task.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: SoftPop.secondary,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (task.isEvent)
               Text(
-                task.participants
-                    .map((id) => personName(space, id))
-                    .join(' · '),
-              )
-            else
+                mood?.mood.label ?? 'How are you?',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
               Row(
                 children: [
-                  if (task.ownerId ?? task.requestedId
-                      case final String id) ...[
-                    MemberAvatar(space.member(id), size: 28),
-                    const SizedBox(width: 8),
-                  ],
                   Expanded(
                     child: Text(
-                      personName(space, task.ownerId ?? task.requestedId),
-                      style: Theme.of(context).textTheme.bodyLarge,
+                      mood == null ? 'Check in' : 'Update mood',
+                      style: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(color: SoftPop.blue),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: SoftPop.blue,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: CustomScrollView(
+          key: const ValueKey('today-scroll'),
+          controller: scroll,
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  ClayPanel(
+                    color: const Color(0xFFF1EEE7),
+                    padding: const EdgeInsets.fromLTRB(20, 14, 16, 18),
+                    radius: const BorderRadius.vertical(
+                      bottom: Radius.circular(28),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Today',
+                                style: Theme.of(context).textTheme.headlineLarge
+                                    ?.copyWith(fontSize: 32),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                MaterialLocalizations.of(context)
+                                    .formatMediumDate(today),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text('Little things, together.'),
+                            ],
+                          ),
+                        ),
+                        if (!large)
+                          const ClayArt('greeting', height: 112, width: 154),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                    child: PeopleFilter(space),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: large
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              moodCard,
+                              const SizedBox(height: 12),
+                              CalendarTile(space),
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: moodCard),
+                              const SizedBox(width: 12),
+                              Expanded(child: CalendarTile(space)),
+                            ],
+                          ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 18,
+                    ),
+                    child: Row(
+                      children: [
+                        _stat(pending.length, 'Help', SoftPop.butter),
+                        _stat(covered.length, 'Covered', SoftPop.sky),
+                        _stat(doneToday, 'Done', SoftPop.rose),
+                      ],
                     ),
                   ),
                 ],
               ),
-            const SizedBox(height: 8),
-            StatusLabel(task),
-            if (!task.isDone && task.day.isBefore(dateOnly(DateTime.now())))
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text('Overdue · Still here when you’re ready'),
-              ),
-            if (task.place != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.place_outlined,
-                      size: 16,
-                      color: SoftPop.secondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(child: Text(task.place!)),
-                  ],
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _TaskTabHeader(
+                height: large ? 108 : 64,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: _tab('Pending', active.length, false)),
+                      const SizedBox(width: 4),
+                      Expanded(child: _tab('Done', doneToday, true)),
+                      const SizedBox(width: 8),
+                      Center(
+                        child: IconButton.filled(
+                          tooltip: 'Add task',
+                          onPressed: () => showAddTask(context, space),
+                          icon: const Icon(Icons.add_rounded),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            if ((task.ownerId == 'me' && !task.isDone) ||
-                task.requestedId == 'me') ...[
-              const SizedBox(height: 16),
-              TaskActions(task: task, compact: true),
-            ],
+            ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                120 + MediaQuery.paddingOf(context).bottom,
+              ),
+              sliver: SliverList.list(
+                children: [
+                  if (showDone) ...[
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < 4; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: Text(
+                                  i == 0
+                                      ? 'Today'
+                                      : i == 1
+                                      ? 'Yesterday'
+                                      : MaterialLocalizations.of(context)
+                                            .formatShortDate(
+                                              DateTime(
+                                                today.year,
+                                                today.month,
+                                                today.day - i,
+                                              ),
+                                            ),
+                                ),
+                                selected: historyDay == i,
+                                onSelected: (_) =>
+                                    setState(() => historyDay = i),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (completed.isEmpty)
+                      _empty(
+                        'A fresh start',
+                        'Finished tasks will find a home here.',
+                      ),
+                    for (final task in completed)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: TaskCard(task: task, space: space),
+                      ),
+                  ] else ...[
+                    if (active.isEmpty)
+                      _empty(
+                        'A little breathing room',
+                        'All clear for now. Enjoy a moment for yourself.',
+                      ),
+                    if (pending.isNotEmpty) ...[
+                      _section('Pending', pending.length),
+                      for (final task in pending)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: TaskCard(task: task, space: space),
+                        ),
+                    ],
+                    if (covered.isNotEmpty) ...[
+                      _section('Covered', covered.length),
+                      for (final task in covered)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: TaskCard(task: task, space: space),
+                        ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
-    ),
-  );
-}
-
-Future<void> showAddTask(BuildContext context, Space space) =>
-    showModalBottomSheet<void>(
-      useRootNavigator: true,
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => _AddTask(space),
     );
-
-class _AddTask extends ConsumerStatefulWidget {
-  const _AddTask(this.space);
-  final Space space;
-  @override
-  ConsumerState<_AddTask> createState() => _AddTaskState();
-}
-
-class _AddTaskState extends ConsumerState<_AddTask> {
-  final title = TextEditingController();
-  final form = GlobalKey<FormState>();
-  bool mine = false;
-  @override
-  void dispose() {
-    title.dispose();
-    super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-      child: SafeArea(
-        top: false,
-        child: Form(
-          key: form,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'One little thing',
-                style: Theme.of(context).textTheme.headlineSmall,
+  Widget _stat(int count, String label, Color color) => Expanded(
+    child: Column(
+      children: [
+        Container(
+          width: 42,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .45),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text('$count', style: Theme.of(context).textTheme.titleLarge),
+        ),
+        const SizedBox(height: 6),
+        Text(label),
+      ],
+    ),
+  );
+  Widget _tab(String title, int count, bool done) => Semantics(
+    selected: showDone == done,
+    child: Material(
+      color: showDone == done ? SoftPop.surface : const Color(0xFFECEBE8),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+      child: InkWell(
+        onTap: () => selectTab(done),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Text(
+              '$title ($count)',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: showDone == done ? SoftPop.blue : SoftPop.secondary,
               ),
-              const SizedBox(height: 8),
-              Text('Today in ${widget.space.name} · Local demo'),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: title,
-                maxLength: 100,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                  labelText: 'Task name',
-                  hintText: 'What needs doing?',
-                ),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Give your task a name.'
-                    : null,
-              ),
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('I’ve got this one'),
-                subtitle: const Text(
-                  'Otherwise, leave it for someone to claim.',
-                ),
-                value: mine,
-                onChanged: (value) => setState(() => mine = value!),
-              ),
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: () {
-                  if (!form.currentState!.validate()) {
-                    return;
-                  }
-                  ref
-                      .read(repositoryProvider)
-                      .addTask(
-                        widget.space.id,
-                        title.text,
-                        DateTime.now(),
-                        mine,
-                      );
-                  ref.read(demoProvider.notifier).selectPerson(null);
-                  ref.read(demoProvider.notifier).refresh();
-                  Navigator.pop(context);
-                },
-                child: const Text('Add task'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     ),
   );
+  Widget _section(String name, int count) => Padding(
+    padding: const EdgeInsets.only(top: 6, bottom: 12),
+    child: Text(
+      '$name · $count',
+      style: Theme.of(context).textTheme.titleMedium,
+    ),
+  );
+  Widget _empty(String title, String subtitle) => ClayPanel(
+    child: Column(
+      children: [
+        const ClayArt('celebrate', height: 130),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(subtitle, textAlign: TextAlign.center),
+      ],
+    ),
+  );
+}
+
+class _TaskTabHeader extends SliverPersistentHeaderDelegate {
+  _TaskTabHeader({required this.child, required this.height});
+  final Widget child;
+  final double height;
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => ColoredBox(color: SoftPop.canvas, child: child);
+  @override
+  bool shouldRebuild(_TaskTabHeader old) => true;
 }

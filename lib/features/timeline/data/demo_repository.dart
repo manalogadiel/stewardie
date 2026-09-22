@@ -153,11 +153,11 @@ class DemoRepository implements TimelineRepository {
         throw const DemoException('This task is unavailable.');
       }
       if (actorId != 'me') {
-        throw const DemoException('The demo is signed in as Jamie only.');
+        throw const DemoException('You can only act as yourself.');
       }
       if (outcome == DemoOutcome.failure) {
         throw const DemoException(
-          'Simulated failure. Nothing changed. Try again.',
+          'Could not save. Nothing changed. Try again.',
         );
       }
       if (outcome == DemoOutcome.conflict &&
@@ -170,10 +170,10 @@ class DemoRepository implements TimelineRepository {
         _tasks[taskId] = task.transition(
           status: Responsibility.accepted,
           ownerId: other.id,
-          entry: 'Demo conflict: ${other.name} claimed this task first.',
+          entry: '${other.name} claimed this task first.',
         );
         throw DemoException(
-          'Demo conflict: ${other.name} claimed this first. The current owner is shown below.',
+          '${other.name} claimed this first. The current owner is shown below.',
         );
       }
       final allowed = switch (action) {
@@ -208,7 +208,7 @@ class DemoRepository implements TimelineRepository {
         TaskAction.accept => task.transition(
           status: Responsibility.accepted,
           ownerId: actorId,
-          entry: 'Jamie accepted responsibility in this demo.',
+          entry: 'Jamie accepted responsibility.',
         ),
         TaskAction.decline => task.transition(
           status: Responsibility.unclaimed,
@@ -218,7 +218,7 @@ class DemoRepository implements TimelineRepository {
           status: Responsibility.completed,
           ownerId: task.ownerId,
           completedAt: clock(),
-          entry: 'Jamie marked the task done in this demo.',
+          entry: 'Jamie marked the task done.',
         ),
         TaskAction.needHelp => task.transition(
           status: Responsibility.needsHelp,
@@ -234,8 +234,7 @@ class DemoRepository implements TimelineRepository {
         TaskAction.confirmHandoff => task.transition(
           status: Responsibility.accepted,
           ownerId: task.offeredId,
-          entry:
-              'Jamie confirmed the handoff to ${task.offeredId} in this demo.',
+          entry: 'Jamie confirmed the handoff to ${task.offeredId}.',
         ),
       };
       _tasks[taskId] = updated;
@@ -255,9 +254,9 @@ class DemoRepository implements TimelineRepository {
       spaceId: spaceId,
       title: title.trim(),
       day: dateOnly(day),
-      ownerId: assignToMe ? 'me' : null,
-      status: assignToMe ? Responsibility.accepted : Responsibility.unclaimed,
-      activity: ['Jamie added this task in the local demo.'],
+      requestedId: assignToMe ? 'me' : null,
+      status: assignToMe ? Responsibility.requested : Responsibility.unclaimed,
+      activity: ['Jamie added this task.'],
     );
     _tasks[task.id] = task;
     return task;

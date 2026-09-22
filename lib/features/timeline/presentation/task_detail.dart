@@ -34,7 +34,6 @@ class TaskDetail extends ConsumerWidget {
           ? const Center(child: Text('This task is unavailable in this space.'))
           : PageBody(
               children: [
-                const DemoNotice(),
                 Text(
                   task.isEvent ? 'Together time' : 'The little things',
                   style: Theme.of(context).textTheme.labelMedium,
@@ -125,9 +124,7 @@ class TaskDetail extends ConsumerWidget {
                                 task.place!,
                                 style: Theme.of(context).textTheme.labelLarge,
                               ),
-                              const Text(
-                                'Demo destination · Maps are not connected',
-                              ),
+                              const Text('Destination'),
                             ],
                           ),
                         ),
@@ -139,16 +136,7 @@ class TaskDetail extends ConsumerWidget {
                 TaskActions(task: task),
                 if (task.isDone) ...[
                   const SizedBox(height: 12),
-                  const Text('Done in this demo. A photo is always optional.'),
-                  OutlinedButton.icon(
-                    onPressed: () => showFeatureNote(
-                      context,
-                      'Photos come later',
-                      'This slice has no camera, gallery, or uploads. Your task is already done in the local demo.',
-                    ),
-                    icon: const Icon(Icons.add_a_photo_outlined),
-                    label: const Text('Add a photo'),
-                  ),
+                  const Text('One less thing to think about. Nicely done.'),
                 ],
                 const SizedBox(height: 24),
                 Text(
@@ -156,9 +144,7 @@ class TaskDetail extends ConsumerWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Created by ${personName(space, task.creatorId)} · Demo history',
-                ),
+                Text('Created by ${personName(space, task.creatorId)}'),
                 for (final entry in task.activity)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
@@ -222,7 +208,7 @@ class TaskActions extends ConsumerWidget {
             child: const Paper(
               color: SoftPop.blueSoft,
               padding: EdgeInsets.all(12),
-              child: Text('Pending demo action… Nothing has synced to anyone.'),
+              child: Text('Saving…'),
             ),
           ),
         if (error != null)
@@ -262,7 +248,7 @@ class TaskActions extends ConsumerWidget {
           const Padding(
             padding: EdgeInsets.only(top: 8),
             child: Text(
-              'Your offer is waiting for the owner. No other member is online in this demo.',
+              'Your offer is waiting for the owner. No other member is online.',
             ),
           ),
       ],
