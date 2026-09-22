@@ -1,8 +1,8 @@
 # Soft Pop UI redesign — implementation proposal
 
-Status: awaiting user approval to implement. Planning only; no application code or production assets changed for this proposal.
+Status: approved by the user on September 22, 2026 and implemented locally. See [verification](ui-redesign-verification.md). The proposal wording below records the approved design and defaults; it does not authorize paid services, online provisioning, or publication.
 
-This records the user's redesign request after the first Flutter UI slice. The requested visual changes below supersede the older appearance where they differ. Detailed behavior and token values marked proposed are for review. Implementation starts only after the user says to proceed.
+This records the redesign request after the first Flutter UI slice. These visual changes supersede the older appearance where they differ. The user's instruction to implement approved the local work and asset generation.
 
 ## 1. Requested direction
 
@@ -198,4 +198,4 @@ Likely code areas: `lib/app.dart`, `lib/core/theme.dart`, shared widgets and sta
 
 The plan can proceed as written if approved. The main interpretations to review are: built-in schedules rather than external calendar sync; the mood card always showing the current user's check-in; Help including all tasks needing attention; Pending containing Pending and Covered sections; and new tasks requiring a separate acceptance step before moving to Covered.
 
-No implementation, image generation, cloud configuration, purchase setup, or publication is authorized until the user gives the next instruction.
+Local implementation and artwork were approved and completed. Cloud configuration, purchase setup and publication remain outside this approval.

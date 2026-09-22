@@ -238,7 +238,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                       Center(
                         child: IconButton.filled(
                           tooltip: 'Add task',
-                          onPressed: () => showAddTask(context, space),
+                          onPressed: () {
+                            selectTab(false);
+                            showAddTask(context, space);
+                          },
                           icon: const Icon(Icons.add_rounded),
                         ),
                       ),
@@ -334,8 +337,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     child: Column(
       children: [
         Container(
-          width: 42,
-          height: 38,
+          constraints: const BoxConstraints(minWidth: 42, minHeight: 38),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: color.withValues(alpha: .45),

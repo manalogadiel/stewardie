@@ -247,9 +247,7 @@ class TaskActions extends ConsumerWidget {
         if (task.offeredId == 'me')
           const Padding(
             padding: EdgeInsets.only(top: 8),
-            child: Text(
-              'Your offer is waiting for the owner.',
-            ),
+            child: Text('Your offer is waiting for the owner.'),
           ),
       ],
     );

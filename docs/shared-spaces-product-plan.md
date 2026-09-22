@@ -51,6 +51,8 @@ Flow: enter code / open link / scan QR → preview space name and image → sign
 
 ### Responsibility flow
 
+Approved September 22 UI refinement: Today groups unfinished tasks in a Pending tab, with unclaimed/requested/help-needed work above accepted Covered work. A separate Done tab shows completion dates within the existing tier boundary. New tasks are unclaimed or requested, never implicitly accepted. Help / Covered / Done statistics describe these disjoint states for the current Today/person scope.
+
 - Create an unclaimed task or request that a particular member handles it.
 - The recipient accepts with “I've got it” or declines. A request alone is not acceptance.
 - An accepted task can be completed or marked “Need help.”
@@ -59,7 +61,15 @@ Flow: enter code / open link / scan QR → preview space name and image → sign
 - Keep a short activity history for assignments, acceptance, handoffs, and completion.
 - Completion takes one action; notes and photos are optional additions.
 
-### Reminders and notifications
+### Shared calendar — approved local slice
+
+Members enter schedules inside Stewardie, scoped to one space. Everyone combines all authorized plans once; a person filter includes plans they author or explicitly participate in. Filters do not change the active identity. The current user's mood remains personal when another person is selected.
+
+Plans have an author, title, start/end, all-day flag, optional note and participants. Members edit/remove their own plans; participants must belong to the space. Multi-day plans appear on every intersecting date. The month sheet opens on the current month, supports month navigation and a selected-day agenda, preserves that selection while filtering people, and resets on space change. Tasks and schedules have separate counts and models.
+
+This approved implementation is in memory only. Timed values are UTC instants displayed in device time; all-day values are floating dates with an exclusive stored end. Named space time zones, external calendar sync, recurrence, durable storage and multi-device sharing remain future work. Calendar-specific online quotas must be settled before launch; this slice changes no subscription boundaries.
+
+### Reminders and notifications (future online behavior)
 
 - Reminders for relevant tasks and events.
 - Notifications for responsibility requests, accepted handoffs, and meaningful changes.

@@ -1,11 +1,11 @@
 # Stewardie — UI and Asset Plan
 
-Updated: September 21, 2026  
+Updated: September 22, 2026  
 Platform: Flutter mobile, iOS and Android  
 User-selected product name: Stewardie; commercial name clearance pending.  
-Status: design specification for review; screens and production assets are not implemented.
+Status: approved local UI redesign implemented; online features and launch gates remain separate.
 
-Implementation note (September 22, 2026): the [first local demo slice](demo-foundation.md) implements Today, task detail, person filtering, and mood check-in with reviewed widget renders. Production artwork and the remaining screen scope below are still outstanding.
+The [approved redesign](ui-redesign-plan.md) supersedes the initial Today layout. The current implementation uses local, in-memory data. See [redesign verification](ui-redesign-verification.md) and [artwork provenance](../assets/illustrations/README.md). Remaining account, media, location, and membership screens below describe future product scope.
 
 ## 1. Source of truth
 
@@ -35,14 +35,14 @@ This reference establishes character shapes, expressions, material, and colors. 
 - Member photos and shared moments become the main visual content during normal use.
 - No acid yellow, cherry-red decoration, cocoa text, rainbow dashboards, or heavy comic outlines around every component.
 
-### Proposed color tokens
+### Approved color tokens
 
 These hex values are implementation starting points, not sampled color guarantees from the reference image.
 
 | Token | Value | Use |
 |---|---|---|
-| `canvas` | `#F5F3ED` | Warm chalk background |
-| `surface` | `#FFFFFF` | Cards, forms, sheets |
+| `canvas` | `#FAF9F6` | Near-white warm canvas |
+| `surface` | `#FFFEFB` | Cards, forms, sheets |
 | `surfaceWarm` | `#FFF7EB` | Selected illustration backdrops |
 | `primary` | `#244BFF` | Primary buttons, selected tabs, focus and graphic accents |
 | `onPrimary` | `#FFFFFF` | Text on primary buttons |
@@ -74,7 +74,7 @@ Three persistent bottom destinations: **Today / Moments / Space**. Each has a ve
 | Element | Behavior |
 |---|---|
 | Top space switcher | Switch between Home, Dorm 204, Weekend Crew, and other memberships |
-| Today | Shared timeline, people filter, help requests, overview, week view |
+| Today | Tasks, people filter, personal mood, shared month calendar |
 | Moments | Space-scoped photos, task-linked moments, captions, reactions |
 | Space | Members, invitations, routines, preferences, membership management |
 | Inbox entry | Requests and relevant activity; label the originating space |
@@ -107,47 +107,26 @@ Required states: invalid code, expired/revoked invitation, already a member, pen
 
 ### B. Today
 
-Screen order:
+Approved screen order:
 
-1. Space switcher and Inbox.
-2. Date, Today title, and View week.
-3. People-filter row and Check in action.
-4. Compact counts: needs someone / covered / done.
-5. Help-request card only when relevant; summarize multiple requests with View all.
-6. Chronological task/event cards, with an Anytime group for untimed entries.
-7. Completed group, collapsed when long.
-8. Add button above the bottom navigation, respecting safe areas.
+1. Centered space selector in a transparent top bar, with balanced side widths and Inbox on the right.
+2. Compact Today/date/greeting card with square upper corners, 28px lower corners, and the clay trio.
+3. Everyone / Me / member filters.
+4. Two columns: personal mood on the left, a month activity grid on the right. Stack for enlarged text.
+5. Help / Covered / Done, with numbers above labels.
+6. Sticky browser-inspired Pending / Done tabs, with Add task beside them.
+7. Pending contains newly added/unclaimed/requested/help-needed tasks first, followed by accepted Covered tasks. Done shows completion-date history directly, within Basic's four-day boundary.
+8. Floating, rounded glass-clay dock with Today / Moments / Space labels; no full-width background. Use milky surfaces, subtle rim/shadow and blur, with an opaque accessibility/build fallback.
 
-```text
-Home crew v                            Inbox
+The mood card always edits the current member's check-in. Person filters affect tasks and calendar schedules without changing identity. A new task is unclaimed or requested; explicit acceptance moves it into Covered. Overdue unfinished tasks remain available.
 
-Today                              View week
-Monday, September 21
+The compact calendar uses one square per date, with activity density for visible schedules and a distinct today outline. It is one button, opening a root-level one-month sheet with previous/next, today, day selection and agenda. Everyone combines plans in the current space once; person views include authored and participating plans. Month/day selection survives person filtering and resets on space change. Schedules are separate from task counts.
 
-[Everyone] [Me] [Alex] [Sam] [Jo]  …
-                              Check in
-1 needs someone · 3 covered · 2 done
+The plan editor supports title, all-day or timed dates, optional note and participants, explicit space audience, and author-only edit/removal. Current local behavior uses device time, UTC timed instants, and floating all-day dates with an exclusive stored end. External calendar connections are not included. See the approved redesign for detailed state rules.
 
-Sam could use a hand
-Groceries                         Offer help
+Clay companion assets support the Today header, mood card, expanded calendar and empty states. Functional controls remain Flutter widgets. Keep product-facing copy free of demo/AI/development explanations; document local limitations in the repository. Omit unavailable media controls until they work.
 
-3:00 PM
-Pick up supplies
-Alex · Accepted                 Corner store
-
-6:00 PM
-Make dinner
-You                                Mark done
-
-                                       + Add
-Today              Moments              Space
-```
-
-The wireframe communicates hierarchy only. Use real vector icons in finished UI. Avoid an oversized illustration above the task list.
-
-Task cards show title, time, owner/requested owner, status, and optional place label. Decorative category icons stay secondary. Keep one primary action appropriate to state; put secondary actions in details.
-
-Week view stays within Today, preserving the people filter. Provide a selected-day list below the calendar and a clear Back to today action.
+Normal card radius is 20-24px; the dock radius is 36px. Pad scroll content so the final action can clear the dock. Root sheets cover it. Respect enlarged text, 48px touch targets, reduced motion and an opaque fallback for reduced transparency (`REDUCE_TRANSPARENCY=true`) or high-contrast/accessible-navigation settings.
 
 ### C. Task/event details and creation
 

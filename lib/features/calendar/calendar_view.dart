@@ -275,6 +275,7 @@ class CalendarSheet extends ConsumerWidget {
                               return Semantics(
                                 selected: selected,
                                 button: true,
+                                onTap: () => controller.selectDay(date),
                                 label:
                                     '${MaterialLocalizations.of(context).formatFullDate(date)}, $count plans',
                                 child: ExcludeSemantics(
@@ -402,6 +403,17 @@ String planTime(BuildContext context, CalendarPlan plan) {
   return '${local.formatTimeOfDay(TimeOfDay.fromDateTime(plan.localStart))} – ${local.formatTimeOfDay(TimeOfDay.fromDateTime(plan.localEnd))}';
 }
 
+String planDates(BuildContext context, CalendarPlan plan) {
+  final local = MaterialLocalizations.of(context);
+  final last = plan.allDay
+      ? DateTime(plan.end.year, plan.end.month, plan.end.day - 1)
+      : plan.localEnd;
+  final firstLabel = local.formatMediumDate(plan.localStart);
+  return dateOnly(plan.localStart) == dateOnly(last)
+      ? firstLabel
+      : '$firstLabel – ${local.formatMediumDate(last)}';
+}
+
 Future<void> showPlanDetails(
   BuildContext context,
   WidgetRef ref,
@@ -418,9 +430,7 @@ Future<void> showPlanDetails(
         children: [
           Text('${personName(space, plan.ownerId)} · ${space.name}'),
           const SizedBox(height: 12),
-          Text(
-            '${MaterialLocalizations.of(context).formatMediumDate(plan.localStart)} · ${planTime(context, plan)}',
-          ),
+          Text('${planDates(context, plan)} · ${planTime(context, plan)}'),
           if (plan.note.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12),

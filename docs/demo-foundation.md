@@ -1,5 +1,7 @@
 # Flutter foundation and demo slice
 
+Historical foundation record, September 22, 2026. The subsequent [UI redesign](ui-redesign-verification.md) supersedes the layout, visible copy, controls, art inventory and verification below.
+
 Implemented September 22, 2026. This is a local, in-memory prototype, not an online service. Existing product, UI, subscription, and technical plans remain authoritative; proposed vendors and launch gates remain unresolved.
 
 ## Foundation

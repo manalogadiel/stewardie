@@ -184,10 +184,7 @@ void main() {
     await reveal(tester, find.text('Mark done'));
     await tester.tap(find.text('Mark done'));
     await tester.pump(const Duration(milliseconds: 100));
-    expect(
-      find.text('Saving…'),
-      findsOneWidget,
-    );
+    expect(find.text('Saving…'), findsOneWidget);
     expect(
       repo.tasks.firstWhere((task) => task.id == 'dinner').isDone,
       isFalse,
@@ -335,14 +332,11 @@ void main() {
     final container = await start(tester);
     await tester.tap(find.text('Moments'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Room for the good bits'),
-      findsOneWidget,
-    );
+    expect(find.text('Room for the good bits'), findsOneWidget);
     await screenshot(tester, 'moments-preview');
     await tester.tap(find.text('Space'));
     await tester.pumpAndSettle();
-    expect(find.text('Jamie'), findsOneWidget);
+    expect(find.text('Jamie (you)'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await screenshot(tester, 'space-members');
     await tester.tap(find.text('Today'));

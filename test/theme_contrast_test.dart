@@ -14,6 +14,10 @@ void main() {
       SoftPop.canvas,
       SoftPop.blueSoft,
       SoftPop.warm,
+      const Color(0xFFF1EEE7),
+      const Color(0xFFF9EEE9),
+      const Color(0xFFF0F2FE),
+      const Color(0xFFF0EFEA),
     ]) {
       expect(contrast(SoftPop.ink, background), greaterThanOrEqualTo(4.5));
       expect(
