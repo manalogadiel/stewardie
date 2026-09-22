@@ -136,7 +136,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text(' calendar'), findsOneWidget);
+      expect(find.text('calendar'), findsOneWidget);
       expect(
         tester
             .widget<Text>(find.text('AlexandriaAlexandriaAlexandria’s'))

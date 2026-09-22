@@ -52,19 +52,42 @@ class CompactPersonTitle extends StatelessWidget {
     return Semantics(
       label: '${member.name}’s $noun',
       child: ExcludeSemantics(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                '${compactMemberName(member)}’s',
-                style: style,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+        child: LayoutBuilder(
+          builder: (context, limits) {
+            final suffix = TextPainter(
+              text: TextSpan(
+                text: ' $noun',
+                style: style ?? DefaultTextStyle.of(context).style,
               ),
-            ),
-            Text(' $noun', style: style, maxLines: 1),
-          ],
+              textDirection: Directionality.of(context),
+              textScaler: MediaQuery.textScalerOf(context),
+            )..layout();
+            final stack = suffix.width + 64 > limits.maxWidth;
+            suffix.dispose();
+            final name = Text(
+              '${compactMemberName(member)}’s',
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            );
+            if (stack) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  name,
+                  Text(noun, style: style, maxLines: 1),
+                ],
+              );
+            }
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: name),
+                Text(' $noun', style: style, maxLines: 1),
+              ],
+            );
+          },
         ),
       ),
     );
