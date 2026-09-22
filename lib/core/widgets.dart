@@ -67,22 +67,6 @@ class MemberAvatar extends StatelessWidget {
   );
 }
 
-class DemoNotice extends StatelessWidget {
-  const DemoNotice({super.key});
-  @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.only(top: 4, bottom: 12),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.science_outlined, size: 18, color: SoftPop.secondary),
-        SizedBox(width: 8),
-        Expanded(child: Text('Local demo · Changes reset on restart')),
-      ],
-    ),
-  );
-}
-
 class StatusLabel extends StatelessWidget {
   const StatusLabel(this.task, {super.key});
   final Task task;

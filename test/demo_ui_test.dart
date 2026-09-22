@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stewardie/app.dart';
 import 'package:stewardie/core/demo_state.dart';
+import 'package:stewardie/features/calendar/calendar_state.dart';
+import 'package:stewardie/features/calendar/calendar_view.dart';
 import 'package:stewardie/features/moods/mood_sheet.dart';
 import 'package:stewardie/features/timeline/data/demo_repository.dart';
 import 'package:stewardie/features/timeline/domain/models.dart';
@@ -70,30 +72,104 @@ void main() {
     WidgetController.hitTestWarningShouldBeFatal = true;
   });
 
+  testWidgets('person filter survives back and clears on space switch', (
+    tester,
+  ) async {
+    final container = await start(tester);
+    await tester.tap(find.widgetWithText(FilterChip, 'Me'));
+    await tester.pumpAndSettle();
+    expect(container.read(demoProvider).personId, 'me');
+    expect(find.text('Pick up a few supplies'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('Make something good'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Make something good'), findsOneWidget);
+    await screenshot(tester, 'today-me');
+    await tester.tap(find.text('Make something good'));
+    await tester.pumpAndSettle();
+    await screenshot(tester, 'task-detail');
+    await tester.tap(find.byTooltip('Back to Today'));
+    await tester.pumpAndSettle();
+    expect(container.read(demoProvider).personId, 'me');
+    await tester.tap(find.text('Home crew'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Weekend wandering crew'));
+    await tester.pumpAndSettle();
+    expect(container.read(demoProvider).personId, isNull);
+    expect(find.text('A little breathing room'), findsOneWidget);
+    expect(find.text('Make something good'), findsNothing);
+    await screenshot(tester, 'empty-space');
+  });
+
   testWidgets(
-    'filter keeps identity, includes events, survives back, clears on space switch',
+    'calendar filters, navigates months and creates/edits/removes own plans',
     (tester) async {
       final container = await start(tester);
-      await tester.tap(find.widgetWithText(FilterChip, 'Me'));
+      await tester.tap(find.text('Your calendar'));
       await tester.pumpAndSettle();
-      expect(container.read(demoProvider).personId, 'me');
-      expect(find.text('Pick up a few supplies'), findsNothing);
-      expect(find.text('Make something good'), findsOneWidget);
-      await screenshot(tester, 'today-me');
-      await tester.tap(find.text('Make something good'));
+      final now = container.read(calendarProvider).month;
+      await tester.tap(find.byTooltip('Next month'));
       await tester.pumpAndSettle();
-      await screenshot(tester, 'task-detail');
-      await tester.tap(find.byTooltip('Back to Today'));
+      expect(
+        container.read(calendarProvider).month,
+        DateTime(now.year, now.month + 1),
+      );
+      await tester.tap(find.widgetWithText(FilterChip, 'Alex'));
       await tester.pumpAndSettle();
-      expect(container.read(demoProvider).personId, 'me');
-      await tester.tap(find.text('Home crew'));
+      expect(container.read(demoProvider).personId, 'alex');
+      expect(
+        container.read(calendarProvider).month,
+        DateTime(now.year, now.month + 1),
+      );
+      await reveal(tester, find.text('Add my plan'));
+      await tester.tap(find.text('Add my plan'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Weekend wandering crew'));
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'Picnic by the river',
+      );
+      await tester.tap(find.byType(SwitchListTile));
+      await reveal(tester, find.widgetWithText(CheckboxListTile, 'Alex'));
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Alex'));
+      await reveal(tester, find.text('Save plan'));
+      await screenshot(tester, 'calendar-editor');
+      await tester.tap(find.text('Save plan'));
       await tester.pumpAndSettle();
-      expect(container.read(demoProvider).personId, isNull);
-      expect(find.text('A little breathing room'), findsOneWidget);
-      expect(find.text('Make something good'), findsNothing);
-      await screenshot(tester, 'empty-space');
+      final plan = container
+          .read(calendarRepositoryProvider)
+          .plans
+          .firstWhere((p) => p.title == 'Picnic by the river');
+      expect(plan.ownerId, 'me');
+      expect(plan.allDay, isTrue);
+      expect(plan.participants, contains('alex'));
+      await reveal(tester, find.text('Picnic by the river'));
+      await tester.tap(find.text('Picnic by the river'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit plan'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'Bring a picnic',
+      );
+      await reveal(tester, find.text('Save plan'));
+      await tester.tap(find.text('Save plan'));
+      await tester.pumpAndSettle();
+      await reveal(tester, find.text('Bring a picnic'));
+      await tester.tap(find.text('Bring a picnic'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove plan'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove'));
+      await tester.pumpAndSettle();
+      expect(
+        container
+            .read(calendarRepositoryProvider)
+            .plans
+            .any((p) => p.id == plan.id),
+        isFalse,
+      );
     },
   );
 
@@ -119,7 +195,7 @@ void main() {
     await screenshot(tester, 'task-pending');
     await tester.pumpAndSettle();
     expect(
-      find.text('Simulated failure. Nothing changed. Try again.'),
+      find.text('Could not save. Nothing changed. Try again.'),
       findsOneWidget,
     );
     await screenshot(tester, 'task-failure');
@@ -128,7 +204,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(repo.tasks.firstWhere((task) => task.id == 'dinner').isDone, isTrue);
     expect(
-      find.text('Done in this demo. A photo is always optional.'),
+      find.text('One less thing to think about. Nicely done.'),
       findsOneWidget,
     );
   });
@@ -188,6 +264,17 @@ void main() {
             '${config.$1.toInt()}-${config.$2.toInt()}-${config.$3.toInt()}x';
         expect(tester.takeException(), isNull);
         await screenshot(tester, 'today-$name');
+        final nav = container
+            .read(routerProvider)
+            .routerDelegate
+            .navigatorKey
+            .currentContext!;
+        showCalendar(nav, container.read(repositoryProvider).spaces.first);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await screenshot(tester, 'calendar-$name');
+        await tester.tap(find.byTooltip('Close calendar'));
+        await tester.pumpAndSettle();
         // Reduced motion keeps the same state; no decorative animation is required.
         tester.platformDispatcher.accessibilityFeaturesTestValue =
             const FakeAccessibilityFeatures(disableAnimations: true);
@@ -255,12 +342,13 @@ void main() {
     await screenshot(tester, 'moments-preview');
     await tester.tap(find.text('Space'));
     await tester.pumpAndSettle();
-    expect(find.text('Jamie (you)'), findsOneWidget);
+    expect(find.text('Jamie'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await screenshot(tester, 'space-members');
     await tester.tap(find.text('Today'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add task'));
+    await reveal(tester, find.byTooltip('Add task'));
+    await tester.tap(find.byTooltip('Add task'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Add task'));
     await tester.pumpAndSettle();
@@ -275,8 +363,22 @@ void main() {
         .tasks
         .firstWhere((task) => task.title == 'Set the table');
     expect(task.spaceId, 'home');
-    expect(task.ownerId, 'me');
-    expect(task.status, Responsibility.accepted);
+    expect(task.ownerId, isNull);
+    expect(task.requestedId, 'me');
+    expect(task.status, Responsibility.requested);
+    container.read(routerProvider).push('/task/${task.id}');
+    await tester.pumpAndSettle();
+    await reveal(tester, find.text('Accept'));
+    await tester.tap(find.text('Accept'));
+    await tester.pumpAndSettle();
+    expect(
+      container
+          .read(repositoryProvider)
+          .tasks
+          .firstWhere((t) => t.id == task.id)
+          .status,
+      Responsibility.accepted,
+    );
   });
 
   testWidgets('an overdue task completed today remains in Today', (
@@ -298,6 +400,9 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.tap(find.text('Done (2)'));
+    await tester.pumpAndSettle();
+    await screenshot(tester, 'tasks-done');
     expect(find.text('Take out the recycling'), findsOneWidget);
   });
 

@@ -106,7 +106,7 @@ class DemoRepository implements TimelineRepository {
         spaceId: 'home',
         title: 'Take out the recycling',
         day: today.subtract(const Duration(days: 5)),
-        notes: 'An older unfinished task stays available on Basic.',
+        notes: 'Rinse the bottles and leave the bag by the gate.',
       ),
       Task(
         id: 'laundry',
