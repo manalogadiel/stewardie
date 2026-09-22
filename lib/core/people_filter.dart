@@ -5,6 +5,7 @@ import 'demo_state.dart';
 import 'widgets.dart';
 import 'theme.dart';
 import '../features/timeline/domain/models.dart';
+import 'person_labels.dart';
 
 class PeopleFilter extends ConsumerWidget {
   const PeopleFilter(this.space, {super.key});
@@ -28,12 +29,27 @@ class PeopleFilter extends ConsumerWidget {
                 avatar: id == null
                     ? null
                     : MemberAvatar(space.member(id), size: 26),
-                label: Text(
-                  id == null
-                      ? 'Everyone'
-                      : id == 'me'
-                      ? 'Me'
-                      : space.member(id).name,
+                label: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 120),
+                  child: Tooltip(
+                    message: id == null
+                        ? 'Everyone'
+                        : id == 'me'
+                        ? space.member(id).name
+                        : space.member(id).name,
+                    child: Text(
+                      id == null
+                          ? 'Everyone'
+                          : id == 'me'
+                          ? 'Me'
+                          : compactMemberName(space.member(id)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      semanticsLabel: id == null
+                          ? 'Everyone'
+                          : space.member(id).name,
+                    ),
+                  ),
                 ),
                 onSelected: (_) =>
                     ref.read(demoProvider.notifier).selectPerson(id),

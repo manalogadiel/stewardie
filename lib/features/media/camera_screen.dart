@@ -58,7 +58,11 @@ class _CameraScreenState extends State<CameraScreen>
         await next.dispose();
         return;
       }
-      setState(() => controller = next);
+      setState(() {
+        controller = next;
+        flash = false;
+        flashAvailable = true;
+      });
     } catch (e) {
       await next?.dispose();
       if (mounted && token == generation) {
@@ -203,11 +207,14 @@ class _CameraScreenState extends State<CameraScreen>
                   Semantics(
                     label: 'Take photo',
                     button: true,
-                    child: GestureDetector(
-                      onTap: busy || camera == null
+                    enabled: !busy && camera != null,
+                    child: IconButton(
+                      tooltip: 'Take photo',
+                      padding: EdgeInsets.zero,
+                      onPressed: busy || camera == null
                           ? null
                           : () => capture(false),
-                      child: Container(
+                      icon: Container(
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
@@ -273,9 +280,10 @@ class _CameraScreenState extends State<CameraScreen>
               ),
             ),
             const Padding(
-              padding: EdgeInsets.only(bottom: 16),
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: Text(
                 'A little moment worth keeping.',
+                textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white),
               ),
             ),

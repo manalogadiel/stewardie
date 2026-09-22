@@ -5,9 +5,11 @@ Platform: Flutter mobile, iOS and Android
 User-selected product name: Stewardie; commercial name clearance pending.  
 Status: approved local UI redesign implemented; online features and launch gates remain separate.
 
-The [approved redesign](ui-redesign-plan.md) supersedes the initial Today layout. The current implementation uses local, in-memory data. See [redesign verification](ui-redesign-verification.md) and [artwork provenance](../assets/illustrations/README.md). Remaining account, media, location, and membership screens below describe future product scope.
+The [approved redesign](ui-redesign-plan.md) and [approved UI/photo polish](ui-polish-camera-moments-plan.md) supersede the initial Today layout. The local implementation now includes floating selector/Inbox controls, checkmark-free people filters, equal-height mood/calendar cards, spaced count/dock surfaces, six clay moods, a custom camera/photo preview, task attachments and a clay TV Moments viewer. Accepted media and task changes persist locally; mood/calendar data still uses in-memory fixtures. See [current verification](ui-polish-media-verification.md) and [artwork provenance](../assets/illustrations/README.md). Account, online media delivery, location and membership management below remain future product scope.
 
 ## 1. Source of truth
+
+Latest requested follow-up (planned, not yet implemented): [floating header, person-aware cards and mood colors](top-navigation-person-mood-plan.md). This corrects the reserved top toolbar, introduces short/ellipsized member labels, and proposes a light-butter Today surface. Everyone/Me show the current user's mood; another person's filter shows their shared mood read-only. A personal mood color selector is requested; character/card color application and exact tokens are proposed in that plan.
 
 - [Product plan](shared-spaces-product-plan.md): feature behavior, scope, membership, and sharing rules.
 - [Technical and launch plan](technical-launch-plan.md): proposed backend, account/age policy, media/location handling, and execution milestones. Pending choices are not yet final UI requirements.
@@ -85,7 +87,7 @@ Three persistent bottom destinations: **Today / Moments / Space**. Each has a ve
 Today contains one horizontally scrollable row: **Everyone / Me / Alex / Sam / Jo**. Me appears once and refers to the signed-in member. Each member chip shows avatar, name, and an optional small mood badge. Everyone is the default.
 
 - Tapping a chip filters tasks and events; it does not open a profile or change account identity.
-- Selection uses blue border/background plus a checkmark or equivalent shape cue.
+- Selection uses blue border/background and selected semantics; do not overlay a checkmark on initials.
 - In a person's view, show entries they own or are requested to own, plus events they participate in. Show assignment status clearly.
 - Shared events appear for each participant. Unclaimed tasks appear under Everyone.
 - Provide “Find member” when the row becomes long.
@@ -109,16 +111,16 @@ Required states: invalid code, expired/revoked invitation, already a member, pen
 
 Approved screen order:
 
-1. Centered space selector in a transparent top bar, with balanced side widths and Inbox on the right.
+1. Centered floating space selector with balanced side widths and Inbox on the right. The next header correction removes the reserved toolbar strip so the page paints behind both controls.
 2. Compact Today/date/greeting card with square upper corners, 28px lower corners, and the clay trio.
 3. Everyone / Me / member filters.
-4. Two columns: personal mood on the left, a month activity grid on the right. Stack for enlarged text.
+4. Two columns: the filter's mood subject on the left, a month activity grid on the right. Everyone/Me use your mood; other filters use that member's shared mood. Stack for enlarged text.
 5. Help / Covered / Done, with numbers above labels.
 6. Sticky browser-inspired Pending / Done tabs, with Add task beside them.
 7. Pending contains newly added/unclaimed/requested/help-needed tasks first, followed by accepted Covered tasks. Done shows completion-date history directly, within Basic's four-day boundary.
 8. Floating, rounded glass-clay dock with Today / Moments / Space labels; no full-width background. Use milky surfaces, subtle rim/shadow and blur, with an opaque accessibility/build fallback.
 
-The mood card always edits the current member's check-in. Person filters affect tasks and calendar schedules without changing identity. A new task is unclaimed or requested; explicit acceptance moves it into Covered. Overdue unfinished tasks remain available.
+Only your own mood card opens editing. Another member's card shows shared details without edit/remove controls; absent or expired check-ins have an explicit empty state. This requested person-aware behavior is pending implementation. Person filters affect tasks and calendar schedules without changing identity. A new task is unclaimed or requested; explicit acceptance moves it into Covered. Overdue unfinished tasks remain available.
 
 The compact calendar uses one square per date, with activity density for visible schedules and a distinct today outline. It is one button, opening a root-level one-month sheet with previous/next, today, day selection and agenda. Everyone combines plans in the current space once; person views include authored and participating plans. Month/day selection survives person filtering and resets on space change. Schedules are separate from task counts.
 
@@ -148,6 +150,8 @@ Completion immediately records the action locally, with sync status where releva
 ### D. Mood check-in and member profile
 
 Mood sheet: “How are you feeling?” → six labeled faces (Happy, Calm, Tired, Overwhelmed, Sad, Excited) → optional note → “Sharing with [space]” → Share check-in.
+
+Next planned addition: an independent mood color selector and preview before sharing. Proposed choices are Sky, Butter and Rose for the clay character and a matching pale card tint. Color belongs to the space-scoped check-in, not the account identity; other members' choices are view-only. See the follow-up plan for asset and draft-state rules.
 
 - Include Skip, update, and remove paths. Show expiry/current-day context.
 - Labels remain visible; faces or colors never carry meaning alone.

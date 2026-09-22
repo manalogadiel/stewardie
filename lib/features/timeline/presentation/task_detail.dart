@@ -16,7 +16,12 @@ class TaskDetail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(demoProvider);
     final task = state.tasks
-        .where((task) => task.id == taskId && task.spaceId == state.spaceId && visibleToBasic(task, DateTime.now()))
+        .where(
+          (task) =>
+              task.id == taskId &&
+              task.spaceId == state.spaceId &&
+              visibleToBasic(task, DateTime.now()),
+        )
         .firstOrNull;
     final space = ref
         .read(repositoryProvider)

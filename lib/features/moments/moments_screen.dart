@@ -8,11 +8,13 @@ import '../../core/clay.dart';
 import '../../core/demo_state.dart';
 import '../../core/people_filter.dart';
 import '../../core/theme.dart';
+import '../../core/top_controls.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
 import '../media/media_library.dart';
 import '../media/photo_composer.dart';
 import '../media/photo_viewer.dart';
+import '../media/picker_recovery.dart';
 
 class MomentsScreen extends ConsumerStatefulWidget {
   const MomentsScreen({super.key});
@@ -24,6 +26,20 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
   PageController pages = PageController();
   int index = 0;
   String scope = '';
+  Future<void> discardRecovery() async {
+    try {
+      await ref.read(recoveredPhotoProvider.notifier).dismiss();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not clear the recovered photo. Try again.'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     pages.dispose();
@@ -35,6 +51,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
     final state = ref.watch(demoProvider);
     final repo = ref.read(repositoryProvider);
     final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
+    final recovered = ref.watch(recoveredPhotoProvider);
     final posts =
         ref
             .watch(mediaProvider)
@@ -75,7 +92,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
     }
 
     return PageBody(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 160),
+      padding: EdgeInsets.fromLTRB(20, topControlsClearance(context), 20, 160),
       children: [
         Text(
           'Little moments',
@@ -86,6 +103,33 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
         const SizedBox(height: 16),
         PeopleFilter(space),
         const SizedBox(height: 16),
+        if (recovered != null)
+          ClayPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Your photo is ready to review'),
+                Text('Review it before sharing with ${space.name}.'),
+                TextButton(
+                  onPressed: () async {
+                    final saved = await showPhotoComposer(
+                      context,
+                      space,
+                      recovered: recovered,
+                    );
+                    if (saved == true && mounted) {
+                      await discardRecovery();
+                    }
+                  },
+                  child: const Text('Review photo'),
+                ),
+                TextButton(
+                  onPressed: discardRecovery,
+                  child: const Text('Discard recovered photo'),
+                ),
+              ],
+            ),
+          ),
         FilledButton.icon(
           onPressed: () => showPhotoComposer(context, space),
           icon: const Icon(Icons.add_a_photo_outlined),

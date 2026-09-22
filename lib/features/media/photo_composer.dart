@@ -27,6 +27,7 @@ Future<bool?> showPhotoComposer(
   Task? task,
   bool complete = false,
   CapturedPhoto? recovered,
+  bool? initialCamera,
 }) => Navigator.of(context, rootNavigator: true).push<bool>(
   MaterialPageRoute(
     builder: (_) => PhotoComposer(
@@ -34,6 +35,7 @@ Future<bool?> showPhotoComposer(
       task: task,
       complete: complete,
       recovered: recovered,
+      initialCamera: initialCamera,
     ),
   ),
 );
@@ -45,11 +47,13 @@ class PhotoComposer extends ConsumerStatefulWidget {
     this.task,
     this.complete = false,
     this.recovered,
+    this.initialCamera,
   });
   final Space space;
   final Task? task;
   final bool complete;
   final CapturedPhoto? recovered;
+  final bool? initialCamera;
   @override
   ConsumerState<PhotoComposer> createState() => _PhotoComposerState();
 }
@@ -58,11 +62,26 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
   final caption = TextEditingController();
   PhotoDraft? draft;
   bool busy = false;
+  bool attached = false;
   String? error;
   @override
   void initState() {
     super.initState();
+    final existing = widget.task == null
+        ? null
+        : ref.read(mediaLibraryProvider).forTask(widget.task!.id).firstOrNull;
+    if (existing != null) {
+      attached = true;
+      draft = existing.photo;
+      caption.text = existing.caption;
+      return;
+    }
     if (widget.recovered != null) prepare(widget.recovered!);
+    if (widget.initialCamera != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) acquire(widget.initialCamera!);
+      });
+    }
   }
 
   @override
@@ -99,6 +118,10 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
 
   Future<void> acquire(bool camera) async {
     if (busy) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
       final CapturedPhoto? photo = camera
           ? await Navigator.of(context).push<CapturedPhoto>(
@@ -115,6 +138,8 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
               'Could not open your photos. You can try again or cancel.',
         );
       }
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -136,10 +161,17 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
           caption.text,
           taskId: widget.task?.id,
         );
+        if (widget.task != null && mounted) setState(() => attached = true);
       }
       if (widget.complete) {
-        if (!ref.read(demoProvider).tasks.firstWhere((t)=>t.id==widget.task!.id).isDone) {
-          await ref.read(demoProvider.notifier).act(widget.task!, TaskAction.complete);
+        if (!ref
+            .read(demoProvider)
+            .tasks
+            .firstWhere((t) => t.id == widget.task!.id)
+            .isDone) {
+          await ref
+              .read(demoProvider.notifier)
+              .act(widget.task!, TaskAction.complete);
         }
         final state = ref.read(demoProvider);
         final updated = state.tasks.firstWhere((t) => t.id == widget.task!.id);
@@ -203,14 +235,14 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             runSpacing: 8,
             children: [
               OutlinedButton.icon(
-                onPressed: busy ? null : () => acquire(true),
+                onPressed: busy || attached ? null : () => acquire(true),
                 icon: const Icon(Icons.camera_alt_outlined),
                 label: Text(
                   draft?.source == 'camera' ? 'Retake' : 'Take photo',
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: busy ? null : () => acquire(false),
+                onPressed: busy || attached ? null : () => acquire(false),
                 icon: const Icon(Icons.photo_library_outlined),
                 label: Text(draft == null ? 'Choose photo' : 'Choose another'),
               ),
@@ -220,6 +252,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             const SizedBox(height: 16),
             TextField(
               controller: caption,
+              readOnly: attached,
               maxLength: 300,
               maxLines: 3,
               decoration: const InputDecoration(
@@ -263,7 +296,23 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
   );
 }
 
+final _completionFlows = Provider<Set<String>>((ref) => <String>{});
+
 Future<void> completeWithPhoto(
+  BuildContext context,
+  WidgetRef ref,
+  Task task,
+) async {
+  final flows = ref.read(_completionFlows);
+  if (!flows.add(task.id)) return;
+  try {
+    await _completeWithPhoto(context, ref, task);
+  } finally {
+    flows.remove(task.id);
+  }
+}
+
+Future<void> _completeWithPhoto(
   BuildContext context,
   WidgetRef ref,
   Task task,
@@ -297,9 +346,14 @@ Future<void> completeWithPhoto(
                 child: const Text('Mark done without photo'),
               ),
               FilledButton.icon(
-                onPressed: () => Navigator.pop(sheet, 'photo'),
+                onPressed: () => Navigator.pop(sheet, 'camera'),
                 icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Take or choose a photo'),
+                label: const Text('Take photo'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(sheet, 'library'),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Choose photo'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(sheet),
@@ -311,21 +365,25 @@ Future<void> completeWithPhoto(
       ),
     );
     if (choice == null || !context.mounted) return;
-    if (choice == 'photo') {
+    if (choice == 'camera' || choice == 'library') {
       final result = await showPhotoComposer(
         context,
         space,
         task: task,
         complete: true,
+        initialCamera: choice == 'camera',
       );
       if (result != true &&
           context.mounted &&
+          library.forTask(task.id).isEmpty &&
           !ref
               .read(demoProvider)
               .tasks
               .firstWhere((t) => t.id == task.id)
               .isDone) {
-        await completeWithPhoto(context, ref, task);
+        // A retained photo after a failed completion must never turn Cancel
+        // into an implicit completion. Always ask for an explicit decision.
+        await _completeWithPhoto(context, ref, task);
       }
       return;
     }

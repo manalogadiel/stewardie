@@ -5,6 +5,7 @@ import '../../core/demo_state.dart';
 import '../../core/clay.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
+import 'mood_presentation.dart';
 import '../timeline/domain/models.dart';
 
 Future<void> showMoodSheet(BuildContext context, Space space) =>
@@ -26,12 +27,14 @@ class MoodSheet extends ConsumerStatefulWidget {
 class _MoodSheetState extends ConsumerState<MoodSheet> {
   late final TextEditingController note;
   Mood? selected;
+  MoodColor color = MoodColor.sky;
   bool updating = false;
   @override
   void initState() {
     super.initState();
     final current = ref.read(repositoryProvider).checkIn(widget.space.id, 'me');
     selected = current?.mood;
+    color = current?.color ?? MoodColor.sky;
     updating = current != null;
     note = TextEditingController(text: current?.note ?? '');
   }
@@ -98,12 +101,7 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
                               onPressed: () => setState(() => selected = mood),
                               child: Column(
                                 children: [
-                                  ClayArt(
-                                    mood == Mood.calm
-                                        ? 'mood'
-                                        : 'mood-${mood.name}',
-                                    height: 84,
-                                  ),
+                                  ClayArt(moodArtName(mood, color), height: 84),
                                   const SizedBox(height: 8),
                                   Text(mood.label, textAlign: TextAlign.center),
                                   if (selected == mood)
@@ -117,6 +115,47 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
                       .toList(),
                 ),
               ),
+              const SizedBox(height: 20),
+              Text(
+                'Choose your color',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: MoodColor.values
+                    .map(
+                      (choice) => ChoiceChip(
+                        label: Text(choice.label),
+                        avatar: CircleAvatar(
+                          backgroundColor: moodSwatch(choice),
+                          radius: 12,
+                        ),
+                        selected: color == choice,
+                        onSelected: (_) => setState(() => color = choice),
+                      ),
+                    )
+                    .toList(),
+              ),
+              if (selected != null) ...[
+                const SizedBox(height: 12),
+                Paper(
+                  color: moodSurface(color),
+                  child: Row(
+                    children: [
+                      ClayArt(moodArtName(selected!, color), height: 72),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${selected!.label} · ${color.label}',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               TextField(
                 controller: note,
@@ -159,6 +198,7 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
                               'me',
                               selected!,
                               note.text,
+                              color: color,
                             );
                         ref.read(demoProvider.notifier).refresh();
                         Navigator.pop(context);
@@ -187,3 +227,70 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
     ),
   );
 }
+
+Future<void> showMemberMoodSheet(
+  BuildContext context,
+  Space space,
+  Member member,
+  CheckIn? mood,
+) => showModalBottomSheet<void>(
+  context: context,
+  useRootNavigator: true,
+  useSafeArea: true,
+  builder: (sheet) => SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(member.name, style: Theme.of(sheet).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            Text('Shared with ${space.name}'),
+            const SizedBox(height: 20),
+            if (mood == null) ...[
+              const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 64,
+                color: SoftPop.secondary,
+              ),
+              const SizedBox(height: 12),
+              const Text('No check-in yet', textAlign: TextAlign.center),
+            ] else ...[
+              ClayPanel(
+                color: moodSurface(mood.color),
+                child: Column(
+                  children: [
+                    ClayArt(moodArtName(mood.mood, mood.color), height: 112),
+                    const SizedBox(height: 10),
+                    Text(
+                      mood.mood.label,
+                      style: Theme.of(sheet).textTheme.titleLarge,
+                    ),
+                    Text(
+                      '${mood.color.label} · ${MaterialLocalizations.of(sheet).formatMediumDate(mood.sharedAt)} · ${MaterialLocalizations.of(sheet).formatTimeOfDay(TimeOfDay.fromDateTime(mood.sharedAt))}',
+                    ),
+                    if (mood.note.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(mood.note),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Current until ${MaterialLocalizations.of(sheet).formatMediumDate(mood.expiresAt)}',
+              ),
+            ],
+            const SizedBox(height: 20),
+            TextButton(
+              onPressed: () => Navigator.pop(sheet),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
+);

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 abstract final class SoftPop {
   static const canvas = Color(0xFFFAF9F6);
   static const surface = Color(0xFFFFFEFB);
+  static const today = Color(0xFFF8E7B0);
   static const warm = Color(0xFFFFF7EB);
   static const blue = Color(0xFF244BFF);
   static const blueSoft = Color(0xFFE9EDFF);

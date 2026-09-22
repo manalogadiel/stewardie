@@ -6,8 +6,11 @@ import '../../../core/equal_height_row.dart';
 import '../../../core/demo_state.dart';
 import '../../../core/people_filter.dart';
 import '../../../core/theme.dart';
+import '../../../core/top_controls.dart';
+import '../../../core/person_labels.dart';
 import '../../calendar/calendar_view.dart';
 import '../../moods/mood_sheet.dart';
+import '../../moods/mood_presentation.dart';
 import '../domain/models.dart';
 import 'task_widgets.dart';
 
@@ -93,29 +96,56 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         .where((t) => t.isDone && dateOnly(t.completedAt ?? t.day) == today)
         .length;
     final large = MediaQuery.textScalerOf(context).scale(16) > 22;
-    final mood = repo.checkIn(space.id, 'me');
+    final moodSubject = state.personId == null || state.personId == 'me'
+        ? 'me'
+        : state.personId!;
+    final isMyMood = moodSubject == 'me';
+    final mood = repo.checkIn(space.id, moodSubject);
     final moodCard = ClayPanel(
-      color: const Color(0xFFF9EEE9),
+      color: moodSurface(mood?.color ?? MoodColor.sky),
       padding: EdgeInsets.zero,
       child: InkWell(
-        onTap: () => showMoodSheet(context, space),
+        onTap: () => isMyMood
+            ? showMoodSheet(context, space)
+            : showMemberMoodSheet(
+                context,
+                space,
+                space.member(moodSubject),
+                mood,
+              ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Your mood', style: Theme.of(context).textTheme.labelLarge),
+              CompactPersonTitle(
+                space: space,
+                personId: isMyMood ? 'me' : moodSubject,
+                noun: 'mood',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
               Center(
-                child: ClayArt(
-                  mood == null || mood.mood == Mood.calm
-                      ? 'mood'
-                      : 'mood-${mood.mood.name}',
-                  height: 92,
-                ),
+                child: mood == null && !isMyMood
+                    ? const SizedBox(
+                        height: 92,
+                        child: Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 56,
+                          color: SoftPop.secondary,
+                        ),
+                      )
+                    : ClayArt(
+                        moodArtName(
+                          mood?.mood ?? Mood.calm,
+                          mood?.color ?? MoodColor.sky,
+                        ),
+                        height: 92,
+                      ),
               ),
               Text(
-                mood?.mood.label ?? 'How are you?',
+                mood?.mood.label ??
+                    (isMyMood ? 'How are you?' : 'No check-in yet'),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 4),
@@ -123,7 +153,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      mood == null ? 'Check in' : 'Update mood',
+                      isMyMood
+                          ? mood == null
+                                ? 'Check in'
+                                : 'Update mood'
+                          : 'View mood',
                       style: Theme.of(context).textTheme.labelLarge
                           ?.copyWith(color: SoftPop.blue),
                     ),
@@ -152,8 +186,13 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               child: Column(
                 children: [
                   ClayPanel(
-                    color: const Color(0xFFF1EEE7),
-                    padding: const EdgeInsets.fromLTRB(20, 14, 16, 18),
+                    color: SoftPop.today,
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      topControlsClearance(context),
+                      16,
+                      18,
+                    ),
                     radius: const BorderRadius.vertical(
                       bottom: Radius.circular(28),
                     ),

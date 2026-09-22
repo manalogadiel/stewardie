@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/clay.dart';
 import '../../core/demo_state.dart';
+import '../../core/top_controls.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
 
@@ -13,7 +14,7 @@ class SpaceScreen extends ConsumerWidget {
     final state = ref.watch(demoProvider), repo = ref.read(repositoryProvider);
     final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
     return PageBody(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 150),
+      padding: EdgeInsets.fromLTRB(20, topControlsClearance(context), 20, 150),
       children: [
         const ClayArt('greeting', height: 140),
         Text(

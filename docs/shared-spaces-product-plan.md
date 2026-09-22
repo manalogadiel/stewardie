@@ -8,6 +8,8 @@ This document updates the original family organizer concept for an online produc
 
 The [technical and launch plan](technical-launch-plan.md) contains proposed service choices, account/age distinctions, synchronization design, and rollout gates. Unconfirmed technical recommendations remain proposals.
 
+September 23 implementation note: the user approved the [camera and Moments slice](ui-polish-camera-moments-plan.md). Optional completion photos, standalone photos, local persistence, a custom capture/preview flow and the TV viewer are implemented locally. This does not establish authentication or delivery to other members' devices. See [verification and remaining platform checks](ui-polish-media-verification.md).
+
 ## Product direction
 
 A private shared space for people who do everyday life together: families, housemates, dormmates, friends, and small crews.
@@ -63,7 +65,7 @@ Approved September 22 UI refinement: Today groups unfinished tasks in a Pending 
 
 ### Shared calendar — approved local slice
 
-Members enter schedules inside Stewardie, scoped to one space. Everyone combines all authorized plans once; a person filter includes plans they author or explicitly participate in. Filters do not change the active identity. The current user's mood remains personal when another person is selected.
+Members enter schedules inside Stewardie, scoped to one space. Everyone combines all authorized plans once; a person filter includes plans they author or explicitly participate in. Filters do not change the active identity. The latest requested [person-aware card update](top-navigation-person-mood-plan.md) supersedes the always-personal mood display: Everyone/Me show your mood, while another person's filter shows their current shared mood read-only. This follow-up is planned, not yet implemented.
 
 Plans have an author, title, start/end, all-day flag, optional note and participants. Members edit/remove their own plans; participants must belong to the space. Multi-day plans appear on every intersecting date. The month sheet opens on the current month, supports month navigation and a selected-day agenda, preserves that selection while filtering people, and resets on space change. Tasks and schedules have separate counts and models.
 
@@ -79,6 +81,7 @@ This approved implementation is in memory only. Timed values are UTC instants di
 ## Mood check-ins
 
 - Optional daily check-in with a mood and optional short note.
+- Requested next slice: let the author choose a color independently of mood; retain it with that space's current check-in. The proposed Sky/Butter/Rose character colors and matching card tints are specified in the follow-up UI plan. Other members may view, but never edit, that choice.
 - Display the member's current shared mood near their name, with a timestamp.
 - Make the destination space and audience clear before posting. Do not copy moods across spaces automatically.
 - Allow updating or removing a shared mood. Expire the current mood after the chosen daily window so old feelings are not presented as current.

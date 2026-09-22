@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/clay.dart';
 import '../../core/demo_state.dart';
 import '../../core/people_filter.dart';
+import '../../core/person_labels.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
@@ -21,9 +22,7 @@ class CalendarTile extends ConsumerWidget {
     final person = ref.watch(demoProvider.select((s) => s.personId));
     final days = DateTime(state.month.year, state.month.month + 1, 0).day;
     final offset = state.month.weekday - 1;
-    final scope = person == null
-        ? 'Everyone’s plans'
-        : '${personName(space, person)} · Plans';
+    final scope = calendarScope(space, person);
     return Semantics(
       button: true,
       label: '${monthLabel(context, state.month)}. $scope. Open calendar',
@@ -41,8 +40,10 @@ class CalendarTile extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        'Your calendar',
+                      child: CompactPersonTitle(
+                        space: space,
+                        personId: person,
+                        noun: 'calendar',
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                     ),
@@ -107,7 +108,12 @@ class CalendarTile extends ConsumerWidget {
                   monthLabel(context, state.month),
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                Text(scope, style: Theme.of(context).textTheme.bodyMedium),
+                Text(
+                  scope,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ],
             ),
           ),
@@ -155,7 +161,7 @@ class CalendarSheet extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Room for your plans',
+                        'Room for plans',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       Text(space.name),
@@ -350,9 +356,9 @@ class CalendarSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              person == null
-                  ? 'Everyone’s plans'
-                  : '${personName(space, person)} · Plans',
+              calendarScope(space, person),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
             if (plans.isEmpty)

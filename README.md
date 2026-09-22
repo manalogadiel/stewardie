@@ -2,7 +2,7 @@
 
 A Flutter shared-life app for families, friends, housemates, dormmates, and crews.
 
-Status: Flutter foundation and approved Soft Pop UI redesign implemented locally. No backend, paid service, or payments are connected. See the [redesign and verification record](docs/ui-redesign-verification.md).
+Status: Flutter foundation and approved Soft Pop UI redesign implemented locally. No backend, paid service, or payments are connected. See the [photo slice verification record](docs/ui-polish-media-verification.md) and [first redesign record](docs/ui-redesign-verification.md).
 
 ## Start here
 
@@ -18,7 +18,7 @@ This repository's plans are the working copies going forward. Earlier copies in 
 
 ## Run locally
 
-Developed with Flutter 3.47.4 / Dart 3.13.3. The app uses Riverpod and go_router, a bundled Nunito Sans font, and in-memory repositories. Android and iOS scaffolds are included; web is a local review target.
+Developed with Flutter 3.47.4 / Dart 3.13.3. The app uses Riverpod and go_router, a bundled Nunito Sans font, Sembast local task/media storage, and fixture spaces. Android and iOS scaffolds are included; web is a local review target.
 
 ```sh
 flutter pub get
@@ -27,7 +27,7 @@ flutter run -d chrome
 flutter run -d <device-id>
 ```
 
-Today includes the clay mascots, people filters, personal mood, shared month calendar, Pending/Covered tasks, and a direct Done tab. New tasks require acceptance before becoming Covered. Calendar plans support all-day/timed dates, participants, notes, and author-only editing/removal. The floating glass-clay dock keeps Today / Moments / Space. Moments is an empty presentation; uploads are not connected. Jamie is the fixed local identity; all data resets on restart. Product screens omit development labels; these limitations remain documented here.
+Today includes the clay mascots, people filters, personal mood, shared month calendar, Pending/Covered tasks, and a direct Done tab. New tasks require acceptance before becoming Covered. Calendar plans support all-day/timed dates, participants, notes, and author-only editing/removal. The floating glass-clay dock keeps Today / Moments / Space. Moments includes a swipable clay TV, standalone photos, task completion photos, expansion and export. The custom camera and system photo chooser feed a shared preview. Task changes and accepted photos persist locally (app-private database on mobile, IndexedDB on web); moods and calendar plans still reset. Jamie remains the fixed local identity. No photos are sent to other devices. Product screens omit development labels; these limitations remain documented here.
 
 ```sh
 flutter analyze
@@ -36,9 +36,9 @@ flutter test
 flutter test --dart-define=CAPTURE_DEMO=true
 ```
 
-See [current verification and platform limitations](docs/ui-redesign-verification.md) for test, build, and device results. Earlier foundation build failures remain recorded historically.
+See [current verification and platform limitations](docs/ui-polish-media-verification.md) for test, build, and device results. Earlier foundation build failures remain recorded historically.
 
-Next: resolve local build/device setup, then accounts, spaces, invitations, and online coordination after backend/budget decisions.
+Next: verify capture, picker recovery and photo-library export on Android/iOS hardware; then accounts, spaces, invitations and online coordination after backend/budget decisions.
 
 Open this same local repository in Codex and Antigravity. Avoid simultaneous agent edits to the same files. Tool-specific automatic skill discovery is not verified for Antigravity; its agent can read the linked skill and plans directly.
 

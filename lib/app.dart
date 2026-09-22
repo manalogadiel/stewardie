@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -59,152 +60,206 @@ class AppShell extends ConsumerWidget {
         : path == '/space'
         ? 2
         : 0;
-    return Scaffold(
-      extendBody: true,
-      appBar: AppBar(
-        forceMaterialTransparency: true,
-        centerTitle: true,
-        toolbarHeight: 72,
-        leading: const SizedBox(width: 48),
-        leadingWidth: 48,
-        titleSpacing: 0,
-        title: TextButton(
-          style: TextButton.styleFrom(
-            backgroundColor: SoftPop.surface,
-            minimumSize: const Size(48, 48),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            shape: const StadiumBorder(),
-          ),
-          onPressed: () => showModalBottomSheet<void>(
-            context: context,
-            useRootNavigator: true,
-            useSafeArea: true,
-            builder: (sheet) => SafeArea(
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                children: [
-                  Text(
-                    'Your spaces',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  for (final choice in repo.spaces)
-                    ListTile(
-                      title: Text(choice.name),
-                      subtitle: Text(choice.kind),
-                      trailing: choice.id == space.id
-                          ? const Icon(Icons.check_rounded, color: SoftPop.blue)
-                          : null,
-                      onTap: () {
-                        Navigator.pop(sheet);
-                        ref.read(demoProvider.notifier).switchSpace(choice.id);
-                        context.go('/today');
-                      },
-                    ),
-                ],
-              ),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        extendBody: true,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: SafeArea(top: false, bottom: false, child: child),
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  space.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              const Icon(Icons.expand_more_rounded, color: SoftPop.ink),
-            ],
-          ),
-        ),
-        actions: [
-          IconButton(
-            style: IconButton.styleFrom(
-              backgroundColor: SoftPop.surface,
-              shape: const CircleBorder(),
-            ),
-            tooltip: 'Inbox',
-            icon: const Icon(Icons.inbox_outlined),
-            onPressed: () {
-              final requests = state.tasks
-                  .where(
-                    (t) =>
-                        t.spaceId == space.id &&
-                        ((t.requestedId == 'me' &&
-                                t.status == Responsibility.requested) ||
-                            (t.ownerId == 'me' && t.offeredId != null)),
-                  )
-                  .toList();
-              showModalBottomSheet<void>(
-                context: context,
-                useRootNavigator: true,
-                useSafeArea: true,
-                builder: (sheet) => SafeArea(
-                  child: ListView(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: Row(
                     children: [
-                      Text(
-                        'Inbox · ${space.name}',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      if (requests.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(20),
-                          child: Text('You’re all caught up.'),
-                        ),
-                      for (final task in requests)
-                        ListTile(
-                          title: Text(task.title),
-                          subtitle: Text(
-                            task.offeredId == null
-                                ? 'Awaiting your acceptance'
-                                : 'Review a handoff offer',
+                      const SizedBox(width: 48),
+                      Expanded(
+                        child: Center(
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              backgroundColor: SoftPop.surface,
+                              minimumSize: const Size(48, 48),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              shape: const StadiumBorder(),
+                            ),
+                            onPressed: () => showModalBottomSheet<void>(
+                              context: context,
+                              useRootNavigator: true,
+                              useSafeArea: true,
+                              builder: (sheet) => SafeArea(
+                                child: ListView(
+                                  shrinkWrap: true,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    0,
+                                    20,
+                                    20,
+                                  ),
+                                  children: [
+                                    Text(
+                                      'Your spaces',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    for (final choice in repo.spaces)
+                                      ListTile(
+                                        title: Text(choice.name),
+                                        subtitle: Text(choice.kind),
+                                        trailing: choice.id == space.id
+                                            ? const Icon(
+                                                Icons.check_rounded,
+                                                color: SoftPop.blue,
+                                              )
+                                            : null,
+                                        onTap: () {
+                                          Navigator.pop(sheet);
+                                          ref
+                                              .read(demoProvider.notifier)
+                                              .switchSpace(choice.id);
+                                          context.go('/today');
+                                        },
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    space.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.expand_more_rounded,
+                                  color: SoftPop.ink,
+                                ),
+                              ],
+                            ),
                           ),
-                          trailing: const Icon(Icons.chevron_right_rounded),
-                          onTap: () {
-                            Navigator.pop(sheet);
-                            context.push('/task/${task.id}');
+                        ),
+                      ),
+                      SizedBox(
+                        width: 48,
+                        child: IconButton(
+                          style: IconButton.styleFrom(
+                            backgroundColor: SoftPop.surface,
+                            shape: const CircleBorder(),
+                          ),
+                          tooltip: 'Inbox',
+                          icon: const Icon(Icons.inbox_outlined),
+                          onPressed: () {
+                            final requests = state.tasks
+                                .where(
+                                  (t) =>
+                                      t.spaceId == space.id &&
+                                      ((t.requestedId == 'me' &&
+                                              t.status ==
+                                                  Responsibility.requested) ||
+                                          (t.ownerId == 'me' &&
+                                              t.offeredId != null)),
+                                )
+                                .toList();
+                            showModalBottomSheet<void>(
+                              context: context,
+                              useRootNavigator: true,
+                              useSafeArea: true,
+                              builder: (sheet) => SafeArea(
+                                child: ListView(
+                                  shrinkWrap: true,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    0,
+                                    20,
+                                    20,
+                                  ),
+                                  children: [
+                                    Text(
+                                      'Inbox · ${space.name}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge,
+                                    ),
+                                    if (requests.isEmpty)
+                                      const Padding(
+                                        padding: EdgeInsets.all(20),
+                                        child: Text('You’re all caught up.'),
+                                      ),
+                                    for (final task in requests)
+                                      ListTile(
+                                        title: Text(task.title),
+                                        subtitle: Text(
+                                          task.offeredId == null
+                                              ? 'Awaiting your acceptance'
+                                              : 'Review a handoff offer',
+                                        ),
+                                        trailing: const Icon(
+                                          Icons.chevron_right_rounded,
+                                        ),
+                                        onTap: () {
+                                          Navigator.pop(sheet);
+                                          context.push('/task/${task.id}');
+                                        },
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
                           },
                         ),
+                      ),
                     ],
                   ),
                 ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: SafeArea(top: false, bottom: false, child: child),
-      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
-          ? null
-          : SafeArea(
-              top: false,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 8 : 20,
-                  8,
-                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 8 : 20,
-                  12,
-                ),
-                child: Center(
-                  heightFactor: 1,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.textScalerOf(context).scale(14) > 20
-                          ? 440
-                          : 360,
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+            ? null
+            : SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    MediaQuery.textScalerOf(context).scale(14) > 20 ? 8 : 20,
+                    8,
+                    MediaQuery.textScalerOf(context).scale(14) > 20 ? 8 : 20,
+                    12,
+                  ),
+                  child: Center(
+                    heightFactor: 1,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth:
+                            MediaQuery.textScalerOf(context).scale(14) > 20
+                            ? 440
+                            : 360,
+                      ),
+                      child: GlassDock(index: index),
                     ),
-                    child: GlassDock(index: index),
                   ),
                 ),
               ),
-            ),
+      ),
     );
   }
 }
@@ -215,6 +270,25 @@ class GlassDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
+    // Reserve each label's bold width even when it is not selected, so
+    // changing destinations never makes an enlarged label wrap or jump.
+    final labelWidths = ['Today', 'Moments', 'Space'].map((label) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: const TextStyle(
+            fontFamily: 'NunitoSans',
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      final width = (painter.width + 6).ceil();
+      painter.dispose();
+      return width;
+    }).toList();
     final opaque =
         MediaQuery.highContrastOf(context) ||
         MediaQuery.accessibleNavigationOf(context) ||
@@ -239,7 +313,7 @@ class GlassDock extends StatelessWidget {
             for (var i = 0; i < 3; i++) ...[
               if (i > 0) const SizedBox(width: 8),
               Expanded(
-                flex: largeText && i == 1 ? 4 : 3,
+                flex: largeText ? labelWidths[i] : 1,
                 child: Semantics(
                   selected: i == index,
                   child: Material(

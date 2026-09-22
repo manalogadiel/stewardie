@@ -159,7 +159,17 @@ class MediaLibrary extends ChangeNotifier {
   final DateTime Function() clock;
   final List<MediaAttachment> _items;
   final Map<String, int> _daily = {};
-  bool _writing = false;
+  Future<void> _writes = Future.value();
+  int _serial = 0;
+  Future<T> _serialize<T>(Future<T> Function() operation) {
+    final next = _writes.then((_) => operation());
+    _writes = next.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {},
+    );
+    return next;
+  }
+
   List<MediaAttachment> get items => List.unmodifiable(_items);
   List<MediaAttachment> forTask(String id) =>
       _items.where((p) => p.taskId == id).toList();
@@ -180,74 +190,69 @@ class MediaLibrary extends ChangeNotifier {
     String actor,
     String caption, {
     String? taskId,
-  }) async {
-    if (_writing) throw StateError('A photo is already being saved.');
-    _writing = true;
-    try {
-      _member(space, actor);
-      final task = taskId == null ? null : _task(taskId, space);
-      if (task != null && task.creatorId != actor && task.ownerId != actor) {
-        throw StateError(
-          'Only the creator or responsible person can attach a photo.',
-        );
-      }
-      if (taskId != null && forTask(taskId).isNotEmpty) {
-        throw StateError('This task already has its photo.');
-      }
-      if (photo.bytes.length > 2000000) {
-        throw StateError('Choose a smaller photo.');
-      }
-      final size = _items
-          .where((p) => p.uploaderId == actor)
-          .fold<int>(
-            0,
-            (n, p) => n + p.photo.bytes.length + p.photo.thumbnail.length,
-          );
-      if (size + photo.bytes.length + photo.thumbnail.length > storageLimit) {
-        throw StateError(
-          'Photo storage is full. You can still finish without a photo.',
-        );
-      }
-      final now = clock().toUtc();
-      final dayKey = '$actor/${now.toIso8601String().substring(0, 10)}';
-      final current = database == null
-          ? _daily[dayKey] ?? 0
-          : (await metaRecords.record(dayKey).get(database!))?['count']
-                    as int? ??
-                0;
-      if (current >= dailyLimit) {
-        throw StateError(
-          'Today’s photo limit is reached. Resets at 00:00 UTC. You can still finish without a photo.',
-        );
-      }
-      final attachment = MediaAttachment(
-        id: 'photo-${now.microsecondsSinceEpoch}-${_items.length}',
-        spaceId: space,
-        uploaderId: actor,
-        caption: caption.trim(),
-        createdAt: now,
-        photo: photo,
-        taskId: taskId,
-        taskTitle: task?.isDone == true ? task!.title : null,
-        completedBy: task?.isDone == true ? task!.ownerId : null,
-        publishedAt: task == null || task.isDone ? now : null,
+  }) => _serialize(() async {
+    _member(space, actor);
+    final task = taskId == null ? null : _task(taskId, space);
+    if (task != null && task.creatorId != actor && task.ownerId != actor) {
+      throw StateError(
+        'Only the creator or responsible person can attach a photo.',
       );
-      if (database != null) {
-        await database!.transaction((txn) async {
-          await photoRecords.record(attachment.id).put(txn, attachment.toMap());
-          await metaRecords.record(dayKey).put(txn, {'count': current + 1});
-        });
-      }
-      _daily[dayKey] = current + 1;
-      _items.add(attachment);
-      notifyListeners();
-      return attachment;
-    } finally {
-      _writing = false;
     }
-  }
+    if (taskId != null && forTask(taskId).isNotEmpty) {
+      throw StateError('This task already has its photo.');
+    }
+    if (photo.bytes.length > 2000000) {
+      throw StateError('Choose a smaller photo.');
+    }
+    final size = _items
+        .where((p) => p.uploaderId == actor)
+        .fold<int>(
+          0,
+          (n, p) => n + p.photo.bytes.length + p.photo.thumbnail.length,
+        );
+    if (size + photo.bytes.length + photo.thumbnail.length > storageLimit) {
+      throw StateError(
+        'Photo storage is full. You can still finish without a photo.',
+      );
+    }
+    final now = clock().toUtc();
+    final dayKey = '$actor/${now.toIso8601String().substring(0, 10)}';
+    final current = database == null
+        ? _daily[dayKey] ?? 0
+        : (await metaRecords.record(dayKey).get(database!))?['count'] as int? ??
+              0;
+    if (current >= dailyLimit) {
+      throw StateError(
+        'Today’s photo limit is reached. Resets at 00:00 UTC. You can still finish without a photo.',
+      );
+    }
+    final attachment = MediaAttachment(
+      id: 'photo-${now.microsecondsSinceEpoch}-${_serial++}',
+      spaceId: space,
+      uploaderId: actor,
+      caption: caption.trim(),
+      createdAt: now,
+      photo: photo,
+      taskId: taskId,
+      taskTitle: task?.isDone == true ? task!.title : null,
+      completedBy: task?.isDone == true ? task!.ownerId : null,
+      publishedAt: task == null || task.isDone ? now : null,
+    );
+    if (database != null) {
+      await database!.transaction((txn) async {
+        await photoRecords.record(attachment.id).put(txn, attachment.toMap());
+        await metaRecords.record(dayKey).put(txn, {'count': current + 1});
+      });
+    }
+    _daily[dayKey] = current + 1;
+    _items.add(attachment);
+    notifyListeners();
+    return attachment;
+  });
 
-  Future<void> publishTask(Task task) async {
+  Future<void> publishTask(Task supplied) => _serialize(() async {
+    final task = _task(supplied.id, supplied.spaceId);
+    _member(task.spaceId, 'me');
     if (!task.isDone) return;
     final targets = forTask(task.id)
         .where((p) => p.publishedAt == null)
@@ -272,17 +277,22 @@ class MediaLibrary extends ChangeNotifier {
       if (index >= 0) _items[index] = updated;
     }
     notifyListeners();
-  }
+  });
 
-  Future<void> remove(MediaAttachment photo, String actor) async {
-    _member(photo.spaceId, actor);
-    if (photo.uploaderId != actor) {
-      throw StateError('Only the uploader can remove this photo.');
-    }
-    if (database != null) await photoRecords.record(photo.id).delete(database!);
-    _items.removeWhere((p) => p.id == photo.id);
-    notifyListeners();
-  }
+  Future<void> remove(MediaAttachment supplied, String actor) =>
+      _serialize(() async {
+        final photo = _items.where((p) => p.id == supplied.id).firstOrNull;
+        if (photo == null) return;
+        _member(photo.spaceId, actor);
+        if (photo.uploaderId != actor) {
+          throw StateError('Only the uploader can remove this photo.');
+        }
+        if (database != null) {
+          await photoRecords.record(photo.id).delete(database!);
+        }
+        _items.removeWhere((p) => p.id == photo.id);
+        notifyListeners();
+      });
 }
 
 extension on RecordRef<String, Map<String, Object?>> {

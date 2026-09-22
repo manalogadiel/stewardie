@@ -8,6 +8,7 @@ import 'features/timeline/data/demo_repository.dart';
 import 'features/media/media_library.dart';
 import 'features/media/task_storage.dart';
 import 'features/media/store.dart';
+import 'features/media/picker_recovery.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,12 +30,23 @@ Future<void> main() async {
           .map((r) => MediaAttachment.fromMap(r.value))
           .toList(),
     );
+    final container = ProviderContainer(
+      overrides: [
+        repositoryProvider.overrideWithValue(timeline),
+        mediaLibraryProvider.overrideWithValue(library),
+      ],
+    );
+    // An unavailable picker must not prevent access to saved tasks.
+    try {
+      container
+          .read(recoveredPhotoProvider.notifier)
+          .restore(await restorePickerResult(db));
+    } catch (_) {
+      // Existing saved media remains accessible; native recovery is best effort.
+    }
     runApp(
-      ProviderScope(
-        overrides: [
-          repositoryProvider.overrideWithValue(timeline),
-          mediaLibraryProvider.overrideWithValue(library),
-        ],
+      UncontrolledProviderScope(
+        container: container,
         child: const StewardieApp(),
       ),
     );

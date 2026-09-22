@@ -12,8 +12,15 @@ enum TaskAction {
 enum DemoOutcome { success, failure, conflict }
 
 class Member {
-  const Member(this.id, this.name, this.initials, this.colorIndex);
+  const Member(
+    this.id,
+    this.name,
+    this.initials,
+    this.colorIndex, {
+    this.preferredName,
+  });
   final String id, name, initials;
+  final String? preferredName;
   final int colorIndex;
 }
 
@@ -88,6 +95,16 @@ class Task {
 
 enum Mood { happy, calm, tired, overwhelmed, sad, excited }
 
+enum MoodColor { sky, butter, rose }
+
+extension MoodColorLabel on MoodColor {
+  String get label => switch (this) {
+    MoodColor.sky => 'Sky',
+    MoodColor.butter => 'Butter',
+    MoodColor.rose => 'Rose',
+  };
+}
+
 extension MoodLabel on Mood {
   String get label => switch (this) {
     Mood.happy => 'Happy',
@@ -100,8 +117,15 @@ extension MoodLabel on Mood {
 }
 
 class CheckIn {
-  const CheckIn(this.mood, this.note, this.sharedAt, this.expiresAt);
+  const CheckIn(
+    this.mood,
+    this.note,
+    this.sharedAt,
+    this.expiresAt, {
+    this.color = MoodColor.sky,
+  });
   final Mood mood;
+  final MoodColor color;
   final String note;
   final DateTime sharedAt, expiresAt;
   bool isCurrent(DateTime now) => now.isBefore(expiresAt);

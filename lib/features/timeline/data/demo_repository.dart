@@ -11,7 +11,13 @@ abstract interface class TimelineRepository {
     bool assignToMe,
   );
   CheckIn? checkIn(String spaceId, String memberId);
-  void shareCheckIn(String spaceId, String memberId, Mood mood, String note);
+  void shareCheckIn(
+    String spaceId,
+    String memberId,
+    Mood mood,
+    String note, {
+    MoodColor color = MoodColor.sky,
+  });
   void removeCheckIn(String spaceId, String memberId);
 }
 
@@ -20,7 +26,7 @@ class DemoException implements Exception {
   final String message;
 }
 
-/// In-memory fixtures only: no authentication, durable writes or remote sync.
+/// Fixture spaces and identity with optional durable task writes; no remote sync.
 class DemoRepository implements TimelineRepository {
   DemoRepository({
     DateTime Function()? clock,
@@ -143,6 +149,22 @@ class DemoRepository implements TimelineRepository {
       ),
     ];
     _tasks.addEntries(fixtures.map((task) => MapEntry(task.id, task)));
+    final now = clock();
+    final expires = DateTime(now.year, now.month, now.day + 1);
+    _moods['home/alex'] = CheckIn(
+      Mood.calm,
+      'Taking a quiet moment.',
+      now,
+      expires,
+      color: MoodColor.rose,
+    );
+    _moods['home/sam'] = CheckIn(
+      Mood.excited,
+      'Looking forward to tonight.',
+      now,
+      expires,
+      color: MoodColor.butter,
+    );
   }
 
   @override
@@ -285,17 +307,34 @@ class DemoRepository implements TimelineRepository {
   }
 
   @override
-  void shareCheckIn(String spaceId, String memberId, Mood mood, String note) {
+  void shareCheckIn(
+    String spaceId,
+    String memberId,
+    Mood mood,
+    String note, {
+    MoodColor color = MoodColor.sky,
+  }) {
+    if (memberId != 'me' ||
+        !spaces.any(
+          (s) => s.id == spaceId && s.members.any((m) => m.id == 'me'),
+        )) {
+      throw const DemoException('You can only change your own check-in.');
+    }
     final now = clock();
     _moods['$spaceId/$memberId'] = CheckIn(
       mood,
       note.trim(),
       now,
       DateTime(now.year, now.month, now.day + 1),
+      color: color,
     );
   }
 
   @override
-  void removeCheckIn(String spaceId, String memberId) =>
-      _moods.remove('$spaceId/$memberId');
+  void removeCheckIn(String spaceId, String memberId) {
+    if (memberId != 'me') {
+      throw const DemoException('You can only change your own check-in.');
+    }
+    _moods.remove('$spaceId/$memberId');
+  }
 }

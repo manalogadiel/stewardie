@@ -61,7 +61,17 @@ Future<ProviderContainer> start(
   final imageContext = tester.element(find.byType(Scaffold).first);
   await tester.runAsync(
     () => Future.wait([
-      for (final name in ['greeting', 'mood', 'calendar', 'celebrate', 'mood-happy', 'mood-tired', 'mood-overwhelmed', 'mood-sad', 'mood-excited'])
+      for (final name in [
+        'greeting',
+        'mood',
+        'calendar',
+        'celebrate',
+        'mood-happy',
+        'mood-tired',
+        'mood-overwhelmed',
+        'mood-sad',
+        'mood-excited',
+      ])
         precacheImage(
           AssetImage('assets/illustrations/$name.png'),
           imageContext,
@@ -98,6 +108,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Make something good'), findsOneWidget);
+    await reveal(tester, find.text('Make something good'));
     await screenshot(tester, 'today-me');
     await tester.tap(find.text('Make something good'));
     await tester.pumpAndSettle();
@@ -119,7 +130,7 @@ void main() {
     'calendar filters, navigates months and creates/edits/removes own plans',
     (tester) async {
       final container = await start(tester);
-      await tester.tap(find.text('Your calendar'));
+      await tester.tap(find.text('Shared calendar'));
       await tester.pumpAndSettle();
       final now = container.read(calendarProvider).month;
       await tester.tap(find.byTooltip('Next month'));
@@ -442,7 +453,7 @@ void main() {
       await reveal(tester, find.text('Skip for now'));
       await tester.tap(find.text('Skip for now'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Your calendar'));
+      await tester.tap(find.text('Shared calendar'));
       await tester.pumpAndSettle();
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
