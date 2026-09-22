@@ -5,6 +5,8 @@ Platform: Flutter mobile, iOS and Android
 User-selected product name: Stewardie; commercial name clearance pending.  
 Status: design specification for review; screens and production assets are not implemented.
 
+Implementation note (September 22, 2026): the [first local demo slice](demo-foundation.md) implements Today, task detail, person filtering, and mood check-in with reviewed widget renders. Production artwork and the remaining screen scope below are still outstanding.
+
 ## 1. Source of truth
 
 - [Product plan](shared-spaces-product-plan.md): feature behavior, scope, membership, and sharing rules.

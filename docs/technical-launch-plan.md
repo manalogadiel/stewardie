@@ -3,6 +3,8 @@
 Updated: September 21, 2026  
 Status: proposed implementation decisions for discussion. No cloud services, billing, accounts, or application code were created by this plan.
 
+Implementation note (September 22, 2026): a Flutter foundation and in-memory demo slice now exist. See [implementation and verification](demo-foundation.md). Riverpod and go_router are used locally; backend, maps, paid services, and launch choices below remain proposals or gates.
+
 Related: [Product plan](shared-spaces-product-plan.md) and [UI plan](ui-plan.md).
 
 ## 1. Actual starting point
