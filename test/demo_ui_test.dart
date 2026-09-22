@@ -57,6 +57,18 @@ Future<ProviderContainer> start(
     ),
   );
   await tester.pumpAndSettle();
+  // Image decoding uses real asynchronous work; wait before visual captures.
+  final imageContext = tester.element(find.byType(Scaffold).first);
+  await tester.runAsync(
+    () => Future.wait([
+      for (final name in ['greeting', 'mood', 'calendar', 'celebrate'])
+        precacheImage(
+          AssetImage('assets/illustrations/$name.png'),
+          imageContext,
+        ),
+    ]),
+  );
+  await tester.pumpAndSettle();
   return ProviderScope.containerOf(tester.element(find.byType(StewardieApp)));
 }
 
@@ -421,7 +433,71 @@ void main() {
           ),
         ),
       );
+      await reveal(tester, find.text('Skip for now'));
+      await tester.tap(find.text('Skip for now'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Your calendar'));
+      await tester.pumpAndSettle();
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      final dateLabel = MaterialLocalizations.of(
+        tester.element(find.byType(CalendarSheet)),
+      ).formatFullDate(DateTime.now());
+      final day = find.bySemanticsLabel(RegExp('^$dateLabel, .* plans'));
+      expect(
+        tester
+            .getSemantics(day)
+            .getSemanticsData()
+            .hasAction(ui.SemanticsAction.tap),
+        isTrue,
+      );
       handle.dispose();
+    },
+  );
+
+  testWidgets(
+    'calendar editor supports large text, keyboard and cancellation',
+    (tester) async {
+      final container = await start(
+        tester,
+        size: const Size(360, 800),
+        scale: 2,
+      );
+      final nav = container
+          .read(routerProvider)
+          .routerDelegate
+          .navigatorKey
+          .currentContext!;
+      showPlanEditor(
+        nav,
+        container.read(repositoryProvider).spaces.first,
+        DateTime.now(),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(TextFormField).first);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      tester.view.padding = const FakeViewPadding(top: 24, bottom: 20);
+      addTearDown(tester.view.resetViewInsets);
+      addTearDown(tester.view.resetPadding);
+      await tester.pumpAndSettle();
+      await reveal(tester, find.byType(TextFormField).first);
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'Time to unwind',
+      );
+      await tester.pumpAndSettle();
+      await screenshot(tester, 'calendar-keyboard');
+      await reveal(tester, find.text('Cancel'));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(
+        container
+            .read(calendarRepositoryProvider)
+            .plans
+            .any((p) => p.title == 'Time to unwind'),
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
     },
   );
 }

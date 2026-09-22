@@ -174,7 +174,12 @@ class AppShell extends ConsumerWidget {
           : SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                padding: EdgeInsets.fromLTRB(
+                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 12 : 20,
+                  8,
+                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 12 : 20,
+                  12,
+                ),
                 child: Center(
                   heightFactor: 1,
                   child: ConstrainedBox(
@@ -193,6 +198,7 @@ class GlassDock extends StatelessWidget {
   final int index;
   @override
   Widget build(BuildContext context) {
+    final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
     final opaque =
         MediaQuery.highContrastOf(context) ||
         MediaQuery.accessibleNavigationOf(context) ||
@@ -216,6 +222,7 @@ class GlassDock extends StatelessWidget {
           children: [
             for (var i = 0; i < 3; i++)
               Expanded(
+                flex: largeText && i == 1 ? 4 : 3,
                 child: Semantics(
                   selected: i == index,
                   child: Material(
@@ -225,8 +232,8 @@ class GlassDock extends StatelessWidget {
                       onTap: () =>
                           context.go(['/today', '/moments', '/space'][i]),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 4,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: largeText ? 2 : 4,
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
