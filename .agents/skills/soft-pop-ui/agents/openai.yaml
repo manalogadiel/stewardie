@@ -1,0 +1,6 @@
+interface:
+  display_name: "Soft Pop UI"
+  short_description: "Design and review the shared-spaces Flutter UI"
+  default_prompt: "Use $soft-pop-ui to design or refine this app screen using the approved UI plan and relevant available design skills."
+policy:
+  allow_implicit_invocation: true
