@@ -21,7 +21,7 @@ class PeopleFilter extends ConsumerWidget {
               padding: const EdgeInsets.only(right: 8),
               child: FilterChip(
                 selected: id == selected,
-                showCheckmark: true,
+                showCheckmark: false,
                 side: BorderSide(
                   color: id == selected ? SoftPop.blue : SoftPop.border,
                 ),

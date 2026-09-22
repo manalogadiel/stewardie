@@ -12,7 +12,7 @@ The [approved redesign](ui-redesign-plan.md) supersedes the initial Today layout
 - [Product plan](shared-spaces-product-plan.md): feature behavior, scope, membership, and sharing rules.
 - [Technical and launch plan](technical-launch-plan.md): proposed backend, account/age policy, media/location handling, and execution milestones. Pending choices are not yet final UI requirements.
 - This document: navigation, screen hierarchy, interactions, visual direction, and asset requirements.
-- [Earlier brand draft](kalinga-brand-plan.md): historical reference. Its family-only positioning, teal palette, and proposed logo are superseded by the shared-space direction and palette here.
+- Earlier Kalinga brand draft (not stored in this repository): historical reference. Its family-only positioning, teal palette, and proposed logo are superseded by the shared-space direction and palette here.
 
 The approved direction is minimal and cute, mixing soft clay 3D with restrained pop-art graphics. It serves families, housemates, dormmates, friends, and small crews. The app should feel welcoming across age groups.
 

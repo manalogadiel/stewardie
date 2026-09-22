@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/demo_state.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets.dart';
+import '../../media/photo_composer.dart';
+import '../../media/photo_viewer.dart';
 import '../domain/models.dart';
 
 class TaskDetail extends ConsumerWidget {
@@ -14,7 +16,7 @@ class TaskDetail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(demoProvider);
     final task = state.tasks
-        .where((task) => task.id == taskId && task.spaceId == state.spaceId)
+        .where((task) => task.id == taskId && task.spaceId == state.spaceId && visibleToBasic(task, DateTime.now()))
         .firstOrNull;
     final space = ref
         .read(repositoryProvider)
@@ -133,6 +135,8 @@ class TaskDetail extends ConsumerWidget {
                   ),
                 ],
                 const SizedBox(height: 24),
+                TaskPhotos(task),
+                const SizedBox(height: 24),
                 TaskActions(task: task),
                 if (task.isDone) ...[
                   const SizedBox(height: 12),
@@ -230,17 +234,21 @@ class TaskActions extends ConsumerWidget {
                 ? FilledButton(
                     onPressed: busy
                         ? null
-                        : () => ref
-                              .read(demoProvider.notifier)
-                              .act(task, actions[i].$1),
+                        : () => actions[i].$1 == TaskAction.complete
+                              ? completeWithPhoto(context, ref, task)
+                              : ref
+                                    .read(demoProvider.notifier)
+                                    .act(task, actions[i].$1),
                     child: Text(actions[i].$2),
                   )
                 : OutlinedButton(
                     onPressed: busy
                         ? null
-                        : () => ref
-                              .read(demoProvider.notifier)
-                              .act(task, actions[i].$1),
+                        : () => actions[i].$1 == TaskAction.complete
+                              ? completeWithPhoto(context, ref, task)
+                              : ref
+                                    .read(demoProvider.notifier)
+                                    .act(task, actions[i].$1),
                     child: Text(actions[i].$2),
                   ),
           ),

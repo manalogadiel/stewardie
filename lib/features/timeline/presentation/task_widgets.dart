@@ -117,6 +117,8 @@ class _AddTaskState extends ConsumerState<_AddTask> {
   final title = TextEditingController();
   final form = GlobalKey<FormState>();
   bool mine = false;
+  bool saving = false;
+  String? error;
   @override
   void dispose() {
     title.dispose();
@@ -164,23 +166,40 @@ class _AddTaskState extends ConsumerState<_AddTask> {
                 onChanged: (value) => setState(() => mine = value!),
               ),
               const SizedBox(height: 16),
+              if (error != null) Text(error!),
               FilledButton(
-                onPressed: () {
-                  if (!form.currentState!.validate()) {
-                    return;
-                  }
-                  ref
-                      .read(repositoryProvider)
-                      .addTask(
-                        widget.space.id,
-                        title.text,
-                        DateTime.now(),
-                        mine,
-                      );
-                  ref.read(demoProvider.notifier).selectPerson(null);
-                  ref.read(demoProvider.notifier).refresh();
-                  Navigator.pop(context);
-                },
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (!form.currentState!.validate()) {
+                          return;
+                        }
+                        setState(() {
+                          saving = true;
+                          error = null;
+                        });
+                        try {
+                          await ref
+                              .read(repositoryProvider)
+                              .addTask(
+                                widget.space.id,
+                                title.text,
+                                DateTime.now(),
+                                mine,
+                              );
+                          if (!context.mounted) return;
+                          ref.read(demoProvider.notifier).selectPerson(null);
+                          ref.read(demoProvider.notifier).refresh();
+                          Navigator.pop(context);
+                        } catch (_) {
+                          if (mounted) {
+                            setState(() {
+                              saving = false;
+                              error = "Could not save. Try again.";
+                            });
+                          }
+                        }
+                      },
                 child: const Text('Add task'),
               ),
               TextButton(

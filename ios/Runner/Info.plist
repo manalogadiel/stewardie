@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Take a photo for a task or a moment in your space.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Choose a photo to share in your space.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Save a selected moment to your photos.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

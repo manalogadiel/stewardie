@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'core/demo_state.dart';
 import 'core/theme.dart';
 import 'features/spaces/space_screen.dart';
+import 'features/moments/moments_screen.dart';
 import 'features/timeline/domain/models.dart';
 import 'features/timeline/presentation/task_detail.dart';
 import 'features/timeline/presentation/today_screen.dart';
@@ -61,12 +62,19 @@ class AppShell extends ConsumerWidget {
     return Scaffold(
       extendBody: true,
       appBar: AppBar(
+        forceMaterialTransparency: true,
         centerTitle: true,
         toolbarHeight: 72,
         leading: const SizedBox(width: 48),
         leadingWidth: 48,
         titleSpacing: 0,
         title: TextButton(
+          style: TextButton.styleFrom(
+            backgroundColor: SoftPop.surface,
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            shape: const StadiumBorder(),
+          ),
           onPressed: () => showModalBottomSheet<void>(
             context: context,
             useRootNavigator: true,
@@ -116,6 +124,10 @@ class AppShell extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            style: IconButton.styleFrom(
+              backgroundColor: SoftPop.surface,
+              shape: const CircleBorder(),
+            ),
             tooltip: 'Inbox',
             icon: const Icon(Icons.inbox_outlined),
             onPressed: () {
@@ -175,15 +187,19 @@ class AppShell extends ConsumerWidget {
               top: false,
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 12 : 20,
+                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 8 : 20,
                   8,
-                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 12 : 20,
+                  MediaQuery.textScalerOf(context).scale(14) > 20 ? 8 : 20,
                   12,
                 ),
                 child: Center(
                   heightFactor: 1,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 360),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.textScalerOf(context).scale(14) > 20
+                          ? 440
+                          : 360,
+                    ),
                     child: GlassDock(index: index),
                   ),
                 ),
@@ -220,7 +236,8 @@ class GlassDock extends StatelessWidget {
         padding: const EdgeInsets.all(7),
         child: Row(
           children: [
-            for (var i = 0; i < 3; i++)
+            for (var i = 0; i < 3; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
               Expanded(
                 flex: largeText && i == 1 ? 4 : 3,
                 child: Semantics(
@@ -277,6 +294,7 @@ class GlassDock extends StatelessWidget {
                   ),
                 ),
               ),
+            ],
           ],
         ),
       ),

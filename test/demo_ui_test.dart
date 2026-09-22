@@ -61,7 +61,7 @@ Future<ProviderContainer> start(
   final imageContext = tester.element(find.byType(Scaffold).first);
   await tester.runAsync(
     () => Future.wait([
-      for (final name in ['greeting', 'mood', 'calendar', 'celebrate'])
+      for (final name in ['greeting', 'mood', 'calendar', 'celebrate', 'mood-happy', 'mood-tired', 'mood-overwhelmed', 'mood-sad', 'mood-excited'])
         precacheImage(
           AssetImage('assets/illustrations/$name.png'),
           imageContext,
@@ -195,6 +195,8 @@ void main() {
     repo.nextOutcome = DemoOutcome.failure;
     await reveal(tester, find.text('Mark done'));
     await tester.tap(find.text('Mark done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mark done without photo'));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Saving…'), findsOneWidget);
     expect(
@@ -210,6 +212,8 @@ void main() {
     await screenshot(tester, 'task-failure');
     await reveal(tester, find.text('Mark done'));
     await tester.tap(find.text('Mark done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mark done without photo'));
     await tester.pumpAndSettle();
     expect(repo.tasks.firstWhere((task) => task.id == 'dinner').isDone, isTrue);
     expect(
@@ -398,6 +402,8 @@ void main() {
     await tester.pumpAndSettle();
     await reveal(tester, find.text('Mark done'));
     await tester.tap(find.text('Mark done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mark done without photo'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Back to Today'));
     await tester.pumpAndSettle();

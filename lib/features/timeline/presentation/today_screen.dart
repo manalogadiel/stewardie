@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/clay.dart';
+import '../../../core/equal_height_row.dart';
 import '../../../core/demo_state.dart';
 import '../../../core/people_filter.dart';
 import '../../../core/theme.dart';
-import '../../../core/widgets.dart';
 import '../../calendar/calendar_view.dart';
 import '../../moods/mood_sheet.dart';
 import '../domain/models.dart';
@@ -103,15 +103,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Your mood', style: Theme.of(context).textTheme.labelLarge),
               Center(
-                child: mood == null
-                    ? const ClayArt('mood', height: 78)
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 17),
-                        child: MoodFace(mood.mood, size: 44),
-                      ),
+                child: ClayArt(
+                  mood == null || mood.mood == Mood.calm
+                      ? 'mood'
+                      : 'mood-${mood.mood.name}',
+                  height: 92,
+                ),
               ),
               Text(
                 mood?.mood.label ?? 'How are you?',
@@ -197,13 +198,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                               CalendarTile(space),
                             ],
                           )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(child: moodCard),
-                              const SizedBox(width: 12),
-                              Expanded(child: CalendarTile(space)),
-                            ],
+                        : EqualHeightRow(
+                            children: [moodCard, CalendarTile(space)],
                           ),
                   ),
                   Padding(
@@ -214,7 +210,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                     child: Row(
                       children: [
                         _stat(pending.length, 'Help', SoftPop.butter),
+                        const SizedBox(width: 10),
                         _stat(covered.length, 'Covered', SoftPop.sky),
+                        const SizedBox(width: 10),
                         _stat(doneToday, 'Done', SoftPop.rose),
                       ],
                     ),

@@ -4,7 +4,12 @@ abstract interface class TimelineRepository {
   List<Space> get spaces;
   List<Task> get tasks;
   Future<Task> act(String taskId, TaskAction action, String actorId);
-  Task addTask(String spaceId, String title, DateTime day, bool assignToMe);
+  Future<Task> addTask(
+    String spaceId,
+    String title,
+    DateTime day,
+    bool assignToMe,
+  );
   CheckIn? checkIn(String spaceId, String memberId);
   void shareCheckIn(String spaceId, String memberId, Mood mood, String note);
   void removeCheckIn(String spaceId, String memberId);
@@ -20,9 +25,13 @@ class DemoRepository implements TimelineRepository {
   DemoRepository({
     DateTime Function()? clock,
     this.delay = const Duration(milliseconds: 500),
+    this.persist,
+    List<Task> restored = const [],
   }) : clock = clock ?? DateTime.now {
     _seed();
+    _tasks.addEntries(restored.map((t) => MapEntry(t.id, t)));
   }
+  final Future<void> Function(Task)? persist;
   final DateTime Function() clock;
   final Duration delay;
   DemoOutcome nextOutcome = DemoOutcome.success;
@@ -237,6 +246,7 @@ class DemoRepository implements TimelineRepository {
           entry: 'Jamie confirmed the handoff to ${task.offeredId}.',
         ),
       };
+      await persist?.call(updated);
       _tasks[taskId] = updated;
       return updated;
     } finally {
@@ -245,12 +255,17 @@ class DemoRepository implements TimelineRepository {
   }
 
   @override
-  Task addTask(String spaceId, String title, DateTime day, bool assignToMe) {
+  Future<Task> addTask(
+    String spaceId,
+    String title,
+    DateTime day,
+    bool assignToMe,
+  ) async {
     if (title.trim().isEmpty) {
       throw const DemoException('Give your task a name.');
     }
     final task = Task(
-      id: 'local-${_nextId++}',
+      id: 'local-${clock().microsecondsSinceEpoch}-${_nextId++}',
       spaceId: spaceId,
       title: title.trim(),
       day: dateOnly(day),
@@ -258,6 +273,7 @@ class DemoRepository implements TimelineRepository {
       status: assignToMe ? Responsibility.requested : Responsibility.unclaimed,
       activity: ['Jamie added this task.'],
     );
+    await persist?.call(task);
     _tasks[task.id] = task;
     return task;
   }

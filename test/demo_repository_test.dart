@@ -110,7 +110,7 @@ void main() {
   });
 
   test('simulated claim conflict stays within the task space', () async {
-    final added = repo.addTask('weekend', 'Pack a picnic', now, false);
+    final added = await repo.addTask('weekend', 'Pack a picnic', now, false);
     repo.nextOutcome = DemoOutcome.conflict;
     await expectLater(
       repo.act(added.id, TaskAction.accept, 'me'),

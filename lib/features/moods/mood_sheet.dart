@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/demo_state.dart';
+import '../../core/clay.dart';
 import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
@@ -97,7 +98,12 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
                               onPressed: () => setState(() => selected = mood),
                               child: Column(
                                 children: [
-                                  MoodFace(mood),
+                                  ClayArt(
+                                    mood == Mood.calm
+                                        ? 'mood'
+                                        : 'mood-${mood.name}',
+                                    height: 84,
+                                  ),
                                   const SizedBox(height: 8),
                                   Text(mood.label, textAlign: TextAlign.center),
                                   if (selected == mood)
