@@ -33,7 +33,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   task.spaceId == space.id &&
                   visibleToBasic(task, now) &&
                   task.matchesPerson(state.personId) &&
-                  (dateOnly(task.day) == day ||
+                  (dateOnly(
+                            task.isDone
+                                ? task.completedAt ?? task.day
+                                : task.day,
+                          ) ==
+                          day ||
                       (!week && !task.isDone && task.day.isBefore(today))),
             )
             .toList()

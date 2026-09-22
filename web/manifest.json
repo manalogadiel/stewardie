@@ -1,11 +1,11 @@
 {
-    "name": "stewardie",
-    "short_name": "stewardie",
+    "name": "Stewardie Demo",
+    "short_name": "Stewardie",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F5F3ED",
+    "theme_color": "#244BFF",
+    "description": "Local demo of shared days and little moments.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

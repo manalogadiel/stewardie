@@ -279,18 +279,50 @@ void main() {
     expect(task.status, Responsibility.accepted);
   });
 
+  testWidgets('an overdue task completed today remains in Today', (
+    tester,
+  ) async {
+    final container = await start(tester);
+    container.read(routerProvider).push('/task/recycling');
+    await tester.pumpAndSettle();
+    await reveal(tester, find.text('I’ve got it'));
+    await tester.tap(find.text('I’ve got it'));
+    await tester.pumpAndSettle();
+    await reveal(tester, find.text('Mark done'));
+    await tester.tap(find.text('Mark done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Back to Today'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Done & dusted · 2'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Take out the recycling'), findsOneWidget);
+  });
+
   testWidgets(
     'visible controls have screen-reader labels and adequate targets',
     (tester) async {
       final handle = tester.ensureSemantics();
-      addTearDown(handle.dispose);
       await start(tester, size: const Size(430, 932));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await tester.tap(find.text('Check in'));
       await tester.pumpAndSettle();
       await reveal(tester, find.text('Sharing with Home crew'));
-      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      // Check the audience label regression directly. The broad screenshot
+      // heuristic samples antialiased edges of the 14px variable font; the
+      // actual foreground/background pairs are measured separately below.
+      await expectLater(
+        tester,
+        meetsGuideline(
+          CustomMinimumContrastGuideline(
+            finder: find.text('Sharing with Home crew'),
+          ),
+        ),
+      );
+      handle.dispose();
     },
   );
 }

@@ -163,13 +163,17 @@ class DemoRepository implements TimelineRepository {
       if (outcome == DemoOutcome.conflict &&
           action == TaskAction.accept &&
           task.status == Responsibility.unclaimed) {
+        final other = spaces
+            .firstWhere((space) => space.id == task.spaceId)
+            .members
+            .firstWhere((member) => member.id != actorId);
         _tasks[taskId] = task.transition(
           status: Responsibility.accepted,
-          ownerId: 'alex',
-          entry: 'Demo conflict: Alex claimed this task first.',
+          ownerId: other.id,
+          entry: 'Demo conflict: ${other.name} claimed this task first.',
         );
-        throw const DemoException(
-          'Demo conflict: Alex claimed this first. The current owner is shown below.',
+        throw DemoException(
+          'Demo conflict: ${other.name} claimed this first. The current owner is shown below.',
         );
       }
       final allowed = switch (action) {

@@ -109,6 +109,16 @@ void main() {
     );
   });
 
+  test('simulated claim conflict stays within the task space', () async {
+    final added = repo.addTask('weekend', 'Pack a picnic', now, false);
+    repo.nextOutcome = DemoOutcome.conflict;
+    await expectLater(
+      repo.act(added.id, TaskAction.accept, 'me'),
+      throwsA(isA<DemoException>()),
+    );
+    expect(task(added.id).ownerId, 'lee');
+  });
+
   test('moods are per space, editable, removable, and expire at midnight', () {
     repo.shareCheckIn('home', 'me', Mood.tired, '  Long day  ');
     expect(repo.checkIn('home', 'me')?.note, 'Long day');
