@@ -248,7 +248,7 @@ class TaskActions extends ConsumerWidget {
           const Padding(
             padding: EdgeInsets.only(top: 8),
             child: Text(
-              'Your offer is waiting for the owner. No other member is online.',
+              'Your offer is waiting for the owner.',
             ),
           ),
       ],

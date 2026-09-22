@@ -136,7 +136,7 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${widget.space.members.length} demo members · Until the end of today (device time). Only saved.',
+                      '${widget.space.members.length} members · Until the end of today.',
                     ),
                   ],
                 ),

@@ -116,7 +116,7 @@ void main() {
         container.read(calendarProvider).month,
         DateTime(now.year, now.month + 1),
       );
-      await tester.tap(find.widgetWithText(FilterChip, 'Alex'));
+      await tester.tap(find.widgetWithText(FilterChip, 'Alex').last);
       await tester.pumpAndSettle();
       expect(container.read(demoProvider).personId, 'alex');
       expect(
@@ -153,8 +153,8 @@ void main() {
         find.byType(TextFormField).first,
         'Bring a picnic',
       );
-      await reveal(tester, find.text('Save plan'));
-      await tester.tap(find.text('Save plan'));
+      await reveal(tester, find.text('Save changes'));
+      await tester.tap(find.text('Save changes'));
       await tester.pumpAndSettle();
       await reveal(tester, find.text('Bring a picnic'));
       await tester.tap(find.text('Bring a picnic'));
@@ -185,7 +185,7 @@ void main() {
     await tester.tap(find.text('Mark done'));
     await tester.pump(const Duration(milliseconds: 100));
     expect(
-      find.text('Pending demo action… Nothing has synced to anyone.'),
+      find.text('Saving…'),
       findsOneWidget,
     );
     expect(
@@ -336,7 +336,7 @@ void main() {
     await tester.tap(find.text('Moments'));
     await tester.pumpAndSettle();
     expect(
-      find.text('Preview only · Photo sharing is not connected yet.'),
+      find.text('Room for the good bits'),
       findsOneWidget,
     );
     await screenshot(tester, 'moments-preview');
@@ -368,8 +368,8 @@ void main() {
     expect(task.status, Responsibility.requested);
     container.read(routerProvider).push('/task/${task.id}');
     await tester.pumpAndSettle();
-    await reveal(tester, find.text('Accept'));
-    await tester.tap(find.text('Accept'));
+    await reveal(tester, find.text('Accept task'));
+    await tester.tap(find.text('Accept task'));
     await tester.pumpAndSettle();
     expect(
       container
@@ -396,7 +396,7 @@ void main() {
     await tester.tap(find.byTooltip('Back to Today'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Done & dusted · 2'),
+      find.text('Done (2)'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
