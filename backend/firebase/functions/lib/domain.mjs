@@ -40,6 +40,21 @@ export function basicHistoryStart(now, timeZone) {
   return new Date(Date.UTC(year, month - 1, day - 3)).toISOString().slice(0, 10);
 }
 
+export function nextLocalMidnight(now, timeZone) {
+  const today = localCalendarDate(now, timeZone);
+  let low = now.getTime();
+  let high = low + 48 * 60 * 60 * 1000;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (localCalendarDate(new Date(middle), timeZone) === today) {
+      low = middle;
+    } else {
+      high = middle;
+    }
+  }
+  return new Date(high);
+}
+
 export function transitionTask(task, action, actorUid, completedAt) {
   const next = {
     status: task.status,

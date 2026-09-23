@@ -33,15 +33,21 @@ class DemoController extends Notifier<DemoState> {
   TimelineRepository get repository => ref.read(repositoryProvider);
   @override
   DemoState build() {
+    final repository = ref.watch(repositoryProvider);
+    final updates = repository.changes.listen((_) => refresh());
+    ref.onDispose(updates.cancel);
     final timer = Timer.periodic(const Duration(minutes: 1), (_) => refresh());
     ref.onDispose(timer.cancel);
-    return DemoState(tasks: ref.watch(repositoryProvider).tasks);
+    return DemoState(tasks: repository.tasks,
+      spaceId: repository.spaces.firstOrNull?.id ?? '');
   }
 
   void refresh() => state = DemoState(
     tasks: repository.tasks,
-    spaceId: state.spaceId,
-    personId: state.personId,
+    spaceId: repository.spaces.any((s) => s.id == state.spaceId)
+        ? state.spaceId : repository.spaces.firstOrNull?.id ?? '',
+    personId: repository.spaces.any((s) => s.id == state.spaceId &&
+        s.members.any((m) => m.id == state.personId)) ? state.personId : null,
     pending: state.pending,
     errors: state.errors,
     revision: state.revision + 1,
@@ -72,7 +78,7 @@ class DemoController extends Notifier<DemoState> {
     );
     String? error;
     try {
-      await repository.act(task.id, action, 'me');
+      await repository.act(task.id, action, repository.currentUserId);
     } on DemoException catch (exception) {
       error = exception.message;
     } catch (_) {

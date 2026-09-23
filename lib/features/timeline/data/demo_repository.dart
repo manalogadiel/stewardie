@@ -1,6 +1,14 @@
+import 'dart:async';
+
 import '../domain/models.dart';
 
-abstract interface class TimelineRepository {
+abstract class TimelineRepository {
+  String get currentUserId => 'me';
+  bool get isShared => false;
+  bool get isPlus => false;
+  Stream<void> get changes => const Stream.empty();
+  bool canView(Task task) => visibleToBasic(task, DateTime.now());
+  DateTime todayInSpace(String spaceId) => dateOnly(DateTime.now());
   List<Space> get spaces;
   List<Task> get tasks;
   Future<Task> act(String taskId, TaskAction action, String actorId);
@@ -11,14 +19,14 @@ abstract interface class TimelineRepository {
     bool assignToMe,
   );
   CheckIn? checkIn(String spaceId, String memberId);
-  void shareCheckIn(
+  FutureOr<void> shareCheckIn(
     String spaceId,
     String memberId,
     Mood mood,
     String note, {
     MoodColor color = MoodColor.sky,
   });
-  void removeCheckIn(String spaceId, String memberId);
+  FutureOr<void> removeCheckIn(String spaceId, String memberId);
 }
 
 class DemoException implements Exception {
@@ -27,7 +35,7 @@ class DemoException implements Exception {
 }
 
 /// Fixture spaces and identity with optional durable task writes; no remote sync.
-class DemoRepository implements TimelineRepository {
+class DemoRepository extends TimelineRepository {
   DemoRepository({
     DateTime Function()? clock,
     this.delay = const Duration(milliseconds: 500),

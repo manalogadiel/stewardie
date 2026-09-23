@@ -5,6 +5,7 @@ import {
   basicHistoryStart,
   DomainError,
   localCalendarDate,
+  nextLocalMidnight,
   transitionTask,
   validateFounderTarget,
 } from '../lib/domain.mjs';
@@ -25,6 +26,17 @@ test('Basic history uses space-local calendar dates across midnight', () => {
   assert.equal(basicHistoryStart(instant, 'Asia/Manila'), '2026-09-20');
   assert.equal(localCalendarDate(instant, 'America/Los_Angeles'), '2026-09-22');
   assert.equal(basicHistoryStart(instant, 'America/Los_Angeles'), '2026-09-19');
+});
+
+test('check-ins expire at the next space-local midnight, including DST', () => {
+  assert.equal(
+    nextLocalMidnight(new Date('2026-09-23T10:00:00Z'), 'Asia/Manila').toISOString(),
+    '2026-09-23T16:00:00.000Z',
+  );
+  assert.equal(
+    nextLocalMidnight(new Date('2026-03-08T08:00:00Z'), 'America/Los_Angeles').toISOString(),
+    '2026-03-09T07:00:00.000Z',
+  );
 });
 
 test('a request is not accepted until the recipient acts', () => {

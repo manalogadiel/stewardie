@@ -25,10 +25,12 @@ class Member {
 }
 
 class Space {
-  const Space(this.id, this.name, this.kind, this.members);
+  const Space(this.id, this.name, this.kind, this.members, {this.currentUserId = 'me'});
   final String id, name, kind;
+  final String currentUserId;
   final List<Member> members;
-  Member member(String id) => members.firstWhere((member) => member.id == id);
+  Member member(String id) => members.firstWhere((member) => member.id == id,
+    orElse: () => Member(id, 'Former member', '?', 0));
 }
 
 class Task {

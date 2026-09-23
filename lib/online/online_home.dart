@@ -6,7 +6,10 @@ import 'package:flutter/services.dart';
 import '../app.dart' show GlassDock;
 import '../core/clay.dart';
 import '../core/theme.dart';
+import '../core/top_controls.dart';
 import 'online_backend.dart';
+import 'online_moments.dart';
+import 'online_today_extras.dart';
 
 class OnlineHome extends StatefulWidget {
   const OnlineHome({super.key, required this.backend, required this.user});
@@ -18,6 +21,8 @@ class OnlineHome extends StatefulWidget {
 }
 
 class _OnlineHomeState extends State<OnlineHome> {
+  late final Future<OnlineMomentsStore> _momentStore =
+      OnlineMomentsStore.open();
   String? _spaceId;
   String? _personId;
   int _destination = 0;
@@ -141,7 +146,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                     bottom: false,
                     child: switch (_destination) {
                       0 => _today(selected, snapshot),
-                      1 => _moments(),
+                      1 => _moments(selected, space),
                       _ => _space(selected, space),
                     },
                   ),
@@ -335,33 +340,53 @@ class _OnlineHomeState extends State<OnlineHome> {
                 final nextCursor = _moreDone.isEmpty
                     ? (doneSnapshot.data?['nextCursorId'] as String?)
                     : _moreCursor;
-                return _page([
-                  _hero('Today', 'A little progress, together.'),
-                  const SizedBox(height: 22),
-                  _peopleFilters(members),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      _countCard('${pending.length}', 'Help', SoftPop.butter),
-                      const SizedBox(width: 8),
-                      _countCard('${covered.length}', 'Covered', SoftPop.sky),
-                      const SizedBox(width: 8),
-                      _countCard(
-                        count == null ? '–' : '$count',
-                        'Done',
-                        SoftPop.rose,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  Row(
+                final spaceName =
+                    spaceSnapshot.data!.docs
+                            .firstWhere((doc) => doc.id == spaceId)
+                            .data()['name']
+                        as String? ??
+                    'Your space';
+                return _todayPage(
+                  summary: [
+                    const SizedBox(height: 16),
+                    _peopleFilters(members),
+                    const SizedBox(height: 16),
+                    OnlineTodayExtras(
+                      backend: widget.backend,
+                      spaceId: spaceId,
+                      spaceName: spaceName,
+                      myUid: widget.user.uid,
+                      personUid: _personId,
+                      members: members,
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        _countCard('${pending.length}', 'Help', SoftPop.butter),
+                        const SizedBox(width: 8),
+                        _countCard('${covered.length}', 'Covered', SoftPop.sky),
+                        const SizedBox(width: 8),
+                        _countCard(
+                          count == null ? '–' : '$count',
+                          'Done',
+                          SoftPop.rose,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                  ],
+                  tabs: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          'Tasks',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        child: _taskTab(
+                          'Pending',
+                          pending.length + covered.length,
+                          false,
                         ),
                       ),
+                      const SizedBox(width: 4),
+                      Expanded(child: _taskTab('Done', count ?? 0, true)),
+                      const SizedBox(width: 8),
                       IconButton.filled(
                         tooltip: 'Add task',
                         onPressed: _creating
@@ -371,61 +396,54 @@ class _OnlineHomeState extends State<OnlineHome> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('Pending')),
-                      ButtonSegment(value: true, label: Text('Done')),
-                    ],
-                    selected: {_showDone},
-                    onSelectionChanged: (values) =>
-                        setState(() => _showDone = values.first),
-                  ),
-                  const SizedBox(height: 16),
-                  if (!_showDone) ...[
-                    if (taskSnapshot.connectionState == ConnectionState.waiting)
-                      const Center(child: CircularProgressIndicator()),
-                    if (taskSnapshot.hasData && filtered.isEmpty)
-                      _emptyPanel(
-                        'All clear for now',
-                        'Add a task when something comes up.',
-                      ),
-                    if (pending.isNotEmpty) ...[
-                      _sectionTitle('Pending'),
-                      for (final doc in pending)
-                        _taskCard(spaceId, doc.id, doc.data(), members),
-                    ],
-                    if (covered.isNotEmpty) ...[
-                      _sectionTitle('Covered'),
-                      for (final doc in covered)
-                        _taskCard(spaceId, doc.id, doc.data(), members),
-                    ],
-                  ] else ...[
-                    if (doneSnapshot.connectionState == ConnectionState.waiting)
-                      const Center(child: CircularProgressIndicator()),
-                    if (doneSnapshot.hasError)
-                      _emptyPanel(
-                        'Could not load Done',
-                        'Check your connection and try again.',
-                      ),
-                    if (doneSnapshot.hasData && done.isEmpty)
-                      _emptyPanel(
-                        'Nothing done yet',
-                        'Finished tasks will appear here.',
-                      ),
-                    for (final task in done)
-                      _taskCard(spaceId, task['id'] as String, task, members),
-                    if (nextCursor != null)
-                      OutlinedButton(
-                        onPressed: _loadingMore
-                            ? null
-                            : () => _loadMore(spaceId, nextCursor),
-                        child: Text(
-                          _loadingMore ? 'Loading…' : 'Load older tasks',
+                  tasks: [
+                    if (!_showDone) ...[
+                      if (taskSnapshot.connectionState ==
+                          ConnectionState.waiting)
+                        const Center(child: CircularProgressIndicator()),
+                      if (taskSnapshot.hasData && filtered.isEmpty)
+                        _emptyPanel(
+                          'All clear for now',
+                          'Add a task when something comes up.',
                         ),
-                      ),
+                      if (pending.isNotEmpty) ...[
+                        _sectionTitle('Pending'),
+                        for (final doc in pending)
+                          _taskCard(spaceId, doc.id, doc.data(), members),
+                      ],
+                      if (covered.isNotEmpty) ...[
+                        _sectionTitle('Covered'),
+                        for (final doc in covered)
+                          _taskCard(spaceId, doc.id, doc.data(), members),
+                      ],
+                    ] else ...[
+                      if (doneSnapshot.connectionState ==
+                          ConnectionState.waiting)
+                        const Center(child: CircularProgressIndicator()),
+                      if (doneSnapshot.hasError)
+                        _emptyPanel(
+                          'Could not load Done',
+                          'Check your connection and try again.',
+                        ),
+                      if (doneSnapshot.hasData && done.isEmpty)
+                        _emptyPanel(
+                          'Nothing done yet',
+                          'Finished tasks will appear here.',
+                        ),
+                      for (final task in done)
+                        _taskCard(spaceId, task['id'] as String, task, members),
+                      if (nextCursor != null)
+                        OutlinedButton(
+                          onPressed: _loadingMore
+                              ? null
+                              : () => _loadMore(spaceId, nextCursor),
+                          child: Text(
+                            _loadingMore ? 'Loading…' : 'Load older tasks',
+                          ),
+                        ),
+                    ],
                   ],
-                ]);
+                );
               },
             );
           },
@@ -433,6 +451,108 @@ class _OnlineHomeState extends State<OnlineHome> {
       },
     );
   }
+
+  Widget _todayPage({
+    required List<Widget> summary,
+    required Widget tabs,
+    required List<Widget> tasks,
+  }) => Align(
+    alignment: Alignment.topCenter,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 680),
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: ClayPanel(
+              color: SoftPop.today,
+              padding: EdgeInsets.fromLTRB(
+                20,
+                topControlsClearance(context),
+                16,
+                18,
+              ),
+              radius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Today',
+                          style: Theme.of(context).textTheme.headlineLarge
+                              ?.copyWith(fontSize: 32),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          MaterialLocalizations.of(context)
+                              .formatMediumDate(DateTime.now()),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text('Little things, together.'),
+                      ],
+                    ),
+                  ),
+                  if (MediaQuery.textScalerOf(context).scale(16) <= 22)
+                    const ClayArt('greeting', height: 112, width: 154),
+                ],
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: summary,
+              ),
+            ),
+          ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _OnlineTaskTabHeader(
+              height: 64,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: tabs,
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              140 + MediaQuery.paddingOf(context).bottom,
+            ),
+            sliver: SliverList.list(children: tasks),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _taskTab(String title, int count, bool done) => Semantics(
+    selected: _showDone == done,
+    child: Material(
+      color: _showDone == done ? SoftPop.surface : const Color(0xFFECEBE8),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+      child: InkWell(
+        onTap: () => setState(() => _showDone = done),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          child: Text(
+            '$title ($count)',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: _showDone == done ? SoftPop.blue : SoftPop.secondary,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _hero(String title, String subtitle) => Material(
     color: SoftPop.today,
@@ -514,13 +634,27 @@ class _OnlineHomeState extends State<OnlineHome> {
 
   Widget _personChip(String? id, String label) => Padding(
     padding: const EdgeInsets.only(right: 8),
-    child: ChoiceChip(
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      selected: _personId == id,
-      onSelected: (_) => setState(() {
-        _personId = id;
-        _invalidateHistory();
-      }),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 180),
+      child: ChoiceChip(
+        showCheckmark: false,
+        avatar: id == null
+            ? null
+            : CircleAvatar(
+                radius: 13,
+                backgroundColor: SoftPop.sky,
+                child: Text(
+                  label.substring(0, 1).toUpperCase(),
+                  style: const TextStyle(color: SoftPop.ink),
+                ),
+              ),
+        label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        selected: _personId == id,
+        onSelected: (_) => setState(() {
+          _personId = id;
+          _invalidateHistory();
+        }),
+      ),
     ),
   );
 
@@ -611,14 +745,52 @@ class _OnlineHomeState extends State<OnlineHome> {
     );
   }
 
-  Widget _moments() => _page([
-    _hero('Moments', 'The small things are worth keeping.'),
-    const SizedBox(height: 22),
-    _emptyPanel(
-      'No shared moments yet',
-      'Photos shared with this space will appear here.',
-    ),
-  ]);
+  Widget _moments(
+    String? spaceId,
+    QueryDocumentSnapshot<Map<String, dynamic>>? space,
+  ) {
+    if (spaceId == null) {
+      return _page([
+        _hero('Little moments', 'A space for the good bits.'),
+        const SizedBox(height: 20),
+        _emptyPanel('Make a space first', 'Your moments belong to a space.'),
+      ]);
+    }
+    return FutureBuilder<OnlineMomentsStore>(
+      future: _momentStore,
+      builder: (context, librarySnapshot) {
+        if (librarySnapshot.hasError) {
+          return _page([
+            _emptyPanel(
+              'Could not open photos',
+              'Saved photos are still on this device. Try reopening the app.',
+            ),
+          ]);
+        }
+        if (!librarySnapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: widget.backend.members(spaceId),
+          builder: (context, peopleSnapshot) => OnlineMomentsScreen(
+            store: librarySnapshot.data!,
+            spaceId: spaceId,
+            spaceName: space?.data()['name'] as String? ?? 'Your space',
+            myUid: widget.user.uid,
+            personUid: _personId,
+            members: {
+              for (final doc in peopleSnapshot.data?.docs ?? [])
+                if (doc.data()['status'] == 'active') doc.id: doc.data(),
+            },
+            onPersonSelected: (uid) => setState(() {
+              _personId = uid;
+              _invalidateHistory();
+            }),
+          ),
+        );
+      },
+    );
+  }
 
   Widget _space(
     String? spaceId,
@@ -943,6 +1115,25 @@ class _OnlineHomeState extends State<OnlineHome> {
       if (mounted) setState(() => _creating = false);
     }
   }
+}
+
+class _OnlineTaskTabHeader extends SliverPersistentHeaderDelegate {
+  const _OnlineTaskTabHeader({required this.child, required this.height});
+  final Widget child;
+  final double height;
+
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => ColoredBox(color: SoftPop.canvas, child: child);
+  @override
+  bool shouldRebuild(_OnlineTaskTabHeader oldDelegate) => true;
 }
 
 class _CreateSpaceDialog extends StatefulWidget {

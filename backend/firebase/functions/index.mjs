@@ -8,6 +8,7 @@ import {
   basicHistoryStart,
   DomainError,
   localCalendarDate,
+  nextLocalMidnight,
   requireId,
   requireText,
   transitionTask,
@@ -206,6 +207,105 @@ export const revokeInvite = checked(async (request) => {
     tx.update(inviteRef, { revoked: true });
   });
   return { revoked: true };
+});
+
+const moods = new Set(['happy', 'calm', 'tired', 'overwhelmed', 'sad', 'excited']);
+const moodColors = new Set(['sky', 'butter', 'rose']);
+
+export const setCheckIn = checked(async (request) => {
+  const uid = verifiedUid(request);
+  const spaceId = requireId(request.data?.spaceId, 'Space ID');
+  const mood = request.data?.mood;
+  const color = request.data?.color;
+  const note = request.data?.note ?? '';
+  if (!moods.has(mood) || !moodColors.has(color) ||
+      typeof note !== 'string' || note.trim().length > 180) {
+    throw new DomainError('invalid-argument', 'Check-in details are invalid.');
+  }
+  const spaceRef = db.doc(`spaces/${spaceId}`);
+  await db.runTransaction(async (tx) => {
+    const space = await tx.get(spaceRef);
+    if (!space.exists) throw new DomainError('not-found', 'Space not found.');
+    await activeMember(tx, spaceId, uid);
+    const now = new Date();
+    tx.set(spaceRef.collection('checkIns').doc(uid), {
+      uid, mood, color, note: note.trim(),
+      updatedAt: now,
+      expiresAt: nextLocalMidnight(now, space.get('timeZone')),
+    });
+  });
+  return { saved: true };
+});
+
+export const removeCheckIn = checked(async (request) => {
+  const uid = verifiedUid(request);
+  const spaceId = requireId(request.data?.spaceId, 'Space ID');
+  await db.runTransaction(async (tx) => {
+    await activeMember(tx, spaceId, uid);
+    tx.delete(db.doc(`spaces/${spaceId}/checkIns/${uid}`));
+  });
+  return { removed: true };
+});
+
+export const savePlan = checked(async (request) => {
+  const uid = verifiedUid(request);
+  const spaceId = requireId(request.data?.spaceId, 'Space ID');
+  const planId = requireId(request.data?.planId, 'Plan ID');
+  const title = requireText(request.data?.title, 'Plan title', 120);
+  const note = request.data?.note ?? '';
+  const allDay = request.data?.allDay;
+  const startMillis = request.data?.startMillis;
+  const endMillis = request.data?.endMillis;
+  const participants = request.data?.participants ?? [];
+  if (typeof note !== 'string' || note.trim().length > 500 ||
+      typeof allDay !== 'boolean' ||
+      !Number.isSafeInteger(startMillis) || !Number.isSafeInteger(endMillis) ||
+      endMillis <= startMillis || endMillis - startMillis > 366 * 86400000 ||
+      !Array.isArray(participants) || participants.length > 20 ||
+      participants.some((id) => typeof id !== 'string') ||
+      new Set(participants).size !== participants.length ||
+      participants.includes(uid)) {
+    throw new DomainError('invalid-argument', 'Plan details are invalid.');
+  }
+  const spaceRef = db.doc(`spaces/${spaceId}`);
+  const planRef = spaceRef.collection('plans').doc(planId);
+  await db.runTransaction(async (tx) => {
+    const space = await tx.get(spaceRef);
+    if (!space.exists) throw new DomainError('not-found', 'Space not found.');
+    await activeMember(tx, spaceId, uid);
+    for (const participant of participants) {
+      requireId(participant, 'Participant ID');
+      await activeMember(tx, spaceId, participant);
+    }
+    const existing = await tx.get(planRef);
+    if (existing.exists && existing.get('ownerUid') !== uid) {
+      throw new DomainError('permission-denied', 'Only the author can edit this plan.');
+    }
+    tx.set(planRef, {
+      ownerUid: uid, title, note: note.trim(), allDay,
+      startAt: new Date(startMillis), endAt: new Date(endMillis),
+      participants, updatedAt: FieldValue.serverTimestamp(),
+      ...(!existing.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
+    }, { merge: true });
+  });
+  return { planId };
+});
+
+export const removePlan = checked(async (request) => {
+  const uid = verifiedUid(request);
+  const spaceId = requireId(request.data?.spaceId, 'Space ID');
+  const planId = requireId(request.data?.planId, 'Plan ID');
+  const planRef = db.doc(`spaces/${spaceId}/plans/${planId}`);
+  await db.runTransaction(async (tx) => {
+    await activeMember(tx, spaceId, uid);
+    const plan = await tx.get(planRef);
+    if (!plan.exists) return;
+    if (plan.get('ownerUid') !== uid) {
+      throw new DomainError('permission-denied', 'Only the author can remove this plan.');
+    }
+    tx.delete(planRef);
+  });
+  return { removed: true };
 });
 
 export const createTask = checked(async (request) => {

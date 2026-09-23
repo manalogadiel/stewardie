@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/demo_state.dart';
@@ -31,8 +33,19 @@ class CalendarPlan {
   }
 }
 
-class CalendarRepository {
-  CalendarRepository(this.spaces, {DateTime Function()? clock}) {
+abstract class CalendarDataSource {
+  List<CalendarPlan> get plans;
+  Stream<void> get changes => const Stream.empty();
+  FutureOr<CalendarPlan> save({String? id, required String spaceId,
+    required String actorId, required String title, required DateTime start,
+    required DateTime end, required bool allDay, String note = '',
+    List<String> participants = const []});
+  FutureOr<void> remove(String id, String actorId);
+}
+
+class CalendarRepository extends CalendarDataSource {
+  CalendarRepository(this.spaces, {DateTime Function()? clock, bool seed = true}) {
+    if (!seed) return;
     final now = (clock ?? DateTime.now)();
     DateTime at(int day, int hour) =>
         DateTime(now.year, now.month, day, hour).toUtc();
@@ -75,6 +88,7 @@ class CalendarRepository {
     ]);
   }
   final List<Space> spaces;
+  Stream<void> get changes => const Stream.empty();
   final List<CalendarPlan> _plans = [];
   int _serial = 0;
   List<CalendarPlan> get plans => List.unmodifiable(_plans);
@@ -138,7 +152,7 @@ class CalendarRepository {
   }
 }
 
-final calendarRepositoryProvider = Provider(
+final calendarRepositoryProvider = Provider<CalendarDataSource>(
   (ref) => CalendarRepository(ref.read(repositoryProvider).spaces),
 );
 final calendarProvider = NotifierProvider<CalendarController, CalendarState>(
@@ -163,6 +177,9 @@ class CalendarController extends Notifier<CalendarState> {
   CalendarState build() {
     ref.watch(demoProvider.select((state) => state.spaceId));
     final today = dateOnly(DateTime.now());
+    final repository = ref.watch(calendarRepositoryProvider);
+    final updates = repository.changes.listen((_) => refresh());
+    ref.onDispose(updates.cancel);
     return CalendarState(
       ref.watch(calendarRepositoryProvider).plans,
       DateTime(today.year, today.month),

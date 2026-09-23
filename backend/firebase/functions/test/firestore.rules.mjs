@@ -16,7 +16,7 @@ let environment;
 
 before(async () => {
   environment = await initializeTestEnvironment({
-    projectId: 'demo-stewardie',
+    projectId: 'demo-stewardie-rules',
     firestore: { rules, host: '127.0.0.1', port: 8080 },
   });
 });
@@ -36,6 +36,8 @@ beforeEach(async () => {
     await db.doc('spaces/space12345/tasks/done12345').set({
       title: 'Old dishes', status: 'completed',
     });
+    await db.doc('spaces/space12345/checkIns/alice').set({ mood: 'calm' });
+    await db.doc('spaces/space12345/plans/plan12345').set({ title: 'A walk' });
   });
 });
 
@@ -68,4 +70,13 @@ test('clients cannot forge Plus, membership or task completion', async () => {
   await assertFails(db('alice').doc('spaces/space12345/tasks/task12345').update({ status: 'completed' }));
   const snapshot = await db('alice').doc('accounts/alice').get();
   assert.equal(snapshot.get('tier'), 'basic');
+});
+
+test('moods and plans are member-readable but server-written', async () => {
+  await assertSucceeds(db('alice').doc('spaces/space12345/checkIns/alice').get());
+  await assertSucceeds(db('alice').collection('spaces/space12345/plans').get());
+  await assertFails(db('bob').doc('spaces/space12345/checkIns/alice').get());
+  await assertFails(db('outsider').doc('spaces/space12345/plans/plan12345').get());
+  await assertFails(db('alice').doc('spaces/space12345/checkIns/alice').set({ mood: 'happy' }));
+  await assertFails(db('alice').doc('spaces/space12345/plans/plan12345').delete());
 });

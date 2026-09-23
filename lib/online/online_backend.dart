@@ -10,10 +10,13 @@ class OnlineBackend {
   OnlineBackend._();
 
   static const projectId = 'demo-stewardie';
-  static const host = String.fromEnvironment(
-    'FIREBASE_EMULATOR_HOST',
-    defaultValue: 'localhost',
-  );
+  static String get host {
+    const override = String.fromEnvironment('FIREBASE_EMULATOR_HOST');
+    if (override.isNotEmpty) return override;
+    // Browser origins treat localhost and 127.0.0.1 separately. Point the
+    // emulator SDKs at the same host that served this local preview.
+    return kIsWeb ? Uri.base.host : 'localhost';
+  }
 
   static Future<OnlineBackend> start() async {
     await Firebase.initializeApp(
@@ -100,4 +103,20 @@ class OnlineBackend {
           .collection('tasks')
           .where('status', isNotEqualTo: 'completed')
           .snapshots();
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> checkIn(
+    String spaceId,
+    String uid,
+  ) => firestore
+      .collection('spaces')
+      .doc(spaceId)
+      .collection('checkIns')
+      .doc(uid)
+      .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> plans(String spaceId) => firestore
+      .collection('spaces')
+      .doc(spaceId)
+      .collection('plans')
+      .snapshots();
 }
