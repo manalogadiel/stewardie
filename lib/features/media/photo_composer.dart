@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sembast/sembast.dart';
 
 import '../../core/clay.dart';
+import '../../core/theme.dart';
 import '../../core/demo_state.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
@@ -37,14 +38,22 @@ Future<bool?> showPhotoComposer(
   bool complete = false,
   CapturedPhoto? recovered,
   bool? initialCamera,
-}) => Navigator.of(context, rootNavigator: true).push<bool>(
-  MaterialPageRoute(
-    builder: (_) => PhotoComposer(
-      space: space,
-      task: task,
-      complete: complete,
-      recovered: recovered,
-      initialCamera: initialCamera,
+}) => showModalBottomSheet<bool>(
+  context: context,
+  useRootNavigator: true,
+  isScrollControlled: true,
+  useSafeArea: true,
+  isDismissible: false,
+  enableDrag: false,
+  backgroundColor: SoftPop.surface,
+  constraints: const BoxConstraints(maxWidth: 640),
+  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+  clipBehavior: Clip.antiAlias,
+  builder: (sheet) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheet).bottom),
+    child: SizedBox(
+      height: (MediaQuery.sizeOf(sheet).height * .86 - MediaQuery.viewInsetsOf(sheet).bottom).clamp(180.0, MediaQuery.sizeOf(sheet).height),
+      child: PhotoComposer(space: space, task: task, complete: complete, recovered: recovered, initialCamera: initialCamera),
     ),
   ),
 );
@@ -195,7 +204,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
         }
         await library.publishTask(updated);
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) { setState(() => closing = true); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) Navigator.pop(context, true); }); }
     } catch (e) {
       if (mounted) {
         setState(
@@ -209,11 +218,31 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
     }
   }
 
+  bool closing = false;
+  Future<void> close() async {
+    if (busy) return;
+    if (draft != null && !attached) {
+      final discard = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
+        title: const Text('Discard this moment?'),
+        content: const Text('Your unsaved photo and caption will be discarded.'),
+        actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Keep editing')),
+          FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Discard'))],
+      ));
+      if (discard != true || !mounted) return;
+    }
+    setState(() => closing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) Navigator.pop(context); });
+  }
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: !busy,
+    canPop: closing,
+    onPopInvokedWithResult: (didPop, result) { if (!didPop) close(); },
     child: Scaffold(
+      backgroundColor: SoftPop.surface,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(tooltip: 'Close', onPressed: busy ? null : close, icon: const Icon(Icons.close_rounded)),
+        centerTitle: true,
         title: Text(
           widget.complete
               ? 'A little win'
@@ -308,7 +337,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             ),
           ],
           TextButton(
-            onPressed: busy ? null : () => Navigator.pop(context),
+            onPressed: busy ? null : close,
             child: const Text('Cancel'),
           ),
         ],

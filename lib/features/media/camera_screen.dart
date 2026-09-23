@@ -153,10 +153,7 @@ class _CameraScreenState extends State<CameraScreen>
                   borderRadius: BorderRadius.circular(28),
                   child: Center(
                     child: camera?.value.isInitialized == true
-                        ? AspectRatio(
-                            aspectRatio: camera!.value.aspectRatio,
-                            child: CameraPreview(camera),
-                          )
+                        ? CameraPreview(camera!)
                         : error == null
                         ? const CircularProgressIndicator(color: Colors.white)
                         : Padding(
@@ -193,17 +190,17 @@ class _CameraScreenState extends State<CameraScreen>
               ),
             Padding(
               padding: const EdgeInsets.all(20),
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 20,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Expanded(child: Align(alignment: Alignment.centerLeft, child:
                   IconButton.filledTonal(
+                    style: IconButton.styleFrom(backgroundColor: SoftPop.sky, foregroundColor: SoftPop.ink, minimumSize: const Size(52, 52), shape: const CircleBorder(), elevation: 3, shadowColor: Colors.black26),
                     tooltip: 'Choose photo',
                     onPressed: busy ? null : () => capture(true),
                     icon: const Icon(Icons.photo_library_outlined),
                   ),
+                  )),
                   Semantics(
                     label: 'Take photo',
                     button: true,
@@ -242,8 +239,10 @@ class _CameraScreenState extends State<CameraScreen>
                       ),
                     ),
                   ),
+                  Expanded(child: Align(alignment: Alignment.centerRight, child: Column(mainAxisSize: MainAxisSize.min, children: [
                   if (cameras.length > 1)
                     IconButton.filledTonal(
+                    style: IconButton.styleFrom(backgroundColor: SoftPop.sky, foregroundColor: SoftPop.ink, minimumSize: const Size(52, 52), shape: const CircleBorder(), elevation: 3, shadowColor: Colors.black26),
                       tooltip: 'Switch camera',
                       onPressed: busy
                           ? null
@@ -255,6 +254,7 @@ class _CameraScreenState extends State<CameraScreen>
                     ),
                   if (camera != null && flashAvailable)
                     IconButton.filledTonal(
+                    style: IconButton.styleFrom(backgroundColor: SoftPop.sky, foregroundColor: SoftPop.ink, minimumSize: const Size(52, 52), shape: const CircleBorder(), elevation: 3, shadowColor: Colors.black26),
                       tooltip: flash ? 'Turn flash off' : 'Turn flash on',
                       onPressed: busy
                           ? null
@@ -276,6 +276,7 @@ class _CameraScreenState extends State<CameraScreen>
                             : Icons.flash_off_rounded,
                       ),
                     ),
+                  ]))),
                 ],
               ),
             ),

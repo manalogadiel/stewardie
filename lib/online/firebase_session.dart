@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sembast/sembast.dart';
 
 import '../app.dart';
+import '../features/subscription/revenuecat_service.dart';
 import '../core/backend_provider.dart';
 import '../core/demo_state.dart';
 import '../core/theme.dart';
@@ -80,6 +81,7 @@ class _SignedInAppState extends State<_SignedInApp> {
   void initState() {
     super.initState();
     timeline.start();
+    unawaited(RevenueCatService.instance.init(userId: widget.user.uid));
   }
 
   Future<MediaLibrary> _loadLibrary() async {

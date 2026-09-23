@@ -9,7 +9,7 @@ import {
 } from '@firebase/rules-unit-testing';
 
 const rules = readFileSync(
-  fileURLToPath(new URL('../../firestore.rules', import.meta.url)),
+  fileURLToPath(new URL('../../firestore.callable.rules', import.meta.url)),
   'utf8',
 );
 let environment;

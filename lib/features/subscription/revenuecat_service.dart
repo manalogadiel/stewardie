@@ -27,6 +27,9 @@ class RevenueCatService extends ChangeNotifier {
   Offerings? _offerings;
   CustomerInfo? _customerInfo;
   String? _currentUserId;
+  Future<void> _queue = Future.value();
+  String? error;
+  static const purchasesEnabled = bool.fromEnvironment('ENABLE_TEST_PURCHASES', defaultValue: false);
 
   bool get isPlus => _isPlus;
   Offerings? get offerings => _offerings;
@@ -34,70 +37,61 @@ class RevenueCatService extends ChangeNotifier {
   bool get isInitialized => _initialized;
 
   /// Initializes RevenueCat with safe fallback for Web or environments without native billing.
-  Future<void> init({String? userId}) async {
-    if (_initialized && _currentUserId == userId) return;
+  Future<void> init({String? userId}) => _queue = _queue.then((_) => _bind(userId));
+
+  Future<void> _bind(String? userId) async {
+    if (_currentUserId == userId && _initialized) return;
     _currentUserId = userId;
-
-    if (kIsWeb) {
-      debugPrint('[RevenueCat] Web detected: running in Sandbox Demo mode.');
-      _initialized = true;
-      notifyListeners();
-      return;
-    }
-
+    _isPlus = false;
+    _customerInfo = null;
+    _offerings = null;
+    error = null;
+    notifyListeners();
+    if (kIsWeb || userId == null) return;
     try {
-      await Purchases.setLogLevel(LogLevel.debug);
-      final config = PurchasesConfiguration(apiKey);
-      if (userId != null && userId.isNotEmpty) {
-        config.appUserID = userId;
+      if (!_initialized) {
+        await Purchases.setLogLevel(kDebugMode ? LogLevel.debug : LogLevel.warn);
+        await Purchases.configure(PurchasesConfiguration(apiKey)..appUserID = userId);
+        Purchases.addCustomerInfoUpdateListener(_receiveInfo);
+        _initialized = true;
+      } else {
+        await Purchases.logIn(userId);
       }
-      await Purchases.configure(config);
-
-      Purchases.addCustomerInfoUpdateListener((info) {
-        _updateCustomerInfo(info);
-      });
-
-      final info = await Purchases.getCustomerInfo();
-      _updateCustomerInfo(info);
-
+      _updateCustomerInfo(await Purchases.getCustomerInfo());
       _offerings = await Purchases.getOfferings();
-      _initialized = true;
-      notifyListeners();
-    } catch (e) {
-      debugPrint('[RevenueCat] Initialization warning (sandbox fallback active): $e');
-      _initialized = true;
-      notifyListeners();
+    } catch (_) {
+      error = 'Purchase information is unavailable. Try again when connected.';
+    }
+    notifyListeners();
+  }
+
+  void _receiveInfo(CustomerInfo info) {
+    // Ignore late callbacks belonging to an earlier authentication session.
+    if (_currentUserId != null) {
+      final expected = _currentUserId;
+      Purchases.appUserID.then((id) {
+        if (_currentUserId == expected && id == expected) _updateCustomerInfo(info);
+      }).catchError((Object _) {});
     }
   }
 
-  /// Synchronizes logged-in Firebase user UID with RevenueCat.
-  Future<void> logIn(String uid) async {
-    _currentUserId = uid;
-    if (kIsWeb) return;
-    try {
-      final result = await Purchases.logIn(uid);
-      _updateCustomerInfo(result.customerInfo);
-    } catch (e) {
-      debugPrint('[RevenueCat] logIn error: $e');
-    }
-  }
-
-  /// Logs out the user from RevenueCat when signing out of Firebase.
-  Future<void> logOut() async {
+  Future<void> logIn(String uid) => init(userId: uid);
+  Future<void> logOut() {
     _currentUserId = null;
     _isPlus = false;
     _customerInfo = null;
+    _offerings = null;
     notifyListeners();
-    if (kIsWeb) return;
-    try {
-      await Purchases.logOut();
-    } catch (e) {
-      debugPrint('[RevenueCat] logOut error: $e');
-    }
+    return _queue = _queue.then((_) async {
+      if (!kIsWeb && _initialized) {
+        try { await Purchases.logOut(); } catch (_) { /* Firebase sign-out still proceeds. */ }
+      }
+    });
   }
 
   /// Purchases a real RevenueCat package if native store is connected.
   Future<bool> purchasePackage(Package package) async {
+    if (!purchasesEnabled || kIsWeb || !_initialized || _currentUserId == null) return false;
     try {
       final purchaseResult = await Purchases.purchase(
         PurchaseParams.package(package),
@@ -112,7 +106,7 @@ class RevenueCatService extends ChangeNotifier {
 
   /// Restores previous purchases.
   Future<bool> restorePurchases() async {
-    if (kIsWeb) return _isPlus;
+    if (kIsWeb || !_initialized || _currentUserId == null) return false;
     try {
       final info = await Purchases.restorePurchases();
       _updateCustomerInfo(info);
@@ -123,20 +117,11 @@ class RevenueCatService extends ChangeNotifier {
     }
   }
 
-  /// Sandbox / Demo mode toggle for Shipathon judges or test runs without a live store account.
-  void setPlusSimulated(bool active) {
-    _isPlus = active;
-    notifyListeners();
-  }
-
   void _updateCustomerInfo(CustomerInfo info) {
     _customerInfo = info;
     // Checks for entitlement 'plus' or 'personal_plus'
     final active = info.entitlements.active;
-    _isPlus = active.containsKey('stewardie_plus') ||
-        active.containsKey('plus') ||
-        active.containsKey('personal_plus') ||
-        active.containsKey('Plus');
+    _isPlus = active.containsKey('stewardie_plus');
     notifyListeners();
   }
 }

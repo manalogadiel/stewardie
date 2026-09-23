@@ -1,60 +1,181 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function verified() { return request.auth != null && request.auth.token.email_verified == true; }
+    function self(uid) { return verified() && request.auth.uid == uid; }
+    function sp(id) { return get(/databases/$(database)/documents/spaces/$(id)).data; }
+    function afterSpace(id) { return getAfter(/databases/$(database)/documents/spaces/$(id)).data; }
+    function member(id) { return verified() && request.auth.uid in sp(id).memberUids; }
+    function owner(id) { return member(id) && sp(id).ownerUid == request.auth.uid; }
+    function plus() { return get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.tier == 'plus'; }
+    function shortText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
+    function accountShape(d) {
+      return d.spaceIds is list && d.ownedSpaceIds is list
+        && d.spaceIds.size() <= (d.tier == 'plus' ? 50 : 20)
+        && d.ownedSpaceIds.size() <= (d.tier == 'plus' ? 20 : 3)
+        && d.spaceIds.toSet().size() == d.spaceIds.size()
+        && d.ownedSpaceIds.toSet().size() == d.ownedSpaceIds.size()
+        && d.spaceIds.hasAll(d.ownedSpaceIds);
     }
-
-    function isUser(accountId) {
-      return signedIn() && request.auth.uid == accountId;
+    function accountChange(uid, old, d) {
+      let id = d.changedSpaceId;
+      let joined = uid in afterSpace(id).memberUids;
+      let owns = afterSpace(id).ownerUid == uid;
+      return d.spaceIds.toSet().difference(old.spaceIds.toSet()).hasOnly([id])
+        && old.spaceIds.toSet().difference(d.spaceIds.toSet()).hasOnly([id])
+        && d.ownedSpaceIds.toSet().difference(old.ownedSpaceIds.toSet()).hasOnly([id])
+        && old.ownedSpaceIds.toSet().difference(d.ownedSpaceIds.toSet()).hasOnly([id])
+        && (id in d.spaceIds) == joined && (id in d.ownedSpaceIds) == owns;
     }
-
-    match /accounts/{accountId} {
-      allow read, write: if isUser(accountId);
-
-      match /spaceRefs/{spaceId} {
-        allow read, write: if isUser(accountId);
+    match /accounts/{uid} {
+      allow read: if self(uid);
+      allow create: if self(uid) && request.resource.data.keys().hasOnly(['tier','spaceIds','ownedSpaceIds','changedSpaceId'])
+        && request.resource.data.tier == 'basic' && accountShape(request.resource.data)
+        && accountChange(uid, {'spaceIds': [], 'ownedSpaceIds': []}, request.resource.data);
+      allow update: if self(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spaceIds','ownedSpaceIds','changedSpaceId'])
+        && accountShape(request.resource.data) && accountChange(uid, resource.data, request.resource.data);
+      match /spaceRefs/{id} {
+        allow read: if self(uid);
+        allow create: if self(uid) && uid in afterSpace(id).memberUids
+          && request.resource.data.keys().hasOnly(['spaceId','name','kind','joinedAt'])
+          && request.resource.data.spaceId == id && request.resource.data.name == afterSpace(id).name
+          && request.resource.data.kind == afterSpace(id).kind && request.resource.data.joinedAt == request.time;
+        allow delete: if verified() && !(uid in afterSpace(id).memberUids) && (self(uid) || owner(id));
       }
     }
-
-    match /spaces/{spaceId} {
-      allow read, write: if signedIn();
-
-      match /members/{memberId} {
-        allow read, write: if signedIn();
+    function inviteValid(token, id) {
+      let d = get(/databases/$(database)/documents/invites/$(token)).data;
+      return d.spaceId == id && d.revoked == false && d.redeemedUid == null && d.expiresAt > request.time
+        && getAfter(/databases/$(database)/documents/invites/$(token)).data.redeemedUid == request.auth.uid;
+    }
+    match /spaces/{id} {
+      allow read: if member(id);
+      allow create: if verified() && request.resource.data.keys().hasOnly(['name','kind','timeZone','ownerUid','memberUids','memberCount','activeTaskCount','createdAt'])
+        && shortText(request.resource.data.name, 80) && request.resource.data.kind in ['family','housemates','friends','crew','custom']
+        && request.resource.data.ownerUid == request.auth.uid && request.resource.data.memberUids == [request.auth.uid]
+        && request.resource.data.memberCount == 1 && request.resource.data.activeTaskCount == 0 && request.resource.data.createdAt == request.time
+        && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.ownedSpaceIds;
+      function joining() {
+        let d = request.resource.data;
+        return verified() && !(request.auth.uid in resource.data.memberUids)
+          && d.diff(resource.data).affectedKeys().hasOnly(['memberUids','memberCount','joinToken'])
+          && d.memberUids.toSet() == resource.data.memberUids.toSet().union([request.auth.uid].toSet())
+          && d.memberCount == d.memberUids.size() && d.memberCount <= 20
+          && inviteValid(d.joinToken, id)
+          && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.spaceIds;
       }
-
-      match /tasks/{taskId} {
-        allow read, write: if signedIn();
-
-        match /operations/{operationId} {
-          allow read, write: if signedIn();
+      function removing() {
+        let d = request.resource.data;
+        return member(id) && (owner(id) || d.removedUid == request.auth.uid) && d.removedUid != resource.data.ownerUid
+          && d.removedUid in resource.data.memberUids
+          && d.diff(resource.data).affectedKeys().hasOnly(['memberUids','memberCount','removedUid'])
+          && d.memberUids.toSet() == resource.data.memberUids.toSet().difference([d.removedUid].toSet())
+          && d.memberCount == d.memberUids.size()
+          && getAfter(/databases/$(database)/documents/spaces/$(id)/members/$(d.removedUid)).data.status == 'removed';
+      }
+      function taskCount() {
+        let d = request.resource.data;
+        let path = /databases/$(database)/documents/spaces/$(id)/tasks/$(d.changedTaskId);
+        return member(id) && d.diff(resource.data).affectedKeys().hasOnly(['activeTaskCount','changedTaskId'])
+          && d.activeTaskCount >= 0 && d.activeTaskCount <= 300
+          && ((!exists(path) && getAfter(path).data.creatorUid == request.auth.uid && d.activeTaskCount == resource.data.activeTaskCount + 1)
+          || (get(path).data.status != 'completed' && getAfter(path).data.status == 'completed' && d.activeTaskCount == resource.data.activeTaskCount - 1));
+      }
+      allow update: if joining() || removing() || taskCount()
+        || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && request.resource.data.pendingOwnerUid in resource.data.memberUids)
+        || (member(id) && resource.data.get('pendingOwnerUid', null) == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid','pendingOwnerUid'])
+          && request.resource.data.ownerUid == request.auth.uid && request.resource.data.pendingOwnerUid == null);
+      match /members/{uid} {
+        allow read: if member(id);
+        allow create, update: if self(uid) && (!exists(/databases/$(database)/documents/spaces/$(id)/members/$(uid)) || resource.data.status == 'removed')
+          && uid in afterSpace(id).memberUids && request.resource.data.uid == uid
+          && request.resource.data.status == 'active' && shortText(request.resource.data.name, 60)
+          && request.resource.data.joinedAt == request.time
+          && request.resource.data.keys().hasOnly(['uid','name','role','status','joinedAt','joinToken'])
+          && ((afterSpace(id).ownerUid == uid && request.resource.data.role == 'owner')
+            || (request.resource.data.role == 'member' && inviteValid(request.resource.data.joinToken, id)));
+        allow update: if verified() && resource.data.status == 'active'
+          && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'removed'
+            && !(uid in afterSpace(id).memberUids) && (self(uid) || owner(id)))
+          || (member(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+            && request.resource.data.role == (afterSpace(id).ownerUid == uid ? 'owner' : 'member')
+            && afterSpace(id).ownerUid != sp(id).ownerUid));
+      }
+      match /tasks/{task} {
+        allow read: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)) || resource.data.status != 'completed' || plus() || resource.data.completedAt >= request.time.date() - duration.value(3, 'd'));
+        allow create: if member(id) && request.resource.data.keys().hasOnly(['title','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt'])
+          && shortText(request.resource.data.title, 120) && request.resource.data.creatorUid == request.auth.uid
+          && request.resource.data.ownerUid == null && request.resource.data.offeredUid == null && request.resource.data.completedAt == null
+          && request.resource.data.version == 1 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && ((request.resource.data.requestedUid == null && request.resource.data.status == 'unclaimed')
+            || (request.resource.data.requestedUid in sp(id).memberUids && request.resource.data.status == 'requested'))
+          && afterSpace(id).activeTaskCount == sp(id).activeTaskCount + 1 && afterSpace(id).changedTaskId == task;
+        function transition() {
+          let a = resource.data;
+          let b = request.resource.data;
+          let me = request.auth.uid;
+          return (a.status == 'unclaimed' || (a.status == 'requested' && a.requestedUid == me)) && b.status == 'accepted' && b.ownerUid == me && b.requestedUid == null && b.offeredUid == null && b.completedAt == a.completedAt
+            || a.status == 'requested' && a.requestedUid == me && b.status == 'unclaimed' && b.ownerUid == a.ownerUid && b.requestedUid == null && b.offeredUid == a.offeredUid && b.completedAt == a.completedAt
+            || a.status == 'accepted' && a.ownerUid == me && b.status == 'needsHelp' && b.ownerUid == me && b.requestedUid == a.requestedUid && b.offeredUid == a.offeredUid && b.completedAt == a.completedAt
+            || a.status == 'needsHelp' && a.ownerUid != me && a.offeredUid == null && b.offeredUid == me && b.status == a.status && b.ownerUid == a.ownerUid && b.requestedUid == a.requestedUid && b.completedAt == a.completedAt
+            || a.status == 'needsHelp' && a.ownerUid == me && a.offeredUid in sp(id).memberUids && b.status == 'accepted' && b.ownerUid == a.offeredUid && b.offeredUid == null && b.requestedUid == a.requestedUid && b.completedAt == a.completedAt
+            || a.status in ['accepted','needsHelp'] && a.ownerUid == me && b.status == 'completed' && b.ownerUid == me && b.requestedUid == a.requestedUid && b.offeredUid == null && b.completedAt == request.time
+              && afterSpace(id).activeTaskCount == sp(id).activeTaskCount - 1 && afterSpace(id).changedTaskId == task;
+        }
+        function released() {
+          let removed = afterSpace(id).get('removedUid', '');
+          let a = resource.data;
+          let b = request.resource.data;
+          return a.status != 'completed' && removed in sp(id).memberUids && !(removed in afterSpace(id).memberUids)
+            && (owner(id) || request.auth.uid == removed) && b.completedAt == a.completedAt
+            && (((a.ownerUid == removed || a.requestedUid == removed) && b.status == 'unclaimed' && b.ownerUid == null && b.requestedUid == null && b.offeredUid == null)
+              || (a.offeredUid == removed && b.offeredUid == null && b.status == a.status && b.ownerUid == a.ownerUid && b.requestedUid == a.requestedUid));
+        }
+        allow update: if member(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt'])
+          && request.resource.data.version == resource.data.version + 1 && request.resource.data.updatedAt == request.time && (transition() || released());
+        match /operations/{op} {
+          allow read: if member(id) && op.matches(request.auth.uid + '_.*');
+          allow create: if member(id) && request.resource.data.keys().hasOnly(['actorUid','version','action','appliedAt'])
+            && request.resource.data.actorUid == request.auth.uid && request.resource.data.appliedAt == request.time
+            && request.resource.data.version == getAfter(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)).data.version
+            && request.resource.data.version == get(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)).data.version + 1;
         }
       }
-
-      match /plans/{planId} {
-        allow read, write: if signedIn();
+      match /checkIns/{uid} {
+        allow read: if member(id);
+        allow delete: if member(id) && self(uid);
+        allow create, update: if member(id) && self(uid) && request.resource.data.keys().hasOnly(['uid','mood','color','note','updatedAt','expiresAt'])
+          && request.resource.data.uid == uid && request.resource.data.mood in ['calm','happy','excited','tired','sad','overwhelmed']
+          && request.resource.data.color in ['sky','butter','rose'] && request.resource.data.note is string && request.resource.data.note.size() <= 180
+          && request.resource.data.updatedAt == request.time && request.resource.data.expiresAt == request.time.date() + duration.value(1, 'd');
       }
-
-      match /checkIns/{memberId} {
-        allow read, write: if signedIn();
-      }
-
-      match /moments/{momentId} {
-        allow read, write: if signedIn();
+      match /plans/{plan} {
+        allow read: if member(id);
+        allow delete: if member(id) && resource.data.ownerUid == request.auth.uid;
+        allow create, update: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/plans/$(plan)) || resource.data.ownerUid == request.auth.uid)
+          && request.resource.data.keys().hasOnly(['ownerUid','title','note','allDay','startMillis','endMillis','participants','updatedAt'])
+          && request.resource.data.ownerUid == request.auth.uid && shortText(request.resource.data.title, 100)
+          && request.resource.data.note is string && request.resource.data.note.size() <= 500 && request.resource.data.allDay is bool
+          && request.resource.data.startMillis is int && request.resource.data.endMillis is int && request.resource.data.endMillis > request.resource.data.startMillis
+          && request.resource.data.participants is list && request.resource.data.participants.size() <= 19
+          && request.resource.data.participants.toSet().size() == request.resource.data.participants.size()
+          && sp(id).memberUids.hasAll(request.resource.data.participants) && request.resource.data.updatedAt == request.time;
       }
     }
-
     match /invites/{token} {
-      allow read, write: if signedIn();
+      allow get: if verified() && ((resource.data.expiresAt > request.time && resource.data.revoked == false) || owner(resource.data.spaceId));
+      allow create: if verified() && token.matches('[A-Za-z0-9_-]{32}') && owner(request.resource.data.spaceId)
+        && request.resource.data.keys().hasOnly(['spaceId','spaceName','kind','creatorUid','createdAt','expiresAt','redeemedUid','revoked'])
+        && request.resource.data.spaceName == sp(request.resource.data.spaceId).name && request.resource.data.kind == sp(request.resource.data.spaceId).kind
+        && request.resource.data.creatorUid == request.auth.uid && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt > request.time && request.resource.data.expiresAt <= request.time + duration.value(7, 'd')
+        && request.resource.data.redeemedUid == null && request.resource.data.revoked == false;
+      allow update: if verified() && ((owner(resource.data.spaceId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked']) && request.resource.data.revoked == true)
+        || (resource.data.revoked == false && resource.data.expiresAt > request.time && resource.data.redeemedUid == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redeemedUid']) && request.resource.data.redeemedUid == request.auth.uid
+          && !(request.auth.uid in sp(resource.data.spaceId).memberUids) && request.auth.uid in afterSpace(resource.data.spaceId).memberUids));
     }
-
-    match /operationIds/{id} {
-      allow read, write: if signedIn();
-    }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

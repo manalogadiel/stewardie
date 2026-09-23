@@ -18,8 +18,10 @@ abstract class TimelineRepository {
     String spaceId,
     String title,
     DateTime day,
-    bool assignToMe,
-  );
+    bool assignToMe, {
+    String? requestedUid,
+    String? operationId,
+  });
   CheckIn? checkIn(String spaceId, String memberId);
   FutureOr<void> shareCheckIn(
     String spaceId,
@@ -294,8 +296,10 @@ class DemoRepository extends TimelineRepository {
     String spaceId,
     String title,
     DateTime day,
-    bool assignToMe,
-  ) async {
+    bool assignToMe, {
+    String? requestedUid,
+    String? operationId,
+  }) async {
     if (title.trim().isEmpty) {
       throw const DemoException('Give your task a name.');
     }
@@ -304,8 +308,8 @@ class DemoRepository extends TimelineRepository {
       spaceId: spaceId,
       title: title.trim(),
       day: dateOnly(day),
-      requestedId: assignToMe ? 'me' : null,
-      status: assignToMe ? Responsibility.requested : Responsibility.unclaimed,
+      requestedId: requestedUid ?? (assignToMe ? currentUserId : null),
+      status: assignToMe || requestedUid != null ? Responsibility.requested : Responsibility.unclaimed,
       activity: ['Jamie added this task.'],
     );
     await persist?.call(task);

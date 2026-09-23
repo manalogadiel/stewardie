@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -164,8 +163,8 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                     child: _PlanOptionCard(
                       title: 'Annual',
                       price: annualPrice,
-                      subtitle: 'US\$2.91 / month',
-                      badge: 'Save 27%',
+                      subtitle: 'Billed annually',
+                      
                       selected: _isAnnual,
                       onTap: () => setState(() => _isAnnual = true),
                     ),
@@ -195,7 +194,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
 
               // Main CTA Button
               FilledButton(
-                onPressed: _busy ? null : () => _handlePurchase(annualPkg, monthlyPkg),
+                onPressed: _busy || !RevenueCatService.purchasesEnabled || (_isAnnual ? annualPkg : monthlyPkg) == null ? null : () => _handlePurchase(annualPkg, monthlyPkg),
                 style: FilledButton.styleFrom(
                   backgroundColor: SoftPop.blue,
                   foregroundColor: Colors.white,
@@ -214,7 +213,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                         ),
                       )
                     : Text(
-                        _isAnnual ? 'Start Annual Plus' : 'Start Monthly Plus',
+                        !RevenueCatService.purchasesEnabled ? 'Purchases are not available yet' : _isAnnual ? 'Start Annual Plus' : 'Start Monthly Plus',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -235,27 +234,6 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                       style: TextStyle(fontSize: 13, color: SoftPop.secondary),
                     ),
                   ),
-                  if (kDebugMode)
-                    TextButton.icon(
-                      icon: const Icon(Icons.science_outlined, size: 16),
-                      label: const Text(
-                        'Judge Demo Unlock',
-                        style: TextStyle(fontSize: 13, color: SoftPop.blue),
-                      ),
-                      onPressed: () {
-                        RevenueCatService.instance.setPlusSimulated(true);
-                        widget.onPurchased?.call();
-                        if (Navigator.of(context).canPop()) {
-                          Navigator.of(context).pop(true);
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Personal Plus simulated for review!'),
-                            backgroundColor: SoftPop.blue,
-                          ),
-                        );
-                      },
-                    ),
                 ],
               ),
             ],
@@ -277,10 +255,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
     if (targetPackage != null) {
       success = await RevenueCatService.instance.purchasePackage(targetPackage);
     } else {
-      // Sandbox fallback: simulated purchase for web / emulator / Test Store
-      await Future.delayed(const Duration(milliseconds: 600));
-      RevenueCatService.instance.setPlusSimulated(true);
-      success = true;
+      success = false;
     }
 
     if (mounted) {

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../features/calendar/calendar_state.dart';
-import '../features/subscription/revenuecat_service.dart';
 import '../features/timeline/data/demo_repository.dart';
 import '../features/timeline/domain/models.dart';
 import 'online_backend.dart';
@@ -74,7 +73,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
   @override
   bool get isShared => true;
   @override
-  bool get isPlus => _plus || RevenueCatService.instance.isPlus;
+  bool get isPlus => _plus;
   @override
   Stream<void> get changes => _updates.stream;
   void _notify() {
@@ -308,12 +307,15 @@ class FirebaseTimelineRepository extends TimelineRepository {
     String spaceId,
     String title,
     DateTime day,
-    bool assignToMe,
-  ) async {
+    bool assignToMe, {
+    String? requestedUid,
+    String? operationId,
+  }) async {
     final result = await backend.call('createTask', {
       'spaceId': spaceId,
       'title': title,
-      if (assignToMe) 'requestedUid': currentUserId,
+      if (requestedUid != null || assignToMe) 'requestedUid': requestedUid ?? currentUserId,
+      if (operationId != null) 'operationId': operationId,
     });
     final doc = await backend.firestore
         .collection('spaces')
