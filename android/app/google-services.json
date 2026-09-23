@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1085424018448",
+    "project_id": "stewardie",
+    "storage_bucket": "stewardie.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1085424018448:android:a117be6c7804e1895d9695",
+        "android_client_info": {
+          "package_name": "dev.stewardie.demo.stewardie"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDU-WLUpVK2KQGm9ATLOTtmqgTq5o72Gvo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
