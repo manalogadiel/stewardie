@@ -56,8 +56,10 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _register = false;
+  bool _resetPassword = false;
   bool _busy = false;
   String? _error;
+  String? _message;
 
   @override
   void dispose() {
@@ -72,16 +74,37 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
     setState(() {
       _busy = true;
       _error = null;
+      _message = null;
     });
     try {
-      if (_register) {
+      if (_resetPassword) {
+        await widget.backend.sendPasswordReset(_email.text);
+        if (mounted) {
+          setState(
+            () => _message =
+                'If this email has an account, a reset link is on its way.',
+          );
+        }
+      } else if (_register) {
         await widget.backend.register(_name.text, _email.text, _password.text);
       } else {
         await widget.backend.signIn(_email.text, _password.text);
       }
     } on FirebaseAuthException catch (error) {
       if (mounted) {
-        setState(() => _error = error.message ?? 'Could not sign in.');
+        setState(
+          () => _error = switch (error.code) {
+            'invalid-email' => 'Enter a valid email address.',
+            'invalid-credential' ||
+            'wrong-password' ||
+            'user-not-found' => 'Check your email and password.',
+            'email-already-in-use' => 'This email already has an account.',
+            'weak-password' => 'Choose a stronger password.',
+            'too-many-requests' => 'Too many attempts. Try again later.',
+            'network-request-failed' => 'Could not connect. Try again.',
+            _ => 'Could not continue. Try again.',
+          },
+        );
       }
     } catch (_) {
       if (mounted) setState(() => _error = 'Could not connect. Try again.');
@@ -116,11 +139,15 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _register ? 'Make your account' : 'Welcome back',
+                    _resetPassword
+                        ? 'Reset your password'
+                        : _register
+                        ? 'Make your account'
+                        : 'Welcome back',
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 28),
-                  if (_register) ...[
+                  if (_register && !_resetPassword) ...[
                     TextFormField(
                       controller: _name,
                       textCapitalization: TextCapitalization.words,
@@ -137,30 +164,44 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
-                    textInputAction: TextInputAction.next,
+                    textInputAction: _resetPassword
+                        ? TextInputAction.done
+                        : TextInputAction.next,
+                    onFieldSubmitted: _resetPassword && !_busy
+                        ? (_) => _submit()
+                        : null,
                     decoration: const InputDecoration(labelText: 'Email'),
                     validator: (value) => value == null || !value.contains('@')
                         ? 'Enter a valid email'
                         : null,
                   ),
                   const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _password,
-                    obscureText: true,
-                    autofillHints: [
-                      _register
-                          ? AutofillHints.newPassword
-                          : AutofillHints.password,
-                    ],
-                    onFieldSubmitted: (_) => _busy ? null : _submit(),
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (value) => value == null || value.length < 8
-                        ? 'Use at least 8 characters'
-                        : null,
-                  ),
+                  if (!_resetPassword)
+                    TextFormField(
+                      controller: _password,
+                      obscureText: true,
+                      autofillHints: [
+                        _register
+                            ? AutofillHints.newPassword
+                            : AutofillHints.password,
+                      ],
+                      onFieldSubmitted: (_) => _busy ? null : _submit(),
+                      decoration: const InputDecoration(labelText: 'Password'),
+                      validator: (value) =>
+                          value == null ||
+                              (_register ? value.length < 8 : value.isEmpty)
+                          ? _register
+                                ? 'Use at least 8 characters'
+                                : 'Enter your password'
+                          : null,
+                    ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(_error!, style: const TextStyle(color: Colors.red)),
+                  ],
+                  if (_message != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_message!),
                   ],
                   const SizedBox(height: 20),
                   FilledButton(
@@ -171,18 +212,42 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
                             height: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : Text(_register ? 'Create account' : 'Sign in'),
+                        : Text(
+                            _resetPassword
+                                ? 'Send reset link'
+                                : _register
+                                ? 'Create account'
+                                : 'Sign in',
+                          ),
                   ),
+                  if (!_register && !_resetPassword)
+                    TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() {
+                              _resetPassword = true;
+                              _error = null;
+                              _message = null;
+                            }),
+                      child: const Text('Forgot password?'),
+                    ),
                   const SizedBox(height: 8),
                   TextButton(
                     onPressed: _busy
                         ? null
                         : () => setState(() {
-                            _register = !_register;
+                            if (_resetPassword) {
+                              _resetPassword = false;
+                            } else {
+                              _register = !_register;
+                            }
                             _error = null;
+                            _message = null;
                           }),
                     child: Text(
-                      _register
+                      _resetPassword
+                          ? 'Back to sign in'
+                          : _register
                           ? 'I already have an account'
                           : 'Create an account',
                     ),

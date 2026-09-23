@@ -38,7 +38,7 @@ flutter test --dart-define=CAPTURE_DEMO=true
 
 See [photo verification and platform limitations](docs/ui-polish-media-verification.md) and [floating-header/mood verification](docs/floating-header-moods-verification.md) for checks specific to each slice. Earlier foundation build failures remain recorded historically.
 
-To try the separate shared-task flow against local Firebase emulators, follow [the local online setup](backend/firebase/README.md). Its start target is `lib/main_online.dart`; the default `lib/main.dart` remains the visual/photo prototype. The emulator trial has account-specific Basic/Plus, member-scoped tasks, invitation codes, and server-confirmed actions. Its Moments screen is an empty state; photos, moods, calendars, live location and other full UI features have not been connected to Firebase.
+To try the separate shared-task flow against local Firebase emulators, follow [the local online setup](backend/firebase/README.md). Its start target is `lib/main_online.dart`; the default `lib/main.dart` remains the visual/photo prototype. The emulator trial has account-specific Basic/Plus, member-scoped tasks, invitation codes, server-confirmed actions, and a password-recovery screen. Its Moments screen is an empty state; photos, moods, calendars, live location and other full UI features have not been connected to Firebase.
 
 Next: verify capture, picker recovery and photo-library export on Android/iOS hardware; join the two Flutter paths, complete online media/moods/calendar and account controls, then address the [launch gates](docs/online-core-verification.md#remaining-work-and-launch-gates).
 

@@ -67,6 +67,16 @@ class OnlineBackend {
     );
   }
 
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await auth.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (error) {
+      // Keep account existence out of the recovery response, including when
+      // the local emulator uses different enumeration settings from production.
+      if (error.code != 'user-not-found') rethrow;
+    }
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> spaces(String uid) => firestore
       .collection('accounts')
       .doc(uid)

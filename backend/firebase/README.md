@@ -20,6 +20,8 @@ For an Android emulator, add `--dart-define=FIREBASE_EMULATOR_HOST=10.0.2.2`. Fo
 
 An account created in the app needs email verification. The Auth emulator captures verification links in its UI and does not send real email. To generate a **simulated verified founder account** for a local trial, set `FOUNDER_EMAIL` to the chosen email, `GCLOUD_PROJECT=demo-stewardie`, and both `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` and `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`, then run `npm --prefix backend/firebase/functions run seed:local-founder`. This writes a generated local password to `%TEMP%\stewardie-local-access.txt` and grants Plus to that emulator UID only. It does **not** prove ownership of the real email address. A live grant instead requires a real verified Firebase Auth account, trusted credentials, an explicit `--production` flag, and a separately reviewed deployment.
 
+The sign-in screen has **Forgot password?**. In this local trial, the Auth emulator captures password-reset links at `http://127.0.0.1:4000/auth`; it does not email them to Gmail. If you reset the seeded account's password, the generated password in `%TEMP%\stewardie-local-access.txt` will no longer sign in. The app does not display whether an email address belongs to an account.
+
 The emulators forget data when stopped unless exported. Use `firebase emulators:export <private-directory>` while running, then restart with `--import=<private-directory> --export-on-exit=<private-directory>`. Keep exported Auth data and the local access file outside Git and private to this computer.
 
 Run backend tests from the repository root:

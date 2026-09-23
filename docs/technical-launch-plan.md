@@ -22,7 +22,7 @@ Treat the older document's descriptions of built demo features as historical pla
 | State and routing | Riverpod and go_router, with dependency versions verified at scaffolding | Proposed implementation choice |
 | Backend | Firebase Auth, Firestore, Cloud Storage, Functions, FCM | Auth/Firestore/Functions selected for the local emulator slice; Storage and FCM pending |
 | Offline model | Cached reads and explicit pending operations; server-confirmed ownership changes | Proposed |
-| Adult login | Verified email/password plus password reset for the pilot; social sign-in can follow | Proposed |
+| Adult login | Verified email/password plus password reset for the pilot; social sign-in can follow | Implemented in the separate local-emulator client; live delivery and social sign-in pending |
 | Child login | Guardian-managed sign-in versus adult-managed profiles | Awaiting user decision |
 | Maps | Mapbox Flutter SDK for embedded maps; external app for directions | Proposed, subject to pilot geography/cost check |
 | Invitations | Own HTTPS domain, platform app links, QR and code fallback | Proposed |
