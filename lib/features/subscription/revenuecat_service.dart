@@ -8,8 +8,8 @@ class RevenueCatService extends ChangeNotifier {
   static final RevenueCatService instance = RevenueCatService._();
 
   /// Default public test keys. Can be overridden with --dart-define=REVENUECAT_API_KEY=...
-  static const String _defaultAndroidKey = 'goog_sandbox_stewardie';
-  static const String _defaultIosKey = 'appl_sandbox_stewardie';
+  static const String _defaultAndroidKey = 'test_FNaFLEDIUHKYuDjOZtSICpQHVvc';
+  static const String _defaultIosKey = 'test_FNaFLEDIUHKYuDjOZtSICpQHVvc';
 
   static String get apiKey {
     const override = String.fromEnvironment('REVENUECAT_API_KEY');
@@ -18,7 +18,7 @@ class RevenueCatService extends ChangeNotifier {
     if (!kIsWeb && Platform.isAndroid && googleKey.isNotEmpty) return googleKey;
     const appleKey = String.fromEnvironment('REVENUECAT_APPLE_API_KEY');
     if (!kIsWeb && Platform.isIOS && appleKey.isNotEmpty) return appleKey;
-    if (kIsWeb) return 'web_sandbox_stewardie';
+    if (kIsWeb) return _defaultAndroidKey;
     return Platform.isAndroid ? _defaultAndroidKey : _defaultIosKey;
   }
 
@@ -133,7 +133,8 @@ class RevenueCatService extends ChangeNotifier {
     _customerInfo = info;
     // Checks for entitlement 'plus' or 'personal_plus'
     final active = info.entitlements.active;
-    _isPlus = active.containsKey('plus') ||
+    _isPlus = active.containsKey('stewardie_plus') ||
+        active.containsKey('plus') ||
         active.containsKey('personal_plus') ||
         active.containsKey('Plus');
     notifyListeners();
