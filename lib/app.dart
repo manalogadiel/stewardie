@@ -54,7 +54,10 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(demoProvider), repo = ref.read(repositoryProvider);
-    final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
+    final space = repo.spaces.where((s) => s.id == state.spaceId).firstOrNull;
+    if (space == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     final index = path == '/moments'
         ? 1
         : path == '/space'
@@ -172,10 +175,10 @@ class AppShell extends ConsumerWidget {
                                 .where(
                                   (t) =>
                                       t.spaceId == space.id &&
-                                      ((t.requestedId == 'me' &&
+                                      ((t.requestedId == repo.currentUserId &&
                                               t.status ==
                                                   Responsibility.requested) ||
-                                          (t.ownerId == 'me' &&
+                                          (t.ownerId == repo.currentUserId &&
                                               t.offeredId != null)),
                                 )
                                 .toList();

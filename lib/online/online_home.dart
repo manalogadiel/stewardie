@@ -12,9 +12,19 @@ import 'online_moments.dart';
 import 'online_today_extras.dart';
 
 class OnlineHome extends StatefulWidget {
-  const OnlineHome({super.key, required this.backend, required this.user});
+  const OnlineHome({
+    super.key,
+    required this.backend,
+    required this.user,
+    this.spaceOnly = false,
+    this.spaceId,
+    this.onSpaceSelected,
+  });
   final OnlineBackend backend;
   final User user;
+  final bool spaceOnly;
+  final String? spaceId;
+  final ValueChanged<String?>? onSpaceSelected;
 
   @override
   State<OnlineHome> createState() => _OnlineHomeState();
@@ -47,6 +57,7 @@ class _OnlineHomeState extends State<OnlineHome> {
     _personId = null;
     _showDone = false;
     _invalidateHistory();
+    widget.onSpaceSelected?.call(id);
   });
 
   Future<Map<String, dynamic>> _history(String spaceId) {
@@ -130,12 +141,14 @@ class _OnlineHomeState extends State<OnlineHome> {
         stream: widget.backend.spaces(widget.user.uid),
         builder: (context, snapshot) {
           final refs = snapshot.data?.docs ?? [];
-          final selected = refs.any((doc) => doc.id == _spaceId)
-              ? _spaceId
+          final requestedSpace = widget.spaceId ?? _spaceId;
+          final selected = refs.any((doc) => doc.id == requestedSpace)
+              ? requestedSpace
               : (refs.isEmpty ? null : refs.first.id);
           final space = selected == null
               ? null
               : refs.firstWhere((doc) => doc.id == selected);
+          if (widget.spaceOnly) return _space(selected, space);
           return Scaffold(
             extendBody: true,
             body: Stack(

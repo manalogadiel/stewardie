@@ -170,7 +170,7 @@ class _FacePainter extends CustomPainter {
 
 String personName(Space space, String? id) => id == null
     ? 'Not claimed yet'
-    : id == 'me'
+    : id == space.currentUserId
     ? 'You'
     : space.member(id).name;
 

@@ -10,13 +10,13 @@ String compactMemberName(Member member) {
 
 String calendarTitle(Space space, String? personId) => personId == null
     ? 'Shared calendar'
-    : personId == 'me'
+    : personId == space.currentUserId
     ? 'Your calendar'
     : '${compactMemberName(space.member(personId))}’s calendar';
 
 String calendarScope(Space space, String? personId) => personId == null
     ? 'Everyone’s plans'
-    : personId == 'me'
+    : personId == space.currentUserId
     ? 'Your plans'
     : '${compactMemberName(space.member(personId))}’s plans';
 
@@ -36,7 +36,7 @@ class CompactPersonTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final member = personId == null || personId == 'me'
+    final member = personId == null || personId == space.currentUserId
         ? null
         : space.member(personId!);
     final own = noun == 'calendar' ? 'Your calendar' : 'Your mood';

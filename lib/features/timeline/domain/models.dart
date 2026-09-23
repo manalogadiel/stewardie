@@ -25,12 +25,20 @@ class Member {
 }
 
 class Space {
-  const Space(this.id, this.name, this.kind, this.members, {this.currentUserId = 'me'});
+  const Space(
+    this.id,
+    this.name,
+    this.kind,
+    this.members, {
+    this.currentUserId = 'me',
+  });
   final String id, name, kind;
   final String currentUserId;
   final List<Member> members;
-  Member member(String id) => members.firstWhere((member) => member.id == id,
-    orElse: () => Member(id, 'Former member', '?', 0));
+  Member member(String id) => members.firstWhere(
+    (member) => member.id == id,
+    orElse: () => Member(id, 'Former member', '?', 0),
+  );
 }
 
 class Task {
@@ -51,6 +59,7 @@ class Task {
     this.participants = const [],
     this.activity = const [],
     this.completedAt,
+    this.completedLocalDay,
   });
   final String id, spaceId, title, creatorId, notes;
   final DateTime day;
@@ -60,6 +69,7 @@ class Task {
   final Responsibility status;
   final List<String> participants, activity;
   final DateTime? completedAt;
+  final DateTime? completedLocalDay;
   bool get isEvent => participants.isNotEmpty;
   bool get isDone => status == Responsibility.completed;
   bool matchesPerson(String? id) =>

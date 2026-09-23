@@ -70,9 +70,43 @@ test('online mood and calendar remain member-scoped and author-controlled', asyn
     assert.equal((await db.doc(`spaces/${spaceId}/plans/${planId}`).get()).get('title'), 'A longer walk');
     await owner('removePlan', { spaceId, planId });
     assert.equal((await db.doc(`spaces/${spaceId}/plans/${planId}`).get()).exists, false);
+
+    const invitation = (await owner('createInvite', { spaceId })).data.token;
+    await outsider('redeemInvite', { token: invitation });
+    await outsider('setCheckIn', { spaceId, mood: 'happy', color: 'butter', note: 'Together' });
+    assert.equal((await db.doc(`spaces/${spaceId}/checkIns/${outsiderUid}`).get()).get('color'), 'butter');
+    await owner('savePlan', { ...plan, participants: [outsiderUid] });
+    await assert.rejects(outsider('savePlan', { ...plan, title: 'Not my plan' }),
+      (error) => error.code === 'functions/permission-denied');
+    const taskId = (await owner('createTask', { spaceId, title: 'Make lunch', requestedUid: outsiderUid })).data.taskId;
+    const accepted = (await outsider('actOnTask', { spaceId, taskId,
+      action: 'accept', operationId: 'accept-for-ui' })).data;
+    assert.equal(accepted.task.ownerUid, outsiderUid);
+    assert.equal(accepted.task.status, 'accepted');
+    const completion = { spaceId, taskId, action: 'complete', operationId: 'complete-for-ui' };
+    const completed = (await outsider('actOnTask', completion)).data;
+    assert.equal(completed.task.status, 'completed');
+    assert.match(completed.task.completedLocalDate, /^\d{4}-\d{2}-\d{2}$/);
+    const history = (await owner('listCompletedTasks', { spaceId })).data;
+    assert.ok(history.tasks.some((t) => t.id === taskId));
+    assert.equal(history.todayLocalDate, completed.task.completedLocalDate);
+    await db.doc(`spaces/${spaceId}/tasks/${taskId}`).update({
+      completedAt: '2026-01-01T00:00:00Z', completedLocalDate: '2026-01-01',
+    });
+    const oldRetry = (await outsider('actOnTask', completion)).data;
+    assert.equal(oldRetry.alreadyApplied, true);
+    assert.equal(oldRetry.task, undefined, 'an idempotent retry must not expose older Basic history');
+    await db.doc(`accounts/${uid}`).set({ tier: 'plus' }, { merge: true });
+    assert.equal((await owner('listCompletedTasks', { spaceId })).data.tasks.length, 1);
+    assert.equal((await outsider('listCompletedTasks', { spaceId })).data.tasks.length, 0);
+    assert.equal((await db.doc(`accounts/${outsiderUid}`).get()).get('tier'), 'basic');
   } finally {
     await Promise.all(clients.map(deleteApp));
-    if (spaceId) await db.recursiveDelete(db.doc(`spaces/${spaceId}`));
+    if (spaceId) {
+      const invitations = await db.collection('inviteDirectory').where('spaceId', '==', spaceId).get();
+      await Promise.all(invitations.docs.map((doc) => doc.ref.delete()));
+      await db.recursiveDelete(db.doc(`spaces/${spaceId}`));
+    }
     await Promise.all([uid, outsiderUid].map(async (id) => {
       await db.recursiveDelete(db.doc(`accounts/${id}`));
       await authAdmin.deleteUser(id).catch(() => {});

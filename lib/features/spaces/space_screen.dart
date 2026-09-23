@@ -5,6 +5,8 @@ import '../../core/clay.dart';
 import '../../core/demo_state.dart';
 import '../../core/top_controls.dart';
 import '../../core/widgets.dart';
+import '../../core/backend_provider.dart';
+import '../../online/online_home.dart';
 import '../timeline/domain/models.dart';
 
 class SpaceScreen extends ConsumerWidget {
@@ -12,6 +14,18 @@ class SpaceScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(demoProvider), repo = ref.read(repositoryProvider);
+    final backend = ref.watch(sharedBackendProvider);
+    if (backend != null && backend.auth.currentUser != null) {
+      return OnlineHome(
+        backend: backend,
+        user: backend.auth.currentUser!,
+        spaceOnly: true,
+        spaceId: state.spaceId,
+        onSpaceSelected: (id) {
+          if (id != null) ref.read(demoProvider.notifier).switchSpace(id);
+        },
+      );
+    }
     final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
     return PageBody(
       padding: EdgeInsets.fromLTRB(20, topControlsClearance(context), 20, 150),
@@ -39,7 +53,9 @@ class SpaceScreen extends ConsumerWidget {
                   leading: MemberAvatar(member, size: 40),
                   title: Text(member.name),
                   subtitle: Text(
-                    member.id == 'me' ? 'Your account · Basic' : 'Member',
+                    member.id == repo.currentUserId
+                        ? 'Your account · ${repo.isPlus ? 'Plus' : 'Basic'}'
+                        : 'Member',
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () {

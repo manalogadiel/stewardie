@@ -55,14 +55,14 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
       showDone = false;
       historyDay = 0;
     }
-    final now = DateTime.now(), today = dateOnly(DateTime.now());
+    final today = repo.todayInSpace(space.id);
     final tasks = state.tasks
         .where(
           (t) =>
               t.spaceId == space.id &&
               !t.isEvent &&
               t.matchesPerson(state.personId) &&
-              visibleToBasic(t, now),
+              repo.canView(t),
         )
         .toList();
     final active = tasks
@@ -85,7 +85,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         tasks
             .where(
               (t) =>
-                  t.isDone && dateOnly(t.completedAt ?? t.day) == completionDay,
+                  t.isDone &&
+                  (historyDay == -1 ||
+                      (t.completedLocalDay ??
+                              dateOnly(t.completedAt ?? t.day)) ==
+                          completionDay),
             )
             .toList()
           ..sort(
@@ -93,13 +97,19 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 (b.completedAt ?? b.day).compareTo(a.completedAt ?? a.day),
           );
     final doneToday = tasks
-        .where((t) => t.isDone && dateOnly(t.completedAt ?? t.day) == today)
+        .where(
+          (t) =>
+              t.isDone &&
+              (t.completedLocalDay ?? dateOnly(t.completedAt ?? t.day)) ==
+                  today,
+        )
         .length;
     final large = MediaQuery.textScalerOf(context).scale(16) > 22;
-    final moodSubject = state.personId == null || state.personId == 'me'
-        ? 'me'
+    final moodSubject =
+        state.personId == null || state.personId == repo.currentUserId
+        ? repo.currentUserId
         : state.personId!;
-    final isMyMood = moodSubject == 'me';
+    final isMyMood = moodSubject == repo.currentUserId;
     final mood = repo.checkIn(space.id, moodSubject);
     final moodCard = ClayPanel(
       color: moodSurface(mood?.color ?? MoodColor.sky),
@@ -121,7 +131,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             children: [
               CompactPersonTitle(
                 space: space,
-                personId: isMyMood ? 'me' : moodSubject,
+                personId: isMyMood ? repo.currentUserId : moodSubject,
                 noun: 'mood',
                 style: Theme.of(context).textTheme.labelLarge,
               ),
@@ -297,10 +307,25 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               sliver: SliverList.list(
                 children: [
                   if (showDone) ...[
+                    if (repo.syncError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(repo.syncError!),
+                      ),
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
+                          if (repo.isPlus)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ChoiceChip(
+                                label: const Text('All history'),
+                                selected: historyDay == -1,
+                                onSelected: (_) =>
+                                    setState(() => historyDay = -1),
+                              ),
+                            ),
                           for (var i = 0; i < 4; i++)
                             Padding(
                               padding: const EdgeInsets.only(right: 8),

@@ -85,8 +85,8 @@ class TaskCard extends StatelessWidget {
                   ],
                 ),
               ),
-            if ((task.ownerId == 'me' && !task.isDone) ||
-                task.requestedId == 'me') ...[
+            if ((task.ownerId == space.currentUserId && !task.isDone) ||
+                task.requestedId == space.currentUserId) ...[
               const SizedBox(height: 16),
               TaskActions(task: task, compact: true),
             ],

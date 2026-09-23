@@ -34,13 +34,13 @@ class PeopleFilter extends ConsumerWidget {
                   child: Tooltip(
                     message: id == null
                         ? 'Everyone'
-                        : id == 'me'
+                        : id == space.currentUserId
                         ? space.member(id).name
                         : space.member(id).name,
                     child: Text(
                       id == null
                           ? 'Everyone'
-                          : id == 'me'
+                          : id == space.currentUserId
                           ? 'Me'
                           : compactMemberName(space.member(id)),
                       maxLines: 1,

@@ -117,7 +117,9 @@ Future<void> removePhoto(
   );
   if (confirmed != true) return;
   try {
-    await ref.read(mediaLibraryProvider).remove(photo, 'me');
+    await ref
+        .read(mediaLibraryProvider)
+        .remove(photo, ref.read(repositoryProvider).currentUserId);
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -140,7 +142,9 @@ class TaskPhotos extends ConsumerWidget {
         .read(repositoryProvider)
         .spaces
         .firstWhere((s) => s.id == task.spaceId);
-    final canAdd = task.ownerId == 'me' || task.creatorId == 'me';
+    final canAdd =
+        task.ownerId == ref.read(repositoryProvider).currentUserId ||
+        task.creatorId == ref.read(repositoryProvider).currentUserId;
     return ClayPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -187,13 +191,14 @@ class TaskPhotos extends ConsumerWidget {
                 },
                 child: const Text('Retry adding to Moments'),
               ),
-            if (photo.uploaderId == 'me')
+            if (photo.uploaderId == ref.read(repositoryProvider).currentUserId)
               TextButton(
                 onPressed: () => removePhoto(context, ref, photo),
                 child: const Text('Remove photo'),
               ),
           ],
-          if (photos.isEmpty && canAdd)
+          if (photos.length < ref.read(mediaLibraryProvider).attachmentLimit &&
+              canAdd)
             OutlinedButton.icon(
               onPressed: () => showPhotoComposer(context, space, task: task),
               icon: const Icon(Icons.add_a_photo_outlined),

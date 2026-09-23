@@ -36,15 +36,26 @@ class CalendarPlan {
 abstract class CalendarDataSource {
   List<CalendarPlan> get plans;
   Stream<void> get changes => const Stream.empty();
-  FutureOr<CalendarPlan> save({String? id, required String spaceId,
-    required String actorId, required String title, required DateTime start,
-    required DateTime end, required bool allDay, String note = '',
-    List<String> participants = const []});
+  FutureOr<CalendarPlan> save({
+    String? id,
+    required String spaceId,
+    required String actorId,
+    required String title,
+    required DateTime start,
+    required DateTime end,
+    required bool allDay,
+    String note = '',
+    List<String> participants = const [],
+  });
   FutureOr<void> remove(String id, String actorId);
 }
 
 class CalendarRepository extends CalendarDataSource {
-  CalendarRepository(this.spaces, {DateTime Function()? clock, bool seed = true}) {
+  CalendarRepository(
+    this.spaces, {
+    DateTime Function()? clock,
+    bool seed = true,
+  }) {
     if (!seed) return;
     final now = (clock ?? DateTime.now)();
     DateTime at(int day, int hour) =>
@@ -88,10 +99,13 @@ class CalendarRepository extends CalendarDataSource {
     ]);
   }
   final List<Space> spaces;
+  @override
   Stream<void> get changes => const Stream.empty();
   final List<CalendarPlan> _plans = [];
   int _serial = 0;
+  @override
   List<CalendarPlan> get plans => List.unmodifiable(_plans);
+  @override
   CalendarPlan save({
     String? id,
     required String spaceId,
@@ -143,6 +157,7 @@ class CalendarRepository extends CalendarDataSource {
     return plan;
   }
 
+  @override
   void remove(String id, String actorId) {
     final plan = _plans.firstWhere((p) => p.id == id);
     if (plan.ownerId != actorId) {

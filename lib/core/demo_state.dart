@@ -38,16 +38,25 @@ class DemoController extends Notifier<DemoState> {
     ref.onDispose(updates.cancel);
     final timer = Timer.periodic(const Duration(minutes: 1), (_) => refresh());
     ref.onDispose(timer.cancel);
-    return DemoState(tasks: repository.tasks,
-      spaceId: repository.spaces.firstOrNull?.id ?? '');
+    return DemoState(
+      tasks: repository.tasks,
+      spaceId: repository.spaces.firstOrNull?.id ?? '',
+    );
   }
 
   void refresh() => state = DemoState(
     tasks: repository.tasks,
     spaceId: repository.spaces.any((s) => s.id == state.spaceId)
-        ? state.spaceId : repository.spaces.firstOrNull?.id ?? '',
-    personId: repository.spaces.any((s) => s.id == state.spaceId &&
-        s.members.any((m) => m.id == state.personId)) ? state.personId : null,
+        ? state.spaceId
+        : repository.spaces.firstOrNull?.id ?? '',
+    personId:
+        repository.spaces.any(
+          (s) =>
+              s.id == state.spaceId &&
+              s.members.any((m) => m.id == state.personId),
+        )
+        ? state.personId
+        : null,
     pending: state.pending,
     errors: state.errors,
     revision: state.revision + 1,

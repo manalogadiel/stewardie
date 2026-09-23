@@ -147,15 +147,22 @@ class MediaLibrary extends ChangeNotifier {
   MediaLibrary(
     this.timeline, {
     this.database,
+    StoreRef<String, Map<String, Object?>>? records,
     List<MediaAttachment> initial = const [],
-    this.dailyLimit = 10,
-    this.storageLimit = 100000000,
+    this._dailyLimit,
+    this._storageLimit,
     DateTime Function()? clock,
-  }) : _items = [...initial],
+  }) : records = records ?? photoRecords,
+       _items = [...initial],
        clock = clock ?? DateTime.now;
   final TimelineRepository timeline;
   final Database? database;
-  final int dailyLimit, storageLimit;
+  final StoreRef<String, Map<String, Object?>> records;
+  final int? _dailyLimit, _storageLimit;
+  int get dailyLimit => _dailyLimit ?? (timeline.isPlus ? 100 : 10);
+  int get storageLimit =>
+      _storageLimit ?? (timeline.isPlus ? 5000000000 : 100000000);
+  int get attachmentLimit => timeline.isPlus ? 5 : 1;
   final DateTime Function() clock;
   final List<MediaAttachment> _items;
   final Map<String, int> _daily = {};
@@ -174,7 +181,7 @@ class MediaLibrary extends ChangeNotifier {
   List<MediaAttachment> forTask(String id) =>
       _items.where((p) => p.taskId == id).toList();
   void _member(String space, String actor) {
-    if (actor != 'me' ||
+    if (actor != timeline.currentUserId ||
         !timeline.spaces.any(
           (s) => s.id == space && s.members.any((m) => m.id == actor),
         )) {
@@ -198,8 +205,8 @@ class MediaLibrary extends ChangeNotifier {
         'Only the creator or responsible person can attach a photo.',
       );
     }
-    if (taskId != null && forTask(taskId).isNotEmpty) {
-      throw StateError('This task already has its photo.');
+    if (taskId != null && forTask(taskId).length >= attachmentLimit) {
+      throw StateError('This task has reached its photo limit.');
     }
     if (photo.bytes.length > 2000000) {
       throw StateError('Choose a smaller photo.');
@@ -240,7 +247,7 @@ class MediaLibrary extends ChangeNotifier {
     );
     if (database != null) {
       await database!.transaction((txn) async {
-        await photoRecords.record(attachment.id).put(txn, attachment.toMap());
+        await records.record(attachment.id).put(txn, attachment.toMap());
         await metaRecords.record(dayKey).put(txn, {'count': current + 1});
       });
     }
@@ -252,7 +259,7 @@ class MediaLibrary extends ChangeNotifier {
 
   Future<void> publishTask(Task supplied) => _serialize(() async {
     final task = _task(supplied.id, supplied.spaceId);
-    _member(task.spaceId, 'me');
+    _member(task.spaceId, timeline.currentUserId);
     if (!task.isDone) return;
     final targets = forTask(task.id)
         .where((p) => p.publishedAt == null)
@@ -270,9 +277,7 @@ class MediaLibrary extends ChangeNotifier {
         completedBy: task.ownerId,
         publishedAt: task.completedAt ?? clock(),
       );
-      await photoRecords
-          .record(old.id)
-          .putIfDatabase(database, updated.toMap());
+      await records.record(old.id).putIfDatabase(database, updated.toMap());
       final index = _items.indexWhere((p) => p.id == old.id);
       if (index >= 0) _items[index] = updated;
     }
@@ -288,7 +293,7 @@ class MediaLibrary extends ChangeNotifier {
           throw StateError('Only the uploader can remove this photo.');
         }
         if (database != null) {
-          await photoRecords.record(photo.id).delete(database!);
+          await records.record(photo.id).delete(database!);
         }
         _items.removeWhere((p) => p.id == photo.id);
         notifyListeners();

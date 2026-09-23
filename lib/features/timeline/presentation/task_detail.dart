@@ -20,13 +20,19 @@ class TaskDetail extends ConsumerWidget {
           (task) =>
               task.id == taskId &&
               task.spaceId == state.spaceId &&
-              visibleToBasic(task, DateTime.now()),
+              ref.read(repositoryProvider).canView(task),
         )
         .firstOrNull;
     final space = ref
         .read(repositoryProvider)
         .spaces
-        .firstWhere((space) => space.id == state.spaceId);
+        .where((space) => space.id == state.spaceId)
+        .firstOrNull;
+    if (space == null) {
+      return const Scaffold(
+        body: Center(child: Text('This space is no longer available.')),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -192,11 +198,12 @@ class TaskActions extends ConsumerWidget {
       if (task.status == Responsibility.unclaimed)
         (TaskAction.accept, 'I’ve got it'),
       if (task.status == Responsibility.requested &&
-          task.requestedId == 'me') ...[
+          task.requestedId == ref.read(repositoryProvider).currentUserId) ...[
         (TaskAction.accept, 'Accept task'),
         if (!compact) (TaskAction.decline, 'Decline'),
       ],
-      if (task.ownerId == 'me' && !task.isDone) ...[
+      if (task.ownerId == ref.read(repositoryProvider).currentUserId &&
+          !task.isDone) ...[
         if (task.offeredId != null)
           (TaskAction.confirmHandoff, 'Confirm handoff'),
         (TaskAction.complete, 'Mark done'),
@@ -204,7 +211,7 @@ class TaskActions extends ConsumerWidget {
           (TaskAction.needHelp, 'Need help'),
       ],
       if (task.status == Responsibility.needsHelp &&
-          task.ownerId != 'me' &&
+          task.ownerId != ref.read(repositoryProvider).currentUserId &&
           task.offeredId == null)
         (TaskAction.offerHelp, 'Offer help'),
     ];
@@ -257,7 +264,7 @@ class TaskActions extends ConsumerWidget {
                     child: Text(actions[i].$2),
                   ),
           ),
-        if (task.offeredId == 'me')
+        if (task.offeredId == ref.read(repositoryProvider).currentUserId)
           const Padding(
             padding: EdgeInsets.only(top: 8),
             child: Text('Your offer is waiting for the owner.'),

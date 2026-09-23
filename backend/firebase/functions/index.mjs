@@ -326,6 +326,7 @@ export const createTask = checked(async (request) => {
     }
     tx.create(taskRef, {
       title, creatorUid: uid, requestedUid,
+      scheduledLocalDate: localCalendarDate(new Date(), space.get('timeZone')),
       ownerUid: null, offeredUid: null,
       status: requestedUid === null ? 'unclaimed' : 'requested',
       completedAt: null, version: 1,
@@ -357,7 +358,11 @@ export const actOnTask = checked(async (request) => {
       if (previous.get('action') !== action) {
         throw new DomainError('already-exists', 'That operation ID was used for a different action.');
       }
-      return { taskId, version: previous.get('resultVersion'), alreadyApplied: true };
+      const account = await tx.get(db.doc(`accounts/${uid}`));
+      const readable = task.get('status') !== 'completed' || account.get('tier') === 'plus' ||
+        task.get('completedLocalDate') >= basicHistoryStart(new Date(), space.get('timeZone'));
+      return { taskId, version: previous.get('resultVersion'), alreadyApplied: true,
+        ...(readable ? { task: task.data() } : {}) };
     }
     const current = task.data();
     const now = new Date();
@@ -382,7 +387,10 @@ export const actOnTask = checked(async (request) => {
         activeTaskCount: Math.max(0, (space.get('activeTaskCount') ?? 1) - 1),
       });
     }
-    return { taskId, version, alreadyApplied: false };
+    return { taskId, version, alreadyApplied: false, task: {
+      ...current, ...result, version,
+      ...(action === 'complete' ? { completedLocalDate: localCalendarDate(now, space.get('timeZone')) } : {}),
+    } };
   });
 });
 
@@ -428,6 +436,7 @@ export const listCompletedTasks = checked(async (request) => {
   const visible = page.docs.slice(0, 40);
   return {
     tasks: visible.map((doc) => ({ id: doc.id, ...doc.data() })),
+    todayLocalDate: localCalendarDate(new Date(), space.get('timeZone')),
     totalCount: count.data().count,
     nextCursorId: page.docs.length > 40 ? visible.at(-1).id : null,
   };

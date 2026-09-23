@@ -393,7 +393,9 @@ class CalendarSheet extends ConsumerWidget {
                   showPlanEditor(context, space, state.selectedDay),
               icon: const Icon(Icons.add_rounded),
               label: Text(
-                person != null && person != 'me' ? 'Add my plan' : 'Add plan',
+                person != null && person != space.currentUserId
+                    ? 'Add my plan'
+                    : 'Add plan',
               ),
             ),
           ],
@@ -453,7 +455,7 @@ Future<void> showPlanDetails(
       ),
     ),
     actions: [
-      if (plan.ownerId == 'me')
+      if (plan.ownerId == space.currentUserId)
         TextButton(
           onPressed: () {
             Navigator.pop(dialogContext);
@@ -461,7 +463,7 @@ Future<void> showPlanDetails(
           },
           child: const Text('Edit plan'),
         ),
-      if (plan.ownerId == 'me')
+      if (plan.ownerId == space.currentUserId)
         TextButton(
           onPressed: () async {
             final confirmed = await showDialog<bool>(
@@ -484,9 +486,21 @@ Future<void> showPlanDetails(
               ),
             );
             if (confirmed == true) {
-              ref.read(calendarRepositoryProvider).remove(plan.id, 'me');
-              ref.read(calendarProvider.notifier).refresh();
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              try {
+                await ref
+                    .read(calendarRepositoryProvider)
+                    .remove(plan.id, space.currentUserId);
+                ref.read(calendarProvider.notifier).refresh();
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              } catch (_) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not remove this plan. Try again.'),
+                    ),
+                  );
+                }
+              }
             }
           },
           child: const Text('Remove plan'),
@@ -533,6 +547,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
   late bool allDay;
   late Set<String> participants;
   String? error;
+  bool saving = false;
   @override
   void initState() {
     super.initState();
@@ -680,7 +695,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   for (final member in widget.space.members.where(
-                    (m) => m.id != 'me',
+                    (m) => m.id != widget.space.currentUserId,
                   ))
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
@@ -716,32 +731,54 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                     ),
                   const SizedBox(height: 16),
                   FilledButton(
-                    onPressed: () {
-                      if (!form.currentState!.validate()) return;
-                      try {
-                        ref
-                            .read(calendarRepositoryProvider)
-                            .save(
-                              id: widget.existing?.id,
-                              spaceId: widget.space.id,
-                              actorId: 'me',
-                              title: title.text,
-                              start: start,
-                              end: allDay
-                                  ? DateTime(end.year, end.month, end.day + 1)
-                                  : end,
-                              allDay: allDay,
-                              note: note.text,
-                              participants: participants.toList(),
-                            );
-                        ref.read(calendarProvider.notifier).refresh();
-                        Navigator.pop(context);
-                      } on ArgumentError catch (e) {
-                        setState(() => error = e.message.toString());
-                      } on StateError catch (e) {
-                        setState(() => error = e.message);
-                      }
-                    },
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            if (!form.currentState!.validate()) return;
+                            setState(() {
+                              saving = true;
+                              error = null;
+                            });
+                            try {
+                              await ref
+                                  .read(calendarRepositoryProvider)
+                                  .save(
+                                    id: widget.existing?.id,
+                                    spaceId: widget.space.id,
+                                    actorId: widget.space.currentUserId,
+                                    title: title.text,
+                                    start: start,
+                                    end: allDay
+                                        ? DateTime(
+                                            end.year,
+                                            end.month,
+                                            end.day + 1,
+                                          )
+                                        : end,
+                                    allDay: allDay,
+                                    note: note.text,
+                                    participants: participants.toList(),
+                                  );
+                              if (!context.mounted) return;
+                              ref.read(calendarProvider.notifier).refresh();
+                              Navigator.pop(context);
+                            } on ArgumentError catch (e) {
+                              if (mounted) {
+                                setState(() => error = e.message.toString());
+                              }
+                            } on StateError catch (e) {
+                              if (mounted) setState(() => error = e.message);
+                            } catch (_) {
+                              if (mounted) {
+                                setState(
+                                  () => error =
+                                      'Could not save this plan. Try again.',
+                                );
+                              }
+                            } finally {
+                              if (mounted) setState(() => saving = false);
+                            }
+                          },
                     child: Text(
                       widget.existing == null ? 'Save plan' : 'Save changes',
                     ),

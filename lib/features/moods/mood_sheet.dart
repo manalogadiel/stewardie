@@ -29,10 +29,45 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
   Mood? selected;
   MoodColor color = MoodColor.sky;
   bool updating = false;
+  bool saving = false;
+  String? error;
+  Future<void> save({bool remove = false}) async {
+    if (saving) return;
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    try {
+      final repo = ref.read(repositoryProvider);
+      if (remove) {
+        await repo.removeCheckIn(widget.space.id, repo.currentUserId);
+      } else {
+        await repo.shareCheckIn(
+          widget.space.id,
+          repo.currentUserId,
+          selected!,
+          note.text,
+          color: color,
+        );
+      }
+      if (!mounted) return;
+      ref.read(demoProvider.notifier).refresh();
+      Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() => error = 'Could not save your check-in. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    final current = ref.read(repositoryProvider).checkIn(widget.space.id, 'me');
+    final current = ref
+        .read(repositoryProvider)
+        .checkIn(widget.space.id, widget.space.currentUserId);
     selected = current?.mood;
     color = current?.color ?? MoodColor.sky;
     updating = current != null;
@@ -187,37 +222,18 @@ class _MoodSheetState extends ConsumerState<MoodSheet> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (error != null) Text(error!),
               FilledButton(
-                onPressed: selected == null
-                    ? null
-                    : () {
-                        ref
-                            .read(repositoryProvider)
-                            .shareCheckIn(
-                              widget.space.id,
-                              'me',
-                              selected!,
-                              note.text,
-                              color: color,
-                            );
-                        ref.read(demoProvider.notifier).refresh();
-                        Navigator.pop(context);
-                      },
+                onPressed: selected == null || saving ? null : save,
                 child: Text(updating ? 'Update check-in' : 'Share check-in'),
               ),
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: saving ? null : () => Navigator.pop(context),
                 child: Text(updating ? 'Cancel' : 'Skip for now'),
               ),
               if (updating)
                 TextButton(
-                  onPressed: () {
-                    ref
-                        .read(repositoryProvider)
-                        .removeCheckIn(widget.space.id, 'me');
-                    ref.read(demoProvider.notifier).refresh();
-                    Navigator.pop(context);
-                  },
+                  onPressed: saving ? null : () => save(remove: true),
                   child: const Text('Remove my check-in'),
                 ),
             ],

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sembast/sembast.dart';
 
 import '../../core/clay.dart';
 import '../../core/demo_state.dart';
@@ -12,10 +13,18 @@ import 'media_library.dart';
 
 final photoPickerProvider = Provider<Future<CapturedPhoto?> Function()>(
   (ref) => () async {
+    final repo = ref.read(repositoryProvider);
+    final db = ref.read(mediaLibraryProvider).database;
+    if (db != null) {
+      await metaRecords.record('picker-account').put(db, {
+        'uid': repo.isShared ? repo.currentUserId : null,
+      });
+    }
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       requestFullMetadata: false,
     );
+    if (db != null) await metaRecords.record('picker-account').delete(db);
     return picked == null
         ? null
         : CapturedPhoto(await picked.readAsBytes(), 'library');
@@ -153,11 +162,14 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
       final library = ref.read(mediaLibraryProvider);
       // The accepted attachment is durable before completion, and is reusable
       // if completion fails. Retrying never creates a second attachment.
-      if (widget.task == null || library.forTask(widget.task!.id).isEmpty) {
+      if (widget.task == null ||
+          (!attached &&
+              library.forTask(widget.task!.id).length <
+                  library.attachmentLimit)) {
         await library.add(
           draft!,
           widget.space.id,
-          'me',
+          ref.read(repositoryProvider).currentUserId,
           caption.text,
           taskId: widget.task?.id,
         );
@@ -264,8 +276,13 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Sharing with ${widget.space.name}'),
-                  Text('${widget.space.members.length} members'),
+                  Text(
+                    ref.read(repositoryProvider).isShared
+                        ? 'Saved in ${widget.space.name} on this device'
+                        : 'Sharing with ${widget.space.name}',
+                  ),
+                  if (!ref.read(repositoryProvider).isShared)
+                    Text('${widget.space.members.length} members'),
                   if (widget.task != null) Text(widget.task!.title),
                   if (widget.task != null &&
                       !widget.complete &&
@@ -279,9 +296,13 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
               onPressed: busy ? null : save,
               child: Text(
                 widget.complete
-                    ? 'Finish & share photo'
+                    ? (ref.read(repositoryProvider).isShared
+                          ? 'Finish & save photo'
+                          : 'Finish & share photo')
                     : widget.task == null
-                    ? 'Share moment'
+                    ? (ref.read(repositoryProvider).isShared
+                          ? 'Save moment'
+                          : 'Share moment')
                     : 'Attach photo',
               ),
             ),

@@ -6,6 +6,7 @@ abstract class TimelineRepository {
   String get currentUserId => 'me';
   bool get isShared => false;
   bool get isPlus => false;
+  String? get syncError => null;
   Stream<void> get changes => const Stream.empty();
   bool canView(Task task) => visibleToBasic(task, DateTime.now());
   DateTime todayInSpace(String spaceId) => dateOnly(DateTime.now());

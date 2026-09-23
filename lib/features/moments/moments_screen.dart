@@ -10,7 +10,6 @@ import '../../core/people_filter.dart';
 import '../../core/theme.dart';
 import '../../core/top_controls.dart';
 import '../../core/widgets.dart';
-import '../timeline/domain/models.dart';
 import '../media/media_library.dart';
 import '../media/photo_composer.dart';
 import '../media/photo_viewer.dart';
@@ -100,6 +99,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
         ),
         const SizedBox(height: 8),
         Text('The good bits from ${space.name}.'),
+        if (repo.isShared) const Text('Photos stay on this device.'),
         const SizedBox(height: 16),
         PeopleFilter(space),
         const SizedBox(height: 16),
@@ -192,13 +192,13 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
           Text(
             '${personName(space, photo.uploaderId)} · ${MaterialLocalizations.of(context).formatMediumDate(photo.publishedAt!.toLocal())}',
           ),
-          if (task != null && visibleToBasic(task, DateTime.now()))
+          if (task != null && repo.canView(task))
             TextButton.icon(
               onPressed: () => context.push('/task/${task.id}'),
               icon: const Icon(Icons.task_alt_rounded),
               label: const Text('View task'),
             ),
-          if (photo.uploaderId == 'me')
+          if (photo.uploaderId == repo.currentUserId)
             TextButton(
               onPressed: () => removePhoto(context, ref, photo),
               child: const Text('Remove photo'),
