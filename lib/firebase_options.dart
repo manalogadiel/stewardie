@@ -63,7 +63,6 @@ class DefaultFirebaseOptions {
     projectId: 'stewardie',
     storageBucket: 'stewardie.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBpXca-qqYOUx_QPXkpBgMHJ5JrYtcbKN4',
     appId: '1:1085424018448:ios:82872c3907496b7f5d9695',

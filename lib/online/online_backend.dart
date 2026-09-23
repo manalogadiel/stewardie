@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import '../firebase_options.dart';
+
 /// Production and local-emulator entry point for Firebase services.
 class OnlineBackend {
   OnlineBackend._();
@@ -67,21 +69,26 @@ class OnlineBackend {
             ),
           );
         } else {
-          // Native platform init (reads google-services.json / GoogleService-Info.plist if available)
           try {
-            await Firebase.initializeApp();
-          } catch (_) {
-            // Fallback for development/offline trial when no config is provided
             await Firebase.initializeApp(
-              options: const FirebaseOptions(
-                apiKey: 'local-demo-key',
-                appId: '1:1234567890:android:stewardie-local',
-                messagingSenderId: '1234567890',
-                projectId: defaultProjectId,
-                authDomain: '$defaultProjectId.firebaseapp.com',
-                storageBucket: '$defaultProjectId.appspot.com',
-              ),
+              options: DefaultFirebaseOptions.currentPlatform,
             );
+          } catch (_) {
+            try {
+              await Firebase.initializeApp();
+            } catch (_) {
+              // Fallback for development/offline trial when no config is provided
+              await Firebase.initializeApp(
+                options: const FirebaseOptions(
+                  apiKey: 'local-demo-key',
+                  appId: '1:1234567890:android:stewardie-local',
+                  messagingSenderId: '1234567890',
+                  projectId: defaultProjectId,
+                  authDomain: '$defaultProjectId.firebaseapp.com',
+                  storageBucket: '$defaultProjectId.appspot.com',
+                ),
+              );
+            }
           }
         }
       }
