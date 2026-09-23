@@ -8,7 +8,9 @@ This document updates the original family organizer concept for an online produc
 
 The [technical and launch plan](technical-launch-plan.md) contains proposed service choices, account/age distinctions, synchronization design, and rollout gates. Unconfirmed technical recommendations remain proposals.
 
-September 23 implementation note: the user approved the [camera and Moments slice](ui-polish-camera-moments-plan.md). Optional completion photos, standalone photos, local persistence, a custom capture/preview flow and the TV viewer are implemented locally. This does not establish authentication or delivery to other members' devices. See [verification and remaining platform checks](ui-polish-media-verification.md).
+September 23 implementation note: the user approved the [camera and Moments slice](ui-polish-camera-moments-plan.md) and [floating-header/mood follow-up](top-navigation-person-mood-plan.md). Optional completion photos, standalone photos, local persistence, a custom capture/preview flow, the TV viewer, person-aware mood/calendar cards and mood colors are implemented locally. This does not establish authentication or delivery to other members' devices. See [photo verification](ui-polish-media-verification.md) and [header/mood verification](floating-header-moods-verification.md).
+
+A separate [Firebase-emulator online core](online-core-verification.md) now tests account-specific Basic/Plus, space membership, invitation codes, and shared task transitions. It has not yet been merged with the full local visual/photo UI or deployed to a live service.
 
 ## Product direction
 
@@ -65,7 +67,7 @@ Approved September 22 UI refinement: Today groups unfinished tasks in a Pending 
 
 ### Shared calendar — approved local slice
 
-Members enter schedules inside Stewardie, scoped to one space. Everyone combines all authorized plans once; a person filter includes plans they author or explicitly participate in. Filters do not change the active identity. The latest requested [person-aware card update](top-navigation-person-mood-plan.md) supersedes the always-personal mood display: Everyone/Me show your mood, while another person's filter shows their current shared mood read-only. This follow-up is planned, not yet implemented.
+Members enter schedules inside Stewardie, scoped to one space. Everyone combines all authorized plans once; a person filter includes plans they author or explicitly participate in. Filters do not change the active identity. The implemented [person-aware card update](top-navigation-person-mood-plan.md) gives Everyone/Me your mood and another person's filter their current shared mood read-only. Calendar headings follow the same filter: Shared, Your, or the member's shortened name.
 
 Plans have an author, title, start/end, all-day flag, optional note and participants. Members edit/remove their own plans; participants must belong to the space. Multi-day plans appear on every intersecting date. The month sheet opens on the current month, supports month navigation and a selected-day agenda, preserves that selection while filtering people, and resets on space change. Tasks and schedules have separate counts and models.
 
@@ -81,7 +83,7 @@ This approved implementation is in memory only. Timed values are UTC instants di
 ## Mood check-ins
 
 - Optional daily check-in with a mood and optional short note.
-- Requested next slice: let the author choose a color independently of mood; retain it with that space's current check-in. The proposed Sky/Butter/Rose character colors and matching card tints are specified in the follow-up UI plan. Other members may view, but never edit, that choice.
+- Local UI slice: the author chooses Sky, Butter or Rose independently of mood; the color is retained with that space's current check-in and changes the clay character and pale card tint. Other members may view, but never edit, that choice. The check-ins are local fixtures, not synchronized across devices.
 - Display the member's current shared mood near their name, with a timestamp.
 - Make the destination space and audience clear before posting. Do not copy moods across spaces automatically.
 - Allow updating or removing a shared mood. Expire the current mood after the chosen daily window so old feelings are not presented as current.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stewardie/core/demo_state.dart';
 import 'package:stewardie/core/person_labels.dart';
@@ -8,6 +9,16 @@ import 'package:stewardie/features/timeline/domain/models.dart';
 import 'demo_ui_test.dart' show start, screenshot, reveal;
 
 void main() {
+  setUpAll(() async {
+    final loader = FontLoader('NunitoSans')
+      ..addFont(rootBundle.load('assets/fonts/nunito-sans.ttf'));
+    await loader.load();
+    final icons = FontLoader('MaterialIcons')
+      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+    await icons.load();
+    WidgetController.hitTestWarningShouldBeFatal = true;
+  });
+
   testWidgets('floating controls leave a scrollable transparent gap', (
     tester,
   ) async {
@@ -40,18 +51,22 @@ void main() {
       expect(find.text('Shared calendar'), findsNothing);
       expect(find.text('Calm'), findsOneWidget);
       expect(find.text('View mood'), findsOneWidget);
+      await tester.runAsync(
+        () => precacheImage(
+          const AssetImage('assets/illustrations/mood-rose-calm.png'),
+          tester.element(find.byType(Scaffold).first),
+        ),
+      );
+      await tester.pumpAndSettle();
       await screenshot(tester, 'alex-mood');
       await tester.tap(find.text('View mood'));
       await tester.pumpAndSettle();
       expect(find.text('Taking a quiet moment.'), findsOneWidget);
-      expect(
-        find.text('Rose ·'),
-        findsNothing,
-      ); // color is paired with timestamp
       expect(find.textContaining('Rose ·'), findsOneWidget);
       expect(find.text('Update check-in'), findsNothing);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
+      await reveal(tester, find.widgetWithText(FilterChip, 'Jo'));
       await tester.tap(find.widgetWithText(FilterChip, 'Jo'));
       await tester.pumpAndSettle();
       expect(find.text('Jo’s'), findsAtLeastNWidgets(2));
@@ -76,6 +91,16 @@ void main() {
       await reveal(tester, find.text('Butter'));
       await tester.tap(find.text('Butter'));
       await reveal(tester, find.text('Share check-in'));
+      await tester.runAsync(
+        () => Future.wait([
+          for (final mood in Mood.values)
+            precacheImage(
+              AssetImage('assets/illustrations/mood-butter-${mood.name}.png'),
+              tester.element(find.byType(Scaffold).first),
+            ),
+        ]),
+      );
+      await tester.pumpAndSettle();
       await screenshot(tester, 'mood-butter-composer');
       await tester.tap(find.text('Share check-in'));
       await tester.pumpAndSettle();
@@ -87,7 +112,11 @@ void main() {
         find.widgetWithText(ChoiceChip, 'Butter'),
       );
       expect(butter.selected, isTrue);
-      await tester.tap(find.text('Rose'));
+      final roseChoice = find.widgetWithText(ChoiceChip, 'Rose');
+      await reveal(tester, roseChoice);
+      await tester.tap(roseChoice);
+      await tester.pumpAndSettle();
+      expect(tester.widget<ChoiceChip>(roseChoice).selected, isTrue);
       await reveal(tester, find.text('Cancel'));
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
@@ -146,6 +175,16 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('floating selector clears Today title at 200% text', (
+    tester,
+  ) async {
+    await start(tester, size: const Size(360, 800), scale: 2);
+    final selectorBottom = tester.getBottomLeft(find.text('Home crew')).dy;
+    final titleTop = tester.getTopLeft(find.text('Today').first).dy;
+    expect(titleTop, greaterThan(selectorBottom));
+    await screenshot(tester, 'floating-header-large-text');
+  });
 
   test('fixed local identity cannot edit another member check-in', () {
     final repo = DemoRepository(delay: Duration.zero);

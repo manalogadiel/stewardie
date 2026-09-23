@@ -1,6 +1,6 @@
 # Floating top controls, person labels and mood colors
 
-Status: requested planning update, September 23, 2026. The user confirmed the floating-header correction and requested person-aware calendar/mood cards, shortened names, a more distinct Today card and a mood color selector. This document records the next implementation scope; application changes in this follow-up have not started. Preserve the existing Flutter stack and no-paid-services constraint.
+Status: approved and implemented as a local UI slice, September 23, 2026. The user confirmed the floating-header correction and requested person-aware calendar/mood cards, shortened names, a more distinct Today card and a mood color selector. See [implementation and verification](floating-header-moods-verification.md) for observed checks and remaining limits. Preserve the existing Flutter stack and no-paid-services constraint.
 
 This supersedes the header interpretation and always-personal mood card in the earlier [UI/photo plan](ui-polish-camera-moments-plan.md). That earlier slice remains implemented as documented in [verification](ui-polish-media-verification.md); it did not achieve the requested full content-under-header effect.
 
@@ -32,9 +32,9 @@ Examples: `Jo María Santos` becomes `Jo’s calendar`; a long first name become
 
 ## 3. More distinct Today card
 
-Proposed token: **light butter `#F8E7B0`**, against the existing off-white canvas `#FAF9F6`. This stays in the approved blue/yellow/pink clay palette, makes the greeting region visibly separate from the canvas, and gives the floating cream controls a colored backdrop. Retain charcoal text and electric-blue actions.
+Implemented token: **light butter `#F8E7B0`**, against the existing off-white canvas `#FAF9F6`. This stays in the approved blue/yellow/pink clay palette, makes the greeting region visibly separate from the canvas, and gives the floating cream controls a colored backdrop. Retain charcoal text and electric-blue actions.
 
-Apply it to the Today greeting card and its continuous area behind the top controls, not to the whole page. Keep mood/calendar cards distinct. Check actual text/control contrast and the yellow companion's silhouette in rendered screenshots before finalizing the token. This exact hex is a proposed visual choice, not a claim of rendered approval.
+Apply it to the Today greeting card and its continuous area behind the top controls, not to the whole page. Keep mood/calendar cards distinct. This token is now implemented locally; rendered review and contrast results belong in the verification record, not an assertion of final production art approval.
 
 ## 4. Mood follows the selected person
 
@@ -56,7 +56,7 @@ Place “Choose your color” below the mood choices in the current user's compo
 
 Store a stable color identifier with the space-scoped check-in, rather than changing the account/avatar or global theme. Reopening Update restores it; changing the mood keeps the draft's selected color; cancelling discards draft edits; sharing updates mood, note and color together. Removing/expiry clears the current check-in, with Sky as the next draft default. Other members see the shared color but cannot change it. Retain the current documented local storage scope for moods; cloud synchronization is not part of this change.
 
-The existing six mood poses are blue raster illustrations. Prepare consistent Butter and Rose versions of all six poses during the approved implementation/artwork phase, using the approved shapes, lighting and transparent framing. Reuse a suitable existing pose only after visual inspection. Avoid a flat color overlay that loses the clay shading or tints the face. No new artwork is generated during this planning update.
+The six blue raster poses have corresponding Butter and Rose transparent assets, using the approved shapes, lighting and framing. The character color changes independently of its emotion; no flat overlay is applied at runtime. See the [asset prompt record](../assets/illustrations/README.md).
 
 ## Implementation order and acceptance checks
 

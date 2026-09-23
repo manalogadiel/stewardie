@@ -1,9 +1,9 @@
 # Stewardie — Technical and Launch Plan
 
 Updated: September 21, 2026  
-Status: proposed implementation decisions for discussion. No cloud services, billing, accounts, or application code were created by this plan.
+Status: Firebase has been selected for a local emulator trial only. The architecture and launch gates below remain the roadmap; no live cloud services, billing, developer-store accounts or production accounts have been provisioned. See [online-core implementation and verification](online-core-verification.md).
 
-Implementation note (September 22, 2026): a Flutter foundation and in-memory demo slice now exist. See [implementation and verification](demo-foundation.md). Riverpod and go_router are used locally; backend, maps, paid services, and launch choices below remain proposals or gates.
+Implementation note (September 23, 2026): the Flutter foundation and local visual/photo slice exist. A separate Firebase-emulator client and server slice now exercises verified accounts, personal Plus, spaces, invitation codes and shared tasks; it has not replaced the fixture repository in the main UI. See [earlier foundation](demo-foundation.md) and [online-core record](online-core-verification.md). Maps, online media, paid services, and launch choices remain future work or gates.
 
 Related: [Product plan](shared-spaces-product-plan.md) and [UI plan](ui-plan.md).
 
@@ -20,7 +20,7 @@ Treat the older document's descriptions of built demo features as historical pla
 | Client | Flutter, feature-based structure, reusable Soft Pop components | Existing direction |
 | Initial development | Android on the current Windows environment; keep iOS in scope | Proposed |
 | State and routing | Riverpod and go_router, with dependency versions verified at scaffolding | Proposed implementation choice |
-| Backend | Firebase Auth, Firestore, Cloud Storage, Functions, FCM | Proposed |
+| Backend | Firebase Auth, Firestore, Cloud Storage, Functions, FCM | Auth/Firestore/Functions selected for the local emulator slice; Storage and FCM pending |
 | Offline model | Cached reads and explicit pending operations; server-confirmed ownership changes | Proposed |
 | Adult login | Verified email/password plus password reset for the pilot; social sign-in can follow | Proposed |
 | Child login | Guardian-managed sign-in versus adult-managed profiles | Awaiting user decision |

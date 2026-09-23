@@ -265,8 +265,9 @@ class AppShell extends ConsumerWidget {
 }
 
 class GlassDock extends StatelessWidget {
-  const GlassDock({super.key, required this.index});
+  const GlassDock({super.key, required this.index, this.onSelected});
   final int index;
+  final ValueChanged<int>? onSelected;
   @override
   Widget build(BuildContext context) {
     final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
@@ -320,8 +321,13 @@ class GlassDock extends StatelessWidget {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(28),
-                      onTap: () =>
-                          context.go(['/today', '/moments', '/space'][i]),
+                      onTap: () {
+                        if (onSelected != null) {
+                          onSelected!(i);
+                        } else {
+                          context.go(['/today', '/moments', '/space'][i]);
+                        }
+                      },
                       child: Container(
                         padding: EdgeInsets.symmetric(
                           horizontal: largeText ? 2 : 4,

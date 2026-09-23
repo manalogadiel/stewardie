@@ -1,5 +1,5 @@
 name: stewardie
-description: A local demo of shared responsibilities and check-ins.
+description: A shared-life app for everyday plans, responsibilities, and moments.
 publish_to: none
 version: 0.1.0+1
 
@@ -8,6 +8,10 @@ environment:
 
 dependencies:
   camera: ^0.12.1
+  cloud_firestore: ^6.10.0
+  cloud_functions: ^6.5.0
+  firebase_auth: ^6.7.0
+  firebase_core: ^4.15.0
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.4.3

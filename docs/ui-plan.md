@@ -3,13 +3,13 @@
 Updated: September 22, 2026  
 Platform: Flutter mobile, iOS and Android  
 User-selected product name: Stewardie; commercial name clearance pending.  
-Status: approved local UI redesign implemented; online features and launch gates remain separate.
+Status: approved local UI redesign implemented. A separate emulator-only online core now covers accounts, spaces and shared tasks; it is not yet integrated into the full visual/photo UI. Launch gates remain separate.
 
-The [approved redesign](ui-redesign-plan.md) and [approved UI/photo polish](ui-polish-camera-moments-plan.md) supersede the initial Today layout. The local implementation now includes floating selector/Inbox controls, checkmark-free people filters, equal-height mood/calendar cards, spaced count/dock surfaces, six clay moods, a custom camera/photo preview, task attachments and a clay TV Moments viewer. Accepted media and task changes persist locally; mood/calendar data still uses in-memory fixtures. See [current verification](ui-polish-media-verification.md) and [artwork provenance](../assets/illustrations/README.md). Account, online media delivery, location and membership management below remain future product scope.
+The [approved redesign](ui-redesign-plan.md), [approved UI/photo polish](ui-polish-camera-moments-plan.md) and [floating-header/mood follow-up](top-navigation-person-mood-plan.md) supersede the initial Today layout. The local implementation includes floating selector/Inbox controls over page content, checkmark-free people filters, equal-height mood/calendar cards, spaced count/dock surfaces, person-aware headings and shared moods, three colors for six clay poses, a custom camera/photo preview, task attachments and a clay TV Moments viewer. Accepted media and task changes persist locally; mood/calendar data still uses in-memory fixtures. See [photo verification](ui-polish-media-verification.md), [header/mood verification](floating-header-moods-verification.md) and [artwork provenance](../assets/illustrations/README.md). Account, online media delivery, location and membership management below remain future product scope.
 
 ## 1. Source of truth
 
-Latest requested follow-up (planned, not yet implemented): [floating header, person-aware cards and mood colors](top-navigation-person-mood-plan.md). This corrects the reserved top toolbar, introduces short/ellipsized member labels, and proposes a light-butter Today surface. Everyone/Me show the current user's mood; another person's filter shows their shared mood read-only. A personal mood color selector is requested; character/card color application and exact tokens are proposed in that plan.
+Latest approved local UI slice: [floating header, person-aware cards and mood colors](top-navigation-person-mood-plan.md). The page paints behind the controls; member labels fit compact spaces; the Today surface uses light butter. Everyone/Me show the current user's mood, while another person's filter shows their shared mood read-only. The author's mood color selector changes the clay illustration and card tint independently of the emotion.
 
 - [Product plan](shared-spaces-product-plan.md): feature behavior, scope, membership, and sharing rules.
 - [Technical and launch plan](technical-launch-plan.md): proposed backend, account/age policy, media/location handling, and execution milestones. Pending choices are not yet final UI requirements.
@@ -46,6 +46,7 @@ These hex values are implementation starting points, not sampled color guarantee
 | `canvas` | `#FAF9F6` | Near-white warm canvas |
 | `surface` | `#FFFEFB` | Cards, forms, sheets |
 | `surfaceWarm` | `#FFF7EB` | Selected illustration backdrops |
+| `today` | `#F8E7B0` | Continuous Today greeting and floating-control backdrop |
 | `primary` | `#244BFF` | Primary buttons, selected tabs, focus and graphic accents |
 | `onPrimary` | `#FFFFFF` | Text on primary buttons |
 | `primarySoft` | `#E9EDFF` | Selected chip background |
@@ -76,7 +77,7 @@ Three persistent bottom destinations: **Today / Moments / Space**. Each has a ve
 | Element | Behavior |
 |---|---|
 | Top space switcher | Switch between Home, Dorm 204, Weekend Crew, and other memberships |
-| Today | Tasks, people filter, personal mood, shared month calendar |
+| Today | Tasks, people filter, person-aware mood, shared month calendar |
 | Moments | Space-scoped photos, task-linked moments, captions, reactions |
 | Space | Members, invitations, routines, preferences, membership management |
 | Inbox entry | Requests and relevant activity; label the originating space |
@@ -111,7 +112,7 @@ Required states: invalid code, expired/revoked invitation, already a member, pen
 
 Approved screen order:
 
-1. Centered floating space selector with balanced side widths and Inbox on the right. The next header correction removes the reserved toolbar strip so the page paints behind both controls.
+1. Centered floating space selector with balanced side widths and Inbox on the right. The page paints behind both controls without a reserved toolbar strip.
 2. Compact Today/date/greeting card with square upper corners, 28px lower corners, and the clay trio.
 3. Everyone / Me / member filters.
 4. Two columns: the filter's mood subject on the left, a month activity grid on the right. Everyone/Me use your mood; other filters use that member's shared mood. Stack for enlarged text.
@@ -120,7 +121,7 @@ Approved screen order:
 7. Pending contains newly added/unclaimed/requested/help-needed tasks first, followed by accepted Covered tasks. Done shows completion-date history directly, within Basic's four-day boundary.
 8. Floating, rounded glass-clay dock with Today / Moments / Space labels; no full-width background. Use milky surfaces, subtle rim/shadow and blur, with an opaque accessibility/build fallback.
 
-Only your own mood card opens editing. Another member's card shows shared details without edit/remove controls; absent or expired check-ins have an explicit empty state. This requested person-aware behavior is pending implementation. Person filters affect tasks and calendar schedules without changing identity. A new task is unclaimed or requested; explicit acceptance moves it into Covered. Overdue unfinished tasks remain available.
+Only your own mood card opens editing. Another member's card shows shared details without edit/remove controls; absent or expired check-ins have an explicit empty state. This is implemented with local fixture members and moods. Person filters affect tasks and calendar schedules without changing identity. A new task is unclaimed or requested; explicit acceptance moves it into Covered. Overdue unfinished tasks remain available.
 
 The compact calendar uses one square per date, with activity density for visible schedules and a distinct today outline. It is one button, opening a root-level one-month sheet with previous/next, today, day selection and agenda. Everyone combines plans in the current space once; person views include authored and participating plans. Month/day selection survives person filtering and resets on space change. Schedules are separate from task counts.
 
@@ -149,9 +150,9 @@ Completion immediately records the action locally, with sync status where releva
 
 ### D. Mood check-in and member profile
 
-Mood sheet: “How are you feeling?” → six labeled faces (Happy, Calm, Tired, Overwhelmed, Sad, Excited) → optional note → “Sharing with [space]” → Share check-in.
+Mood sheet: “How are you feeling?” → six labeled clay poses (Happy, Calm, Tired, Overwhelmed, Sad, Excited) → Sky/Butter/Rose color → optional note → “Sharing with [space]” → Share check-in.
 
-Next planned addition: an independent mood color selector and preview before sharing. Proposed choices are Sky, Butter and Rose for the clay character and a matching pale card tint. Color belongs to the space-scoped check-in, not the account identity; other members' choices are view-only. See the follow-up plan for asset and draft-state rules.
+The local mood composer has an independent color selector and preview before sharing. Sky, Butter and Rose each have six shaded clay poses and a matching pale card tint. Color belongs to the space-scoped check-in, not the account identity; other members' choices are view-only. See the follow-up plan for asset and draft-state rules.
 
 - Include Skip, update, and remove paths. Show expiry/current-day context.
 - Labels remain visible; faces or colors never carry meaning alone.
@@ -216,7 +217,7 @@ Each component needs default, pressed, focused, disabled, loading, selected wher
 
 ## 6. Asset inventory
 
-**Current status:** only a visual reference/concept exists. All named production files below are proposed deliverables, not existing assets. Do not crop the concept board into final icons or UI components.
+**Current status:** the reference board remains a guide. [Local clay PNG assets](../assets/illustrations/README.md) now cover greeting, celebration, calendar and six moods in three colors. The inventory below records other proposed production assets; it does not mean those named files already exist. Do not crop the concept board into final icons or UI components.
 
 ### Custom raster artwork
 
@@ -245,7 +246,7 @@ Template objects can be deferred until core screens are validated. A neutral geo
 | Pop-art accents | 4 | Halftone patch, yellow starburst, blue sparkle, selective sticker outline | First mockup |
 | Map marker shells | 3 | Destination, photo-thumbnail holder, live-avatar holder | Location phase |
 
-Create mood art in scalable vector form for small sizes. Do not infer mood from a person's avatar expression. Custom appreciation artwork should have no baked-in language; render labels in the interface.
+The current mood poses are transparent raster clay illustrations with separate text labels. Future vector variants can support smaller sizes if needed. Do not infer mood from a person's avatar expression. Custom appreciation artwork should have no baked-in language; render labels in the interface.
 
 ### Standard functional icons
 

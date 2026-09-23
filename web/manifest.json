@@ -1,11 +1,11 @@
 {
-    "name": "Stewardie Demo",
+    "name": "Stewardie",
     "short_name": "Stewardie",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#F5F3ED",
     "theme_color": "#244BFF",
-    "description": "Local demo of shared days and little moments.",
+    "description": "Shared days, plans, responsibilities, and little moments.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

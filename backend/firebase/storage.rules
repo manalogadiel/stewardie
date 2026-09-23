@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Media upload/download remains closed until the membership-controlled
+    // upload flow and quota accounting are implemented and emulator-tested.
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

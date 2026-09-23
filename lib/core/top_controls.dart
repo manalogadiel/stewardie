@@ -4,5 +4,5 @@ import 'package:flutter/material.dart';
 /// The surface behind this space still paints all the way to the top.
 double topControlsClearance(BuildContext context) {
   final scale = MediaQuery.textScalerOf(context).scale(16);
-  return MediaQuery.paddingOf(context).top + (scale > 22 ? 114 : 90);
+  return MediaQuery.paddingOf(context).top + (scale > 22 ? 140 : 90);
 }

@@ -2,7 +2,7 @@
 
 A Flutter shared-life app for families, friends, housemates, dormmates, and crews.
 
-Status: Flutter foundation and approved Soft Pop UI redesign implemented locally. No backend, paid service, or payments are connected. See the [photo slice verification record](docs/ui-polish-media-verification.md) and [first redesign record](docs/ui-redesign-verification.md).
+Status: Flutter foundation and approved Soft Pop UI slices implemented locally. A separate Firebase-emulator entry point now exercises verified accounts, personal Plus, spaces, invitations, shared task actions and tier-scoped Done history. The main visual prototype still uses local fixtures; no live Firebase project, paid service, store account or payments are connected. See the [online-core record](docs/online-core-verification.md), [floating-header and moods record](docs/floating-header-moods-verification.md), [photo slice record](docs/ui-polish-media-verification.md), and [first redesign record](docs/ui-redesign-verification.md).
 
 ## Start here
 
@@ -27,7 +27,7 @@ flutter run -d chrome
 flutter run -d <device-id>
 ```
 
-Today includes the clay mascots, people filters, personal mood, shared month calendar, Pending/Covered tasks, and a direct Done tab. New tasks require acceptance before becoming Covered. Calendar plans support all-day/timed dates, participants, notes, and author-only editing/removal. The floating glass-clay dock keeps Today / Moments / Space. Moments includes a swipable clay TV, standalone photos, task completion photos, expansion and export. The custom camera and system photo chooser feed a shared preview. Task changes and accepted photos persist locally (app-private database on mobile, IndexedDB on web); moods and calendar plans still reset. Jamie remains the fixed local identity. No photos are sent to other devices. Product screens omit development labels; these limitations remain documented here.
+Today includes the clay mascots, floating space selector and Inbox over a light-butter card, people filters, person-aware mood and calendar cards, Pending/Covered tasks, and a direct Done tab. Each of six mood poses has Sky, Butter and Rose clay variants; the author chooses color independently of mood. New tasks require acceptance before becoming Covered. Calendar plans support all-day/timed dates, participants, notes, and author-only editing/removal. The floating glass-clay dock keeps Today / Moments / Space. Moments includes a swipable clay TV, standalone photos, task completion photos, expansion and export. The custom camera and system photo chooser feed a shared preview. Task changes and accepted photos persist locally (app-private database on mobile, IndexedDB on web); moods and calendar plans still reset. Jamie remains the fixed local identity. Other members' moods are seeded local fixtures, not messages from their devices. No photos are sent to other devices. Product screens omit development labels; these limitations remain documented here.
 
 ```sh
 flutter analyze
@@ -36,9 +36,11 @@ flutter test
 flutter test --dart-define=CAPTURE_DEMO=true
 ```
 
-See [current verification and platform limitations](docs/ui-polish-media-verification.md) for test, build, and device results. Earlier foundation build failures remain recorded historically.
+See [photo verification and platform limitations](docs/ui-polish-media-verification.md) and [floating-header/mood verification](docs/floating-header-moods-verification.md) for checks specific to each slice. Earlier foundation build failures remain recorded historically.
 
-Next: verify capture, picker recovery and photo-library export on Android/iOS hardware; then accounts, spaces, invitations and online coordination after backend/budget decisions.
+To try the separate shared-task flow against local Firebase emulators, follow [the local online setup](backend/firebase/README.md). Its start target is `lib/main_online.dart`; the default `lib/main.dart` remains the visual/photo prototype. The emulator trial has account-specific Basic/Plus, member-scoped tasks, invitation codes, and server-confirmed actions. Its Moments screen is an empty state; photos, moods, calendars, live location and other full UI features have not been connected to Firebase.
+
+Next: verify capture, picker recovery and photo-library export on Android/iOS hardware; join the two Flutter paths, complete online media/moods/calendar and account controls, then address the [launch gates](docs/online-core-verification.md#remaining-work-and-launch-gates).
 
 Open this same local repository in Codex and Antigravity. Avoid simultaneous agent edits to the same files. Tool-specific automatic skill discovery is not verified for Antigravity; its agent can read the linked skill and plans directly.
 

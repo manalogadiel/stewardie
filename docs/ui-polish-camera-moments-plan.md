@@ -2,7 +2,7 @@
 
 Status: approved by the user and implemented locally, September 23, 2026. See [implementation and verification](ui-polish-media-verification.md) for delivered behavior, adapter choices and outstanding native device checks. The original proposed defaults below record the approved direction; no paid services or publication were enabled.
 
-Follow-up correction: the user clarified that the entire header must overlay page content, with only the selector capsule and Inbox circle visible. The current reserved AppBar area does not satisfy that behavior. See the [next header/person/mood plan](top-navigation-person-mood-plan.md), which also records person-aware calendar/mood cards, compact names, a distinct Today color and a mood color selector. That follow-up is planned, not yet implemented, and supersedes conflicting earlier wording here.
+Follow-up correction: the user clarified that the entire header must overlay page content, with only the selector capsule and Inbox circle visible. The earlier reserved AppBar area did not satisfy that behavior. The [header/person/mood plan](top-navigation-person-mood-plan.md) is now implemented locally and supersedes conflicting earlier wording here. See its [verification record](floating-header-moods-verification.md).
 
 This follows the implemented [first redesign](ui-redesign-verification.md) and the user's five screenshots. The requests below are confirmed direction; dimensions, interaction details and implementation choices are proposed defaults. Preserve Flutter, Riverpod, go_router, Today / Moments / Space, the approved character family and subscription v1. No paid services.
 
