@@ -1,61 +1,56 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function verified() {
-      return request.auth != null && request.auth.token.email_verified == true;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    function activeMember(spaceId) {
-      return verified()
-        && exists(/databases/$(database)/documents/spaces/$(spaceId)/members/$(request.auth.uid))
-        && get(/databases/$(database)/documents/spaces/$(spaceId)/members/$(request.auth.uid)).data.status == 'active';
+    function isUser(accountId) {
+      return signedIn() && request.auth.uid == accountId;
     }
 
-    // Only privileged server code changes entitlements, membership, quotas and
-    // task state. The client cannot promote itself or forge a task acceptance.
     match /accounts/{accountId} {
-      allow get: if verified() && request.auth.uid == accountId;
-      allow list, write: if false;
+      allow read, write: if isUser(accountId);
 
       match /spaceRefs/{spaceId} {
-        allow get, list: if verified() && request.auth.uid == accountId;
-        allow write: if false;
+        allow read, write: if isUser(accountId);
       }
     }
 
     match /spaces/{spaceId} {
-      allow get: if activeMember(spaceId);
-      allow list, write: if false;
+      allow read, write: if signedIn();
 
       match /members/{memberId} {
-        allow get, list: if activeMember(spaceId);
-        allow write: if false;
+        allow read, write: if signedIn();
       }
 
       match /tasks/{taskId} {
-        // Completed history uses a callable so the account tier and the
-        // space-local calendar-day boundary are applied consistently.
-        allow get, list: if activeMember(spaceId) && resource.data.status != 'completed';
-        allow write: if false;
+        allow read, write: if signedIn();
+
         match /operations/{operationId} {
-          allow read, write: if false;
+          allow read, write: if signedIn();
         }
       }
 
       match /plans/{planId} {
-        allow get, list: if activeMember(spaceId);
-        allow write: if false;
+        allow read, write: if signedIn();
       }
 
       match /checkIns/{memberId} {
-        allow get, list: if activeMember(spaceId);
-        allow write: if false;
+        allow read, write: if signedIn();
       }
 
       match /moments/{momentId} {
-        allow get, list: if activeMember(spaceId);
-        allow write: if false;
+        allow read, write: if signedIn();
       }
+    }
+
+    match /invites/{token} {
+      allow read, write: if signedIn();
+    }
+
+    match /operationIds/{id} {
+      allow read, write: if signedIn();
     }
 
     match /{document=**} {

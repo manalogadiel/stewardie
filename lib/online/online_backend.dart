@@ -4,12 +4,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
-/// A separate, emulator-only entry point. Production Firebase options are not
-/// checked into this repository and no call falls through to a live project.
+/// Production and local-emulator entry point for Firebase services.
 class OnlineBackend {
   OnlineBackend._();
 
-  static const projectId = 'demo-stewardie';
+  static const bool useEmulator = bool.fromEnvironment(
+    'USE_FIREBASE_EMULATOR',
+    defaultValue: false,
+  );
+
+  static const String functionsRegion = String.fromEnvironment(
+    'FIREBASE_FUNCTIONS_REGION',
+    defaultValue: 'us-central1',
+  );
+
+  static const defaultProjectId = String.fromEnvironment(
+    'FIREBASE_PROJECT_ID',
+    defaultValue: 'demo-stewardie',
+  );
+
   static String get host {
     const override = String.fromEnvironment('FIREBASE_EMULATOR_HOST');
     if (override.isNotEmpty) return override;
@@ -18,31 +31,79 @@ class OnlineBackend {
     return kIsWeb ? Uri.base.host : 'localhost';
   }
 
-  static Future<OnlineBackend> start() async {
-    await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: 'local-demo-key',
-        appId: '1:1234567890:android:stewardie-local',
-        messagingSenderId: '1234567890',
-        projectId: projectId,
-        authDomain: 'demo-stewardie.firebaseapp.com',
-        storageBucket: 'demo-stewardie.appspot.com',
-      ),
-    );
-    await FirebaseAuth.instance.useAuthEmulator(host, 9099);
-    if (kIsWeb) {
-      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+  static Future<OnlineBackend> start({FirebaseOptions? options}) async {
+    if (Firebase.apps.isEmpty) {
+      if (options != null) {
+        await Firebase.initializeApp(options: options);
+      } else {
+        const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
+        const appId = String.fromEnvironment('FIREBASE_APP_ID');
+        const messagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+        const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
+        const authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
+        const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
+
+        if (apiKey.isNotEmpty && appId.isNotEmpty) {
+          await Firebase.initializeApp(
+            options: FirebaseOptions(
+              apiKey: apiKey,
+              appId: appId,
+              messagingSenderId:
+                  messagingSenderId.isNotEmpty ? messagingSenderId : '1234567890',
+              projectId: projectId.isNotEmpty ? projectId : defaultProjectId,
+              authDomain: authDomain.isNotEmpty ? authDomain : null,
+              storageBucket: storageBucket.isNotEmpty ? storageBucket : null,
+            ),
+          );
+        } else if (useEmulator) {
+          await Firebase.initializeApp(
+            options: const FirebaseOptions(
+              apiKey: 'local-demo-key',
+              appId: '1:1234567890:android:stewardie-local',
+              messagingSenderId: '1234567890',
+              projectId: defaultProjectId,
+              authDomain: '$defaultProjectId.firebaseapp.com',
+              storageBucket: '$defaultProjectId.appspot.com',
+            ),
+          );
+        } else {
+          // Native platform init (reads google-services.json / GoogleService-Info.plist if available)
+          try {
+            await Firebase.initializeApp();
+          } catch (_) {
+            // Fallback for development/offline trial when no config is provided
+            await Firebase.initializeApp(
+              options: const FirebaseOptions(
+                apiKey: 'local-demo-key',
+                appId: '1:1234567890:android:stewardie-local',
+                messagingSenderId: '1234567890',
+                projectId: defaultProjectId,
+                authDomain: '$defaultProjectId.firebaseapp.com',
+                storageBucket: '$defaultProjectId.appspot.com',
+              ),
+            );
+          }
+        }
+      }
     }
-    FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
-    FirebaseFunctions.instanceFor(region: 'us-central1')
-        .useFunctionsEmulator(host, 5001);
+
+    if (useEmulator) {
+      await FirebaseAuth.instance.useAuthEmulator(host, 9099);
+      if (kIsWeb) {
+        await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+      }
+      FirebaseFirestore.instance.useFirestoreEmulator(host, 8080);
+      FirebaseFunctions.instanceFor(region: functionsRegion)
+          .useFunctionsEmulator(host, 5001);
+    }
+
     return OnlineBackend._();
   }
 
   FirebaseAuth get auth => FirebaseAuth.instance;
   FirebaseFirestore get firestore => FirebaseFirestore.instance;
   FirebaseFunctions get functions =>
-      FirebaseFunctions.instanceFor(region: 'us-central1');
+      FirebaseFunctions.instanceFor(region: functionsRegion);
 
   Future<Map<String, dynamic>> call(
     String name, [

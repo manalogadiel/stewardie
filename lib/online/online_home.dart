@@ -10,6 +10,8 @@ import '../core/top_controls.dart';
 import 'online_backend.dart';
 import 'online_moments.dart';
 import 'online_today_extras.dart';
+import '../features/subscription/revenuecat_service.dart';
+import '../features/subscription/soft_pop_paywall.dart';
 
 class OnlineHome extends StatefulWidget {
   const OnlineHome({
@@ -44,6 +46,23 @@ class _OnlineHomeState extends State<OnlineHome> {
   final _moreDone = <Map<String, dynamic>>[];
   String? _moreCursor;
   bool _loadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    RevenueCatService.instance.init(userId: widget.user.uid);
+    RevenueCatService.instance.addListener(_onRevenueCatUpdate);
+  }
+
+  @override
+  void dispose() {
+    RevenueCatService.instance.removeListener(_onRevenueCatUpdate);
+    super.dispose();
+  }
+
+  void _onRevenueCatUpdate() {
+    if (mounted) setState(() {});
+  }
 
   void _invalidateHistory() {
     _historyKey = null;
@@ -814,7 +833,8 @@ class _OnlineHomeState extends State<OnlineHome> {
     StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: widget.backend.account(widget.user.uid),
       builder: (context, snapshot) {
-        final tier = snapshot.data?.data()?['tier'] as String?;
+        final backendTier = snapshot.data?.data()?['tier'] as String?;
+        final isPlus = backendTier == 'plus' || RevenueCatService.instance.isPlus;
         return ClayPanel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -827,21 +847,78 @@ class _OnlineHomeState extends State<OnlineHome> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  Chip(
-                    label: Text(
-                      tier == null
-                          ? 'Loading'
-                          : tier == 'plus'
-                          ? 'Plus'
-                          : 'Basic',
+                  if (isPlus)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: SoftPop.blue,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.star_rounded, color: Colors.white, size: 15),
+                          SizedBox(width: 4),
+                          Text(
+                            'Plus',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      onPressed: () => showSoftPopPaywall(
+                        context,
+                        onPurchased: () => setState(() {}),
+                      ),
+                      icon: const Icon(Icons.star_rounded, size: 16),
+                      label: const Text('Upgrade'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: SoftPop.blueSoft,
+                        foregroundColor: SoftPop.blue,
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
                     ),
-                  ),
                 ],
               ),
-              Text(widget.user.email ?? ''),
-              TextButton(
-                onPressed: widget.backend.auth.signOut,
-                child: const Text('Sign out'),
+              const SizedBox(height: 4),
+              Text(
+                widget.user.email ?? '',
+                style: const TextStyle(color: SoftPop.secondary),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (!isPlus)
+                    TextButton.icon(
+                      icon: const Icon(Icons.auto_awesome, size: 16, color: SoftPop.blue),
+                      label: const Text(
+                        'View Plus benefits',
+                        style: TextStyle(color: SoftPop.blue),
+                      ),
+                      onPressed: () => showSoftPopPaywall(
+                        context,
+                        onPurchased: () => setState(() {}),
+                      ),
+                    ),
+                  TextButton(
+                    onPressed: () async {
+                      await RevenueCatService.instance.logOut();
+                      await widget.backend.auth.signOut();
+                    },
+                    child: const Text('Sign out'),
+                  ),
+                ],
               ),
             ],
           ),

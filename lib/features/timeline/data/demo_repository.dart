@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../domain/models.dart';
+import '../../subscription/revenuecat_service.dart';
 
 abstract class TimelineRepository {
   String get currentUserId => 'me';
@@ -54,6 +55,9 @@ class DemoRepository extends TimelineRepository {
   final Map<String, Task> _tasks = {};
   final Set<String> _busy = {};
   int _nextId = 0;
+
+  @override
+  bool get isPlus => RevenueCatService.instance.isPlus;
 
   @override
   final List<Space> spaces = const [

@@ -6,7 +6,9 @@ import '../../core/demo_state.dart';
 import '../../core/top_controls.dart';
 import '../../core/widgets.dart';
 import '../../core/backend_provider.dart';
+import '../../core/theme.dart';
 import '../../online/online_home.dart';
+import '../subscription/soft_pop_paywall.dart';
 import '../timeline/domain/models.dart';
 
 class SpaceScreen extends ConsumerWidget {
@@ -57,8 +59,29 @@ class SpaceScreen extends ConsumerWidget {
                         ? 'Your account · ${repo.isPlus ? 'Plus' : 'Basic'}'
                         : 'Member',
                   ),
-                  trailing: const Icon(Icons.chevron_right_rounded),
+                  trailing: member.id == repo.currentUserId && !repo.isPlus
+                      ? FilledButton.tonal(
+                          onPressed: () => showSoftPopPaywall(
+                            context,
+                            onPurchased: () => ref.read(demoProvider.notifier).refresh(),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: SoftPop.blueSoft,
+                            foregroundColor: SoftPop.blue,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: const Text('Upgrade'),
+                        )
+                      : const Icon(Icons.chevron_right_rounded),
                   onTap: () {
+                    if (member.id == repo.currentUserId) {
+                      showSoftPopPaywall(
+                        context,
+                        onPurchased: () => ref.read(demoProvider.notifier).refresh(),
+                      );
+                      return;
+                    }
                     final mood = repo.checkIn(space.id, member.id);
                     showFeatureNote(
                       context,
