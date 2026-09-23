@@ -1,3 +1,13 @@
+# Backend modes (current)
+
+Normal `flutter run` uses the live Spark project and direct, rule-enforced transactions. To use emulators explicitly, add `--dart-define=USE_FIREBASE_EMULATOR=true`. The default emulator transport also uses Spark rules. `USE_CALLABLE_BACKEND=true` is an experimental separate backend and requires its matching `firestore.callable.rules`; do not mix schemas or deploy those rules over the current Spark trial. Older emulator exports may lack the new membership/counter schema; start with a fresh isolated emulator dataset.
+
+The active security check is `functions/test/spark.rules.mjs`. The older callable tests exercise the separately preserved callable rules, not the deployed Spark rules. See [current verification](../../docs/spark-polish-verification.md).
+
+## Historical callable-emulator instructions
+
+The instructions below describe the earlier callable slice. Its old default-entry-point claims are superseded above; always set emulator mode explicitly.
+
 # Local Firebase trial
 
 This is an **emulator-only** online-core slice. `demo-stewardie` is a Firebase demo project ID, not a provisioned cloud project. The Flutter entry point refuses to fall through to a live Firebase project. The normal `lib/main.dart` visual/photo prototype remains separate.
@@ -13,7 +23,7 @@ If Java 21 is not the system default, set `JAVA_HOME` to a Java 21 installation 
 In a second terminal, run the Flutter client:
 
 ```powershell
-flutter run -d chrome -t lib/main_online.dart
+flutter run -d chrome -t lib/main_online.dart --dart-define=USE_FIREBASE_EMULATOR=true --dart-define=USE_CALLABLE_BACKEND=true
 ```
 
 For an Android emulator, add `--dart-define=FIREBASE_EMULATOR_HOST=10.0.2.2`. For a physical Android device connected by USB, forward ports 9099, 8080 and 5001 with `adb reverse tcp:<port> tcp:<port>`, then use `FIREBASE_EMULATOR_HOST=127.0.0.1`. This has not yet been exercised on-device.

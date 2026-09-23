@@ -32,8 +32,10 @@ service cloud.firestore {
       allow create: if self(uid) && request.resource.data.keys().hasOnly(['tier','spaceIds','ownedSpaceIds','changedSpaceId'])
         && request.resource.data.tier == 'basic' && accountShape(request.resource.data)
         && accountChange(uid, {'spaceIds': [], 'ownedSpaceIds': []}, request.resource.data);
-      allow update: if self(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spaceIds','ownedSpaceIds','changedSpaceId'])
-        && accountShape(request.resource.data) && accountChange(uid, resource.data, request.resource.data);
+      allow update: if verified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spaceIds','ownedSpaceIds','changedSpaceId'])
+        && accountShape(request.resource.data) && accountChange(uid, resource.data, request.resource.data)
+        && (self(uid) || (owner(request.resource.data.changedSpaceId) && !(uid in afterSpace(request.resource.data.changedSpaceId).memberUids))
+          || (sp(request.resource.data.changedSpaceId).ownerUid == uid && afterSpace(request.resource.data.changedSpaceId).ownerUid == request.auth.uid));
       match /spaceRefs/{id} {
         allow read: if self(uid);
         allow create: if self(uid) && uid in afterSpace(id).memberUids
@@ -61,6 +63,7 @@ service cloud.firestore {
           && d.diff(resource.data).affectedKeys().hasOnly(['memberUids','memberCount','joinToken'])
           && d.memberUids.toSet() == resource.data.memberUids.toSet().union([request.auth.uid].toSet())
           && d.memberCount == d.memberUids.size() && d.memberCount <= 20
+          && getAfter(/databases/$(database)/documents/spaces/$(id)/members/$(request.auth.uid)).data.status == 'active'
           && inviteValid(d.joinToken, id)
           && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.spaceIds;
       }
@@ -71,7 +74,8 @@ service cloud.firestore {
           && d.diff(resource.data).affectedKeys().hasOnly(['memberUids','memberCount','removedUid'])
           && d.memberUids.toSet() == resource.data.memberUids.toSet().difference([d.removedUid].toSet())
           && d.memberCount == d.memberUids.size()
-          && getAfter(/databases/$(database)/documents/spaces/$(id)/members/$(d.removedUid)).data.status == 'removed';
+          && getAfter(/databases/$(database)/documents/spaces/$(id)/members/$(d.removedUid)).data.status == 'removed'
+          && !(id in getAfter(/databases/$(database)/documents/accounts/$(d.removedUid)).data.spaceIds);
       }
       function taskCount() {
         let d = request.resource.data;
@@ -85,7 +89,9 @@ service cloud.firestore {
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && request.resource.data.pendingOwnerUid in resource.data.memberUids)
         || (member(id) && resource.data.get('pendingOwnerUid', null) == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid','pendingOwnerUid'])
-          && request.resource.data.ownerUid == request.auth.uid && request.resource.data.pendingOwnerUid == null);
+          && request.resource.data.ownerUid == request.auth.uid && request.resource.data.pendingOwnerUid == null
+          && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.ownedSpaceIds
+          && !(id in getAfter(/databases/$(database)/documents/accounts/$(resource.data.ownerUid)).data.ownedSpaceIds));
       match /members/{uid} {
         allow read: if member(id);
         allow create, update: if self(uid) && (!exists(/databases/$(database)/documents/spaces/$(id)/members/$(uid)) || resource.data.status == 'removed')
@@ -115,7 +121,7 @@ service cloud.firestore {
           let a = resource.data;
           let b = request.resource.data;
           let me = request.auth.uid;
-          return (a.status == 'unclaimed' || (a.status == 'requested' && a.requestedUid == me)) && b.status == 'accepted' && b.ownerUid == me && b.requestedUid == null && b.offeredUid == null && b.completedAt == a.completedAt
+          return (a.status == 'unclaimed' || (a.status == 'requested' && (a.requestedUid == me || !(a.requestedUid in sp(id).memberUids))) || (a.status in ['accepted','needsHelp'] && !(a.ownerUid in sp(id).memberUids))) && b.status == 'accepted' && b.ownerUid == me && b.requestedUid == null && b.offeredUid == null && b.completedAt == a.completedAt
             || a.status == 'requested' && a.requestedUid == me && b.status == 'unclaimed' && b.ownerUid == a.ownerUid && b.requestedUid == null && b.offeredUid == a.offeredUid && b.completedAt == a.completedAt
             || a.status == 'accepted' && a.ownerUid == me && b.status == 'needsHelp' && b.ownerUid == me && b.requestedUid == a.requestedUid && b.offeredUid == a.offeredUid && b.completedAt == a.completedAt
             || a.status == 'needsHelp' && a.ownerUid != me && a.offeredUid == null && b.offeredUid == me && b.status == a.status && b.ownerUid == a.ownerUid && b.requestedUid == a.requestedUid && b.completedAt == a.completedAt

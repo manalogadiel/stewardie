@@ -28,6 +28,11 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
   bool _isAnnual = true;
   bool _busy = false;
   String? _error;
+  @override
+  void initState() { super.initState(); RevenueCatService.instance.addListener(_changed); }
+  void _changed() { if (mounted) setState(() {}); }
+  @override
+  void dispose() { RevenueCatService.instance.removeListener(_changed); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -39,8 +44,9 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
     final annualPkg = currentOffering?.annual;
     final monthlyPkg = currentOffering?.monthly;
 
-    final annualPrice = annualPkg?.storeProduct.priceString ?? 'US\$34.99 / yr';
-    final monthlyPrice = monthlyPkg?.storeProduct.priceString ?? 'US\$3.99 / mo';
+    final annualPrice = annualPkg?.storeProduct.priceString ?? 'Unavailable';
+    final monthlyPrice =
+        monthlyPkg?.storeProduct.priceString ?? 'Unavailable';
 
     return Container(
       decoration: const BoxDecoration(
@@ -92,7 +98,10 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: SoftPop.secondary),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: SoftPop.secondary,
+                    ),
                     onPressed: () => Navigator.of(context).pop(false),
                   ),
                 ],
@@ -100,9 +109,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
               const SizedBox(height: 12),
 
               // Hero Mascot Illustration
-              const Center(
-                child: ClayArt('celebrate', height: 110),
-              ),
+              const Center(child: ClayArt('celebrate', height: 110)),
               const SizedBox(height: 16),
 
               Text(
@@ -128,7 +135,8 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                       icon: Icons.cottage_rounded,
                       color: SoftPop.butter,
                       title: 'Up to 20 shared spaces',
-                      subtitle: 'Basic accounts are limited to 3 created spaces.',
+                      subtitle:
+                          'Basic accounts are limited to 3 created spaces.',
                     ),
                     Divider(height: 20, color: SoftPop.canvas),
                     _PerkRow(
@@ -164,7 +172,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                       title: 'Annual',
                       price: annualPrice,
                       subtitle: 'Billed annually',
-                      
+
                       selected: _isAnnual,
                       onTap: () => setState(() => _isAnnual = true),
                     ),
@@ -194,7 +202,12 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
 
               // Main CTA Button
               FilledButton(
-                onPressed: _busy || !RevenueCatService.purchasesEnabled || (_isAnnual ? annualPkg : monthlyPkg) == null ? null : () => _handlePurchase(annualPkg, monthlyPkg),
+                onPressed:
+                    _busy ||
+                        !RevenueCatService.purchasesEnabled ||
+                        (_isAnnual ? annualPkg : monthlyPkg) == null
+                    ? null
+                    : () => _handlePurchase(annualPkg, monthlyPkg),
                 style: FilledButton.styleFrom(
                   backgroundColor: SoftPop.blue,
                   foregroundColor: Colors.white,
@@ -213,7 +226,11 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                         ),
                       )
                     : Text(
-                        !RevenueCatService.purchasesEnabled ? 'Purchases are not available yet' : _isAnnual ? 'Start Annual Plus' : 'Start Monthly Plus',
+                        !RevenueCatService.purchasesEnabled
+                            ? 'Purchases are not available yet'
+                            : _isAnnual
+                            ? 'Start Annual Plus'
+                            : 'Start Monthly Plus',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
@@ -222,7 +239,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
               ),
               const SizedBox(height: 8),
 
-              // Secondary actions: Restore & Judge sandbox mode
+              // Restore is available without a new purchase.
               Wrap(
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
@@ -267,7 +284,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
         }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Welcome to Stewardie Plus!'),
+            content: Text('Purchase verified. Account benefits update after secure synchronization.'),
             backgroundColor: SoftPop.blue,
           ),
         );
@@ -325,7 +342,11 @@ class _PerkRow extends StatelessWidget {
           color: color.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: color == SoftPop.surface ? SoftPop.blue : color, size: 22),
+        child: Icon(
+          icon,
+          color: color == SoftPop.surface ? SoftPop.blue : color,
+          size: 22,
+        ),
       ),
       const SizedBox(width: 14),
       Expanded(
@@ -359,14 +380,12 @@ class _PlanOptionCard extends StatelessWidget {
     required this.subtitle,
     required this.selected,
     required this.onTap,
-    this.badge,
   });
   final String title;
   final String price;
   final String subtitle;
   final bool selected;
   final VoidCallback onTap;
-  final String? badge;
 
   @override
   Widget build(BuildContext context) => InkWell(
@@ -409,22 +428,6 @@ class _PlanOptionCard extends StatelessWidget {
                   color: selected ? SoftPop.blue : SoftPop.ink,
                 ),
               ),
-              if (badge != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: SoftPop.butter,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    badge!,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: SoftPop.ink,
-                    ),
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 8),

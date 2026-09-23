@@ -46,8 +46,8 @@ Task firebaseTask(String spaceId, String id, Map<String, dynamic> data) => Task(
   ),
 );
 
-/// Adapts authenticated emulator data to the original Soft Pop screen models.
-/// Every operation still goes through server membership/ownership checks.
+/// Adapts authenticated Firestore data to the original Soft Pop screen models.
+/// Spark rules enforce membership, ownership, and allowed transitions.
 class FirebaseTimelineRepository extends TimelineRepository {
   FirebaseTimelineRepository(this.backend, this.currentUserId);
   final OnlineBackend backend;
@@ -64,12 +64,14 @@ class FirebaseTimelineRepository extends TimelineRepository {
   final _plans = <String, List<CalendarPlan>>{};
   final _today = <String, DateTime>{};
   final _historyEpoch = <String, int>{};
+  final _operationIds = <String, String>{};
   bool loading = true;
   String? error;
   @override
   String? get syncError => error;
   bool _plus = false, _closed = false;
   Timer? _timer;
+  DateTime _historyDay = dateOnly(DateTime.now().toUtc());
   @override
   bool get isShared => true;
   @override
@@ -95,10 +97,25 @@ class FirebaseTimelineRepository extends TimelineRepository {
   @override
   List<Task> get tasks => [
     for (final space in spaces) ...[
-      ..._active[space.id] ?? [],
+      for (final task in _active[space.id] ?? <Task>[])
+        _withActiveAssignment(task, space),
       ..._done[space.id] ?? [],
     ],
   ];
+  // A concurrent assignment may land immediately before a removal commits.
+  // Rules permit active members to claim such orphaned tasks; expose that action.
+  Task _withActiveAssignment(Task task, Space space) {
+    final members = space.members.map((member) => member.id).toSet();
+    if ((task.ownerId != null && !members.contains(task.ownerId)) ||
+        (task.requestedId != null && !members.contains(task.requestedId))) {
+      return task.transition(
+        status: Responsibility.unclaimed,
+        entry: 'Assignment released: member has left this space.',
+      );
+    }
+    return task;
+  }
+
   List<CalendarPlan> get plans => [
     for (final s in spaces) ..._plans[s.id] ?? [],
   ];
@@ -139,8 +156,12 @@ class FirebaseTimelineRepository extends TimelineRepository {
       }, onError: _failed),
     );
     _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      for (final id in _refs.keys) {
-        unawaited(refreshHistory(id));
+      final today = dateOnly(DateTime.now().toUtc());
+      if (today != _historyDay) {
+        _historyDay = today;
+        for (final id in _refs.keys) {
+          unawaited(refreshHistory(id));
+        }
       }
       _notify();
     });
@@ -278,12 +299,18 @@ class FirebaseTimelineRepository extends TimelineRepository {
   Future<Task> act(String taskId, TaskAction action, String actorId) async {
     if (actorId != currentUserId) throw StateError('Use your own account.');
     final task = tasks.firstWhere((t) => t.id == taskId);
+    final operationKey = '$taskId/${action.name}';
+    final operationId = _operationIds.putIfAbsent(
+      operationKey,
+      () => backend.firestore.collection('operationIds').doc().id,
+    );
     final result = await backend.call('actOnTask', {
       'spaceId': task.spaceId,
       'taskId': taskId,
       'action': action.name,
-      'operationId': backend.firestore.collection('operationIds').doc().id,
+      'operationId': operationId,
     });
+    _operationIds.remove(operationKey);
     if (result['task'] == null) {
       await refreshHistory(task.spaceId);
       throw StateError('This task is outside your available history.');
@@ -314,8 +341,9 @@ class FirebaseTimelineRepository extends TimelineRepository {
     final result = await backend.call('createTask', {
       'spaceId': spaceId,
       'title': title,
-      if (requestedUid != null || assignToMe) 'requestedUid': requestedUid ?? currentUserId,
-      if (operationId != null) 'operationId': operationId,
+      if (requestedUid != null || assignToMe)
+        'requestedUid': requestedUid ?? currentUserId,
+      'operationId': ?operationId,
     });
     final doc = await backend.firestore
         .collection('spaces')

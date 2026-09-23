@@ -35,3 +35,7 @@ Pose prompts: happy has a gentle open smile and relaxed raised hands; tired has 
 The built-in image generation tool edited each corresponding approved blue pose as a reference image. The 12 transparent PNGs are `mood-butter-{calm,happy,tired,overwhelmed,sad,excited}.png` and `mood-rose-{calm,happy,tired,overwhelmed,sad,excited}.png`. This was local asset creation; no image-generation API or paid app service was configured. Flutter selects an existing pose asset by mood and color rather than applying a flat runtime tint.
 
 Shared reference-edit prompt: “Use case: precise-object-edit. Asset type: transparent PNG clay mascot pose. Recolor only the sky-blue clay body to buttery yellow [or soft pink]. Preserve the exact pose, proportions, matte texture, shading, upper-left highlights, face, sparkle, transparent margins and contact shadow. No UI, text, background or other character.” The reference for each edit was its matching blue mood file. Selected outputs were visually inspected for consistent clay shading, pose and framing; final production artwork review remains open.
+
+## Login wave (September 24)
+
+`welcome-wave.gif` and its reduced-motion still `welcome-wave.png` are original code-rendered clay-style illustrations from `WelcomeWavePainter` in `lib/online/login_scene.dart`. `tool/render_welcome_asset.dart` renders 32 frames; no external image or paid service is used. This is shaded 2D artwork, not a rigged 3D model. Existing approved illustrations remain unchanged.

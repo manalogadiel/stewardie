@@ -65,8 +65,10 @@ class SignedInRepository extends TimelineRepository {
     String spaceId,
     String title,
     DateTime day,
-    bool assignToMe, {String? requestedUid, String? operationId}
-  ) => throw UnimplementedError();
+    bool assignToMe, {
+    String? requestedUid,
+    String? operationId,
+  }) => throw UnimplementedError();
   @override
   CheckIn? checkIn(String spaceId, String memberId) => null;
   @override

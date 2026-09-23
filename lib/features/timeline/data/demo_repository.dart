@@ -309,7 +309,9 @@ class DemoRepository extends TimelineRepository {
       title: title.trim(),
       day: dateOnly(day),
       requestedId: requestedUid ?? (assignToMe ? currentUserId : null),
-      status: assignToMe || requestedUid != null ? Responsibility.requested : Responsibility.unclaimed,
+      status: assignToMe || requestedUid != null
+          ? Responsibility.requested
+          : Responsibility.unclaimed,
       activity: ['Jamie added this task.'],
     );
     await persist?.call(task);

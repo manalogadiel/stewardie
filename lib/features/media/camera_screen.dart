@@ -193,14 +193,24 @@ class _CameraScreenState extends State<CameraScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Expanded(child: Align(alignment: Alignment.centerLeft, child:
-                  IconButton.filledTonal(
-                    style: IconButton.styleFrom(backgroundColor: SoftPop.sky, foregroundColor: SoftPop.ink, minimumSize: const Size(52, 52), shape: const CircleBorder(), elevation: 3, shadowColor: Colors.black26),
-                    tooltip: 'Choose photo',
-                    onPressed: busy ? null : () => capture(true),
-                    icon: const Icon(Icons.photo_library_outlined),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: IconButton.filledTonal(
+                        style: IconButton.styleFrom(
+                          backgroundColor: SoftPop.sky,
+                          foregroundColor: SoftPop.ink,
+                          minimumSize: const Size(52, 52),
+                          shape: const CircleBorder(),
+                          elevation: 3,
+                          shadowColor: Colors.black26,
+                        ),
+                        tooltip: 'Choose photo',
+                        onPressed: busy ? null : () => capture(true),
+                        icon: const Icon(Icons.photo_library_outlined),
+                      ),
+                    ),
                   ),
-                  )),
                   Semantics(
                     label: 'Take photo',
                     button: true,
@@ -239,44 +249,73 @@ class _CameraScreenState extends State<CameraScreen>
                       ),
                     ),
                   ),
-                  Expanded(child: Align(alignment: Alignment.centerRight, child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  if (cameras.length > 1)
-                    IconButton.filledTonal(
-                    style: IconButton.styleFrom(backgroundColor: SoftPop.sky, foregroundColor: SoftPop.ink, minimumSize: const Size(52, 52), shape: const CircleBorder(), elevation: 3, shadowColor: Colors.black26),
-                      tooltip: 'Switch camera',
-                      onPressed: busy
-                          ? null
-                          : () {
-                              lens++;
-                              initialize();
-                            },
-                      icon: const Icon(Icons.flip_camera_ios_outlined),
-                    ),
-                  if (camera != null && flashAvailable)
-                    IconButton.filledTonal(
-                    style: IconButton.styleFrom(backgroundColor: SoftPop.sky, foregroundColor: SoftPop.ink, minimumSize: const Size(52, 52), shape: const CircleBorder(), elevation: 3, shadowColor: Colors.black26),
-                      tooltip: flash ? 'Turn flash off' : 'Turn flash on',
-                      onPressed: busy
-                          ? null
-                          : () async {
-                              try {
-                                await camera.setFlashMode(
-                                  flash ? FlashMode.off : FlashMode.always,
-                                );
-                                if (mounted) setState(() => flash = !flash);
-                              } catch (_) {
-                                if (mounted) {
-                                  setState(() => flashAvailable = false);
-                                }
-                              }
-                            },
-                      icon: Icon(
-                        flash
-                            ? Icons.flash_on_rounded
-                            : Icons.flash_off_rounded,
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (cameras.length > 1)
+                            IconButton.filledTonal(
+                              style: IconButton.styleFrom(
+                                backgroundColor: SoftPop.sky,
+                                foregroundColor: SoftPop.ink,
+                                minimumSize: const Size(52, 52),
+                                shape: const CircleBorder(),
+                                elevation: 3,
+                                shadowColor: Colors.black26,
+                              ),
+                              tooltip: 'Switch camera',
+                              onPressed: busy
+                                  ? null
+                                  : () {
+                                      lens++;
+                                      initialize();
+                                    },
+                              icon: const Icon(Icons.flip_camera_ios_outlined),
+                            ),
+                          if (camera != null && flashAvailable)
+                            IconButton.filledTonal(
+                              style: IconButton.styleFrom(
+                                backgroundColor: SoftPop.sky,
+                                foregroundColor: SoftPop.ink,
+                                minimumSize: const Size(52, 52),
+                                shape: const CircleBorder(),
+                                elevation: 3,
+                                shadowColor: Colors.black26,
+                              ),
+                              tooltip: flash
+                                  ? 'Turn flash off'
+                                  : 'Turn flash on',
+                              onPressed: busy
+                                  ? null
+                                  : () async {
+                                      try {
+                                        await camera.setFlashMode(
+                                          flash
+                                              ? FlashMode.off
+                                              : FlashMode.always,
+                                        );
+                                        if (mounted)
+                                          setState(() => flash = !flash);
+                                      } catch (_) {
+                                        if (mounted) {
+                                          setState(
+                                            () => flashAvailable = false,
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: Icon(
+                                flash
+                                    ? Icons.flash_on_rounded
+                                    : Icons.flash_off_rounded,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                  ]))),
+                  ),
                 ],
               ),
             ),

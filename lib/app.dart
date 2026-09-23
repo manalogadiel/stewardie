@@ -122,10 +122,15 @@ class AppShell extends ConsumerWidget {
                                         subtitle: Text(choice.kind),
                                         trailing: choice.id == space.id
                                             ? const Icon(
-                                                Icons.radio_button_checked_rounded,
+                                                Icons
+                                                    .radio_button_checked_rounded,
                                                 color: SoftPop.blue,
                                               )
-                                            : const Icon(Icons.radio_button_unchecked_rounded, color: SoftPop.secondary),
+                                            : const Icon(
+                                                Icons
+                                                    .radio_button_unchecked_rounded,
+                                                color: SoftPop.secondary,
+                                              ),
                                         selected: choice.id == space.id,
                                         onTap: () {
                                           Navigator.pop(sheet);

@@ -1,6 +1,6 @@
 # Firebase, RevenueCat, and Space polish implementation plan
 
-Status: proposed for approval; no implementation or deployment performed by this plan. September 23, 2026.
+Status: implemented for the no-billing Spark trial, September 24, 2026. See [implementation/verification and explicit release gates](spark-polish-verification.md). Original acceptance criteria below remain the production target; native purchases, shared media, and space-time-zone boundaries are not complete.
 
 This follows the [setup review](firebase-revenuecat-setup-review.md), [subscription plan](stewardie-subscription-plan.md), and [UI plan](ui-plan.md). Preserve Flutter, the approved Today/Moments layouts and assets, and Today / Moments / Space navigation. Changes below apply to the normal `flutter run` app.
 

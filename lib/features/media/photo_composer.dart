@@ -47,13 +47,24 @@ Future<bool?> showPhotoComposer(
   enableDrag: false,
   backgroundColor: SoftPop.surface,
   constraints: const BoxConstraints(maxWidth: 640),
-  shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+  ),
   clipBehavior: Clip.antiAlias,
   builder: (sheet) => Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheet).bottom),
     child: SizedBox(
-      height: (MediaQuery.sizeOf(sheet).height * .86 - MediaQuery.viewInsetsOf(sheet).bottom).clamp(180.0, MediaQuery.sizeOf(sheet).height),
-      child: PhotoComposer(space: space, task: task, complete: complete, recovered: recovered, initialCamera: initialCamera),
+      height:
+          (MediaQuery.sizeOf(sheet).height * .86 -
+                  MediaQuery.viewInsetsOf(sheet).bottom)
+              .clamp(180.0, MediaQuery.sizeOf(sheet).height),
+      child: PhotoComposer(
+        space: space,
+        task: task,
+        complete: complete,
+        recovered: recovered,
+        initialCamera: initialCamera,
+      ),
     ),
   ),
 );
@@ -204,7 +215,12 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
         }
         await library.publishTask(updated);
       }
-      if (mounted) { setState(() => closing = true); WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) Navigator.pop(context, true); }); }
+      if (mounted) {
+        setState(() => closing = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.pop(context, true);
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(
@@ -222,27 +238,64 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
   Future<void> close() async {
     if (busy) return;
     if (draft != null && !attached) {
-      final discard = await showDialog<bool>(context: context, builder: (dialog) => AlertDialog(
-        title: const Text('Discard this moment?'),
-        content: const Text('Your unsaved photo and caption will be discarded.'),
-        actions: [TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Keep editing')),
-          FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Discard'))],
-      ));
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Discard this moment?'),
+          content: const Text(
+            'Your unsaved photo and caption will be discarded.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Keep editing'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
       if (discard != true || !mounted) return;
     }
     setState(() => closing = true);
-    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) Navigator.pop(context); });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.pop(context);
+    });
   }
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: closing,
-    onPopInvokedWithResult: (didPop, result) { if (!didPop) close(); },
+    onPopInvokedWithResult: (didPop, result) {
+      if (!didPop) close();
+    },
     child: Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: SoftPop.surface,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading: IconButton(tooltip: 'Close', onPressed: busy ? null : close, icon: const Icon(Icons.close_rounded)),
+        leading: IconButton(
+          tooltip: 'Close',
+          onPressed: busy ? null : close,
+          icon: const Icon(Icons.close_rounded),
+        ),
         centerTitle: true,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(10),
+          child: Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 6),
+              decoration: BoxDecoration(
+                color: SoftPop.border,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+        ),
         title: Text(
           widget.complete
               ? 'A little win'
@@ -251,96 +304,102 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
               : 'Task photo',
         ),
       ),
-      body: PageBody(
-        children: [
-          if (draft == null)
-            const ClayArt('greeting', height: 130)
-          else
-            ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Image.memory(
-                draft!.bytes,
-                height: 260,
-                fit: BoxFit.contain,
-              ),
-            ),
-          const SizedBox(height: 16),
-          if (busy) const LinearProgressIndicator(),
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Semantics(liveRegion: true, child: Text(error!)),
-            ),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: busy || attached ? null : () => acquire(true),
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: Text(
-                  draft?.source == 'camera' ? 'Retake' : 'Take photo',
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (draft == null)
+              const ClayArt('greeting', height: 130)
+            else
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.memory(
+                  draft!.bytes,
+                  height: 260,
+                  fit: BoxFit.contain,
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: busy || attached ? null : () => acquire(false),
-                icon: const Icon(Icons.photo_library_outlined),
-                label: Text(draft == null ? 'Choose photo' : 'Choose another'),
+            const SizedBox(height: 16),
+            if (busy) const LinearProgressIndicator(),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Semantics(liveRegion: true, child: Text(error!)),
+              ),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: busy || attached ? null : () => acquire(true),
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: Text(
+                    draft?.source == 'camera' ? 'Retake' : 'Take photo',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: busy || attached ? null : () => acquire(false),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: Text(
+                    draft == null ? 'Choose photo' : 'Choose another',
+                  ),
+                ),
+              ],
+            ),
+            if (draft != null) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: caption,
+                readOnly: attached,
+                maxLength: 300,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'A caption (optional)',
+                ),
+              ),
+              const SizedBox(height: 16),
+              Paper(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ref.read(repositoryProvider).isShared
+                          ? 'Saved in ${widget.space.name} on this device'
+                          : 'Sharing with ${widget.space.name}',
+                    ),
+                    if (!ref.read(repositoryProvider).isShared)
+                      Text('${widget.space.members.length} members'),
+                    if (widget.task != null) Text(widget.task!.title),
+                    if (widget.task != null &&
+                        !widget.complete &&
+                        !widget.task!.isDone)
+                      const Text('Appears in Moments when this task is done.'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: busy ? null : save,
+                child: Text(
+                  widget.complete
+                      ? (ref.read(repositoryProvider).isShared
+                            ? 'Finish & save photo'
+                            : 'Finish & share photo')
+                      : widget.task == null
+                      ? (ref.read(repositoryProvider).isShared
+                            ? 'Save moment'
+                            : 'Share moment')
+                      : 'Attach photo',
+                ),
               ),
             ],
-          ),
-          if (draft != null) ...[
-            const SizedBox(height: 16),
-            TextField(
-              controller: caption,
-              readOnly: attached,
-              maxLength: 300,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'A caption (optional)',
-              ),
-            ),
-            const SizedBox(height: 16),
-            Paper(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ref.read(repositoryProvider).isShared
-                        ? 'Saved in ${widget.space.name} on this device'
-                        : 'Sharing with ${widget.space.name}',
-                  ),
-                  if (!ref.read(repositoryProvider).isShared)
-                    Text('${widget.space.members.length} members'),
-                  if (widget.task != null) Text(widget.task!.title),
-                  if (widget.task != null &&
-                      !widget.complete &&
-                      !widget.task!.isDone)
-                    const Text('Appears in Moments when this task is done.'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: busy ? null : save,
-              child: Text(
-                widget.complete
-                    ? (ref.read(repositoryProvider).isShared
-                          ? 'Finish & save photo'
-                          : 'Finish & share photo')
-                    : widget.task == null
-                    ? (ref.read(repositoryProvider).isShared
-                          ? 'Save moment'
-                          : 'Share moment')
-                    : 'Attach photo',
-              ),
+            TextButton(
+              onPressed: busy ? null : close,
+              child: const Text('Cancel'),
             ),
           ],
-          TextButton(
-            onPressed: busy ? null : close,
-            child: const Text('Cancel'),
-          ),
-        ],
+        ),
       ),
     ),
   );

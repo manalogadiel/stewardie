@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -29,7 +30,11 @@ class RevenueCatService extends ChangeNotifier {
   String? _currentUserId;
   Future<void> _queue = Future.value();
   String? error;
-  static const purchasesEnabled = bool.fromEnvironment('ENABLE_TEST_PURCHASES', defaultValue: false);
+  int _epoch = 0;
+  static const purchasesEnabled = bool.fromEnvironment(
+    'ENABLE_TEST_PURCHASES',
+    defaultValue: false,
+  );
 
   bool get isPlus => _isPlus;
   Offerings? get offerings => _offerings;
@@ -37,10 +42,13 @@ class RevenueCatService extends ChangeNotifier {
   bool get isInitialized => _initialized;
 
   /// Initializes RevenueCat with safe fallback for Web or environments without native billing.
-  Future<void> init({String? userId}) => _queue = _queue.then((_) => _bind(userId));
+  Future<void> init({String? userId}) {
+    final epoch = ++_epoch;
+    return _queue = _queue.then((_) => epoch == _epoch ? _bind(userId, epoch) : null);
+  }
 
-  Future<void> _bind(String? userId) async {
-    if (_currentUserId == userId && _initialized) return;
+  Future<void> _bind(String? userId, int epoch) async {
+    if (_currentUserId == userId && _initialized && error == null) return;
     _currentUserId = userId;
     _isPlus = false;
     _customerInfo = null;
@@ -50,33 +58,42 @@ class RevenueCatService extends ChangeNotifier {
     if (kIsWeb || userId == null) return;
     try {
       if (!_initialized) {
-        await Purchases.setLogLevel(kDebugMode ? LogLevel.debug : LogLevel.warn);
-        await Purchases.configure(PurchasesConfiguration(apiKey)..appUserID = userId);
+        await Purchases.setLogLevel(
+          kDebugMode ? LogLevel.debug : LogLevel.warn,
+        );
+        await Purchases.configure(
+          PurchasesConfiguration(apiKey)..appUserID = userId,
+        );
         Purchases.addCustomerInfoUpdateListener(_receiveInfo);
         _initialized = true;
       } else {
         await Purchases.logIn(userId);
       }
-      _updateCustomerInfo(await Purchases.getCustomerInfo());
-      _offerings = await Purchases.getOfferings();
+      final info = await Purchases.getCustomerInfo();
+      final offerings = await Purchases.getOfferings();
+      if (epoch != _epoch) return;
+      _updateCustomerInfo(info);
+      _offerings = offerings;
     } catch (_) {
+      if (epoch != _epoch) return;
       error = 'Purchase information is unavailable. Try again when connected.';
     }
     notifyListeners();
   }
 
-  void _receiveInfo(CustomerInfo info) {
-    // Ignore late callbacks belonging to an earlier authentication session.
-    if (_currentUserId != null) {
-      final expected = _currentUserId;
-      Purchases.appUserID.then((id) {
-        if (_currentUserId == expected && id == expected) _updateCustomerInfo(info);
-      }).catchError((Object _) {});
-    }
+  void _receiveInfo(CustomerInfo _) async {
+    final epoch = _epoch, expected = _currentUserId;
+    if (expected == null) return;
+    try {
+      final info = await Purchases.getCustomerInfo();
+      final actual = await Purchases.appUserID;
+      if (epoch == _epoch && expected == actual) _updateCustomerInfo(info);
+    } catch (_) { /* A listener failure does not grant or change access. */ }
   }
 
   Future<void> logIn(String uid) => init(userId: uid);
   Future<void> logOut() {
+    _epoch++;
     _currentUserId = null;
     _isPlus = false;
     _customerInfo = null;
@@ -84,14 +101,19 @@ class RevenueCatService extends ChangeNotifier {
     notifyListeners();
     return _queue = _queue.then((_) async {
       if (!kIsWeb && _initialized) {
-        try { await Purchases.logOut(); } catch (_) { /* Firebase sign-out still proceeds. */ }
+        try {
+          await Purchases.logOut();
+        } catch (_) {
+          /* Firebase sign-out still proceeds. */
+        }
       }
     });
   }
 
   /// Purchases a real RevenueCat package if native store is connected.
   Future<bool> purchasePackage(Package package) async {
-    if (!purchasesEnabled || kIsWeb || !_initialized || _currentUserId == null) return false;
+    if (!purchasesEnabled || kIsWeb || !_initialized || _currentUserId == null)
+      return false;
     try {
       final purchaseResult = await Purchases.purchase(
         PurchaseParams.package(package),
@@ -119,7 +141,7 @@ class RevenueCatService extends ChangeNotifier {
 
   void _updateCustomerInfo(CustomerInfo info) {
     _customerInfo = info;
-    // Checks for entitlement 'plus' or 'personal_plus'
+    // One canonical entitlement; this UI status never grants Firestore access.
     final active = info.entitlements.active;
     _isPlus = active.containsKey('stewardie_plus');
     notifyListeners();

@@ -78,8 +78,33 @@ test('Spark removal releases tasks and revokes access; a member cannot remove pe
  b.update(d.doc('spaces/home'),{memberUids:['alice'],memberCount:1,removedUid:'bob'});
  b.update(d.doc('spaces/home/members/bob'),{status:'removed'});
  b.delete(d.doc('accounts/bob/spaceRefs/home'));
+ b.update(d.doc('accounts/bob'),{spaceIds:[],ownedSpaceIds:[],changedSpaceId:'home'});
  b.update(d.doc('spaces/home/tasks/task'),{status:'unclaimed',requestedUid:null,ownerUid:null,offeredUid:null,version:2,updatedAt:now()});
  await assertSucceeds(b.commit());
  await assertFails(db('bob').doc('spaces/home').get());
  await assertFails(db('bob').doc('spaces/home/tasks/task').get());
+});
+
+test('Spark ownership requires consent and preserves account ownership quotas',async()=>{
+ await assertFails(db('bob').doc('spaces/home').update({ownerUid:'bob'}));
+ await assertSucceeds(db('alice').doc('spaces/home').update({pendingOwnerUid:'bob'}));
+ const d=db('bob'), b=d.batch();
+ b.update(d.doc('spaces/home'),{ownerUid:'bob',pendingOwnerUid:null});
+ b.update(d.doc('accounts/bob'),{ownedSpaceIds:['home'],changedSpaceId:'home'});
+ b.update(d.doc('accounts/alice'),{ownedSpaceIds:[],changedSpaceId:'home'});
+ b.update(d.doc('spaces/home/members/bob'),{role:'owner'});
+ b.update(d.doc('spaces/home/members/alice'),{role:'member'});
+ await assertSucceeds(b.commit());
+});
+test('Spark Basic history query and deterministic task creation work without functions',async()=>{
+ const d=db('bob');
+ const cutoff=new Date();cutoff.setUTCHours(0,0,0,0);cutoff.setUTCDate(cutoff.getUTCDate()-3);
+ await assertSucceeds(d.collection('spaces/home/tasks').where('status','==','completed').where('completedAt','>=',ClientTimestamp.fromDate(cutoff)).orderBy('completedAt','desc').get());
+ const ref=d.doc('spaces/home/tasks/newtask');
+ await assertSucceeds(d.runTransaction(async tx=>{
+  const old=await tx.get(ref);const parent=await tx.get(d.doc('spaces/home'));
+  if(old.exists)return;
+  tx.set(ref,{title:'A new task',creatorUid:'bob',requestedUid:'alice',ownerUid:null,offeredUid:null,status:'requested',scheduledLocalDate:'2026-09-24',version:1,completedAt:null,createdAt:now(),updatedAt:now()});
+  tx.update(d.doc('spaces/home'),{activeTaskCount:parent.data().activeTaskCount+1,changedTaskId:'newtask'});
+ }));
 });

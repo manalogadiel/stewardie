@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -43,7 +44,9 @@ class OnlineBackend {
       } else {
         const apiKey = String.fromEnvironment('FIREBASE_API_KEY');
         const appId = String.fromEnvironment('FIREBASE_APP_ID');
-        const messagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
+        const messagingSenderId = String.fromEnvironment(
+          'FIREBASE_MESSAGING_SENDER_ID',
+        );
         const projectId = String.fromEnvironment('FIREBASE_PROJECT_ID');
         const authDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
         const storageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
@@ -53,8 +56,9 @@ class OnlineBackend {
             options: FirebaseOptions(
               apiKey: apiKey,
               appId: appId,
-              messagingSenderId:
-                  messagingSenderId.isNotEmpty ? messagingSenderId : '1234567890',
+              messagingSenderId: messagingSenderId.isNotEmpty
+                  ? messagingSenderId
+                  : '1234567890',
               projectId: projectId.isNotEmpty ? projectId : defaultProjectId,
               authDomain: authDomain.isNotEmpty ? authDomain : null,
               storageBucket: storageBucket.isNotEmpty ? storageBucket : null,
@@ -72,27 +76,7 @@ class OnlineBackend {
             ),
           );
         } else {
-          try {
-            await Firebase.initializeApp(
-              options: DefaultFirebaseOptions.currentPlatform,
-            );
-          } catch (_) {
-            try {
-              await Firebase.initializeApp();
-            } catch (_) {
-              // Fallback for development/offline trial when no config is provided
-              await Firebase.initializeApp(
-                options: const FirebaseOptions(
-                  apiKey: 'local-demo-key',
-                  appId: '1:1234567890:android:stewardie-local',
-                  messagingSenderId: '1234567890',
-                  projectId: defaultProjectId,
-                  authDomain: '$defaultProjectId.firebaseapp.com',
-                  storageBucket: '$defaultProjectId.appspot.com',
-                ),
-              );
-            }
-          }
+          await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
         }
       }
     }
@@ -123,7 +107,9 @@ class OnlineBackend {
     // becomes a less-protected direct write.
     const callable = bool.fromEnvironment('USE_CALLABLE_BACKEND');
     if (callable) {
-      final result = await functions.httpsCallable(name).call<Map<String, dynamic>>(values);
+      final result = await functions
+          .httpsCallable(name)
+          .call<Map<String, dynamic>>(values);
       return result.data;
     }
     return SparkBackend(this).call(name, values);

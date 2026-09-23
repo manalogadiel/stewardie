@@ -47,7 +47,7 @@ class FirebaseSessionApp extends StatelessWidget {
         home: snapshot.connectionState == ConnectionState.waiting
             ? const Scaffold(body: Center(child: CircularProgressIndicator()))
             : user == null
-            ? OnlineAccountEntry(backend: backend)
+            ? OnlineAccountEntry(backend: backend, database: database)
             : OnlineVerifyEmail(backend: backend, user: user, onRefresh: () {}),
       );
     },
