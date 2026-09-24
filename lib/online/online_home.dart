@@ -499,40 +499,47 @@ class _OnlineHomeState extends State<OnlineHome> {
       child: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
-            child: ClayPanel(
-              color: SoftPop.today,
-              padding: EdgeInsets.fromLTRB(
-                20,
-                topControlsClearance(context),
-                16,
-                18,
-              ),
-              radius: const BorderRadius.vertical(bottom: Radius.circular(28)),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Today',
-                          style: Theme.of(context).textTheme.headlineLarge
-                              ?.copyWith(fontSize: 32),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          MaterialLocalizations.of(context)
-                              .formatMediumDate(DateTime.now()),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text('Little things, together.'),
-                      ],
-                    ),
+            child: Builder(
+              builder: (context) {
+                final scale = MediaQuery.textScalerOf(context).scale(16);
+                final topClearance = MediaQuery.paddingOf(context).top +
+                    (scale > 22 ? 116.0 : 68.0);
+                return ClayPanel(
+                  color: SoftPop.today,
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    topClearance,
+                    16,
+                    12,
                   ),
-                  if (MediaQuery.textScalerOf(context).scale(16) <= 22)
-                    const ClayArt('greeting', height: 112, width: 154),
-                ],
-              ),
+                  radius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Today',
+                              style: Theme.of(context).textTheme.headlineLarge
+                                  ?.copyWith(fontSize: 32),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              MaterialLocalizations.of(context)
+                                  .formatMediumDate(DateTime.now()),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('Little things, together.'),
+                          ],
+                        ),
+                      ),
+                      if (scale <= 22)
+                        const ClayArt('greeting', height: 96, width: 132),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
           SliverToBoxAdapter(
@@ -590,26 +597,52 @@ class _OnlineHomeState extends State<OnlineHome> {
     ),
   );
 
-  Widget _hero(String title, String subtitle) => Material(
+  Widget _hero(
+    String title,
+    String subtitle, {
+    String? supportingLabel,
+    int maxTitleLines = 2,
+  }) => Material(
     color: SoftPop.today,
     borderRadius: const BorderRadius.only(
       bottomLeft: Radius.circular(28),
       bottomRight: Radius.circular(28),
     ),
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(20, 26, 16, 18),
+      padding: const EdgeInsets.fromLTRB(20, 20, 16, 18),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(title, style: Theme.of(context).textTheme.headlineLarge),
-                const SizedBox(height: 6),
-                Text(subtitle),
+                if (supportingLabel != null) ...[
+                  Text(
+                    supportingLabel,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: SoftPop.ink.withValues(alpha: .75),
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.headlineLarge,
+                  maxLines: maxTitleLines,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(subtitle),
+                ],
               ],
             ),
           ),
+          const SizedBox(width: 8),
           const ClayArt('greeting', height: 94, width: 104),
         ],
       ),
@@ -878,119 +911,229 @@ class _OnlineHomeState extends State<OnlineHome> {
   Widget _space(
     String? spaceId,
     QueryDocumentSnapshot<Map<String, dynamic>>? space,
-  ) => Stack(
-    children: [
-      Positioned(
-        top: 0,
-        left: 0,
-        right: 0,
-        height:
-            topControlsClearance(context) +
-            174 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.6),
-        child: DecoratedBox(
-          decoration: const BoxDecoration(
-            color: SoftPop.today,
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-          ),
-          child: IgnorePointer(
-            child: Padding(
-              padding: EdgeInsets.only(top: topControlsClearance(context)),
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 640),
-                  child: _hero(
-                    'Space',
-                    space?.data()['name'] as String? ?? 'Your little corner',
+  ) {
+    final spaceName = space?.data()['name'] as String? ?? 'Your little corner';
+    final textScale =
+        MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
+    final isLongName = spaceName.length > 16;
+    final heroContentHeight = (isLongName ? 164.0 : 132.0) * textScale;
+    final heroHeight = topControlsClearance(context) + heroContentHeight;
+
+    return Stack(
+      children: [
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: heroHeight,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              color: SoftPop.today,
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+            ),
+            child: IgnorePointer(
+              child: Padding(
+                padding: EdgeInsets.only(top: topControlsClearance(context)),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: _hero(
+                      spaceName,
+                      '',
+                      supportingLabel: 'Space',
+                      maxTitleLines: 2,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
         ),
-      ),
-      _page(
-        [
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: widget.backend.account(widget.user.uid),
-            builder: (context, snapshot) {
-              final plus = snapshot.data?.data()?['tier'] == 'plus';
-              return ClayPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundColor: SoftPop.sky,
-                          child: Text(
-                            (widget.user.displayName?.trim().isNotEmpty == true
-                                    ? widget.user.displayName!
-                                    : 'Me')
-                                .characters
-                                .first
-                                .toUpperCase(),
+        _page(
+          [
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: widget.backend.account(widget.user.uid),
+              builder: (context, snapshot) {
+                final plus = snapshot.data?.data()?['tier'] == 'plus';
+                return ClayPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: SoftPop.sky,
+                            child: Text(
+                              (widget.user.displayName?.trim().isNotEmpty == true
+                                      ? widget.user.displayName!
+                                      : 'Me')
+                                  .characters
+                                  .first
+                                  .toUpperCase(),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.user.displayName ?? 'Your account',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                              Text(
-                                widget.user.email ?? '',
-                                style: const TextStyle(
-                                  color: SoftPop.secondary,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final displayName = widget.user.displayName
+                                                ?.trim()
+                                                .isNotEmpty ==
+                                            true
+                                        ? widget.user.displayName!
+                                        : 'Your account';
+                                    final scale = MediaQuery.textScalerOf(context)
+                                        .scale(16);
+                                    final isLargeText = scale > 20;
+
+                                    final planLabel = Semantics(
+                                      label: plus ? 'Personal Plus' : 'Basic',
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: plus
+                                              ? const Color(0xFFFFF3D6)
+                                              : const Color(0xFFF1EFEA),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '·',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: plus
+                                                    ? const Color(0xFF8A6200)
+                                                    : SoftPop.secondary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            if (plus) ...[
+                                              const Icon(
+                                                Icons.auto_awesome_rounded,
+                                                size: 13,
+                                                color: Color(0xFF8A6200),
+                                              ),
+                                              const SizedBox(width: 3),
+                                            ],
+                                            Text(
+                                              plus ? 'Plus' : 'Basic',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: plus
+                                                    ? const Color(0xFF8A6200)
+                                                    : SoftPop.secondary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+
+                                    if (isLargeText) {
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            displayName,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleLarge,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          planLabel,
+                                        ],
+                                      );
+                                    }
+
+                                    return Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            displayName,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleLarge,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        planLabel,
+                                      ],
+                                    );
+                                  },
                                 ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.user.email ?? '',
+                                  style: const TextStyle(
+                                    color: SoftPop.secondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!plus) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => showSoftPopPaywall(context),
+                            icon: const Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 18,
+                            ),
+                            label: const Text('View Plus benefits'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: SoftPop.blue,
+                              minimumSize: const Size(48, 48),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 10,
                               ),
-                            ],
+                              alignment: Alignment.centerLeft,
+                              tapTargetSize: MaterialTapTargetSize.padded,
+                            ),
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Chip(
-                        label: Text(plus ? 'Personal Plus' : 'Basic'),
-                        avatar: Icon(
-                          plus
-                              ? Icons.auto_awesome_rounded
-                              : Icons.person_outline_rounded,
-                          size: 18,
-                        ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.logout_rounded),
+                        label: const Text('Sign out'),
+                        onPressed: () async {
+                          if (!await _confirm(
+                            'Sign out?',
+                            'Sign out of ${widget.user.email}? Your saved photos stay on this device.',
+                            'Sign out',
+                          ))
+                            return;
+                          await RevenueCatService.instance.logOut();
+                          await widget.backend.auth.signOut();
+                        },
                       ),
-                    ),
-                    if (!plus)
-                      OutlinedButton.icon(
-                        onPressed: () => showSoftPopPaywall(context),
-                        icon: const Icon(Icons.auto_awesome_rounded),
-                        label: const Text('View Plus benefits'),
-                      ),
-                    TextButton.icon(
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Sign out'),
-                      onPressed: () async {
-                        if (!await _confirm(
-                          'Sign out?',
-                          'Sign out of ${widget.user.email}? Your saved photos stay on this device.',
-                          'Sign out',
-                        ))
-                          return;
-                        await RevenueCatService.instance.logOut();
-                        await widget.backend.auth.signOut();
-                      },
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+                    ],
+                  ),
+                );
+              },
+            ),
           const SizedBox(height: 18),
           if (spaceId != null)
             StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -1109,12 +1252,11 @@ class _OnlineHomeState extends State<OnlineHome> {
             label: const Text('Join with a code'),
           ),
         ],
-        topPadding:
-            topControlsClearance(context) +
-            154 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.6),
+        topPadding: heroHeight + 12,
       ),
     ],
   );
+}
 
   void _chooseSpace(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> refs,

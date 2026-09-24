@@ -129,6 +129,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
       final processed = await compute(processPhoto, {
         'bytes': photo.bytes,
         'source': photo.source,
+        'framing': photo.framing.toMap(),
       });
       if (mounted) {
         setState(() {
@@ -174,6 +175,51 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  void _setFramingRatio(String r) {
+    if (draft == null) return;
+    final FramingRect framing;
+    switch (r) {
+      case '1:1':
+        framing = FramingRect.fromAspectRatio(
+          targetRatio: 1.0,
+          imageWidth: draft!.width,
+          imageHeight: draft!.height,
+          ratioName: '1:1',
+        );
+        break;
+      case '3:4':
+        framing = FramingRect.fromAspectRatio(
+          targetRatio: 3.0 / 4.0,
+          imageWidth: draft!.width,
+          imageHeight: draft!.height,
+          ratioName: '3:4',
+        );
+        break;
+      case '4:3':
+        framing = FramingRect.fromAspectRatio(
+          targetRatio: 4.0 / 3.0,
+          imageWidth: draft!.width,
+          imageHeight: draft!.height,
+          ratioName: '4:3',
+        );
+        break;
+      case 'Free':
+        framing = const FramingRect(
+          x: 0.05,
+          y: 0.05,
+          width: 0.9,
+          height: 0.9,
+          ratioName: 'Free',
+        );
+        break;
+      default:
+        framing = FramingRect.full;
+    }
+    setState(() {
+      draft = draft!.copyWith(framing: framing);
+    });
   }
 
   Future<void> save() async {
@@ -317,15 +363,76 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             ),
             if (draft == null)
               const ClayArt('greeting', height: 96)
-            else
+            else ...[
               ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: Image.memory(
-                  draft!.bytes,
+                child: Container(
                   height: 260,
-                  fit: BoxFit.contain,
+                  color: const Color(0xFF161B26),
+                  alignment: Alignment.center,
+                  child: FramedPhoto(
+                    bytes: draft!.bytes,
+                    framing: draft!.framing,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
+              const SizedBox(height: 10),
+              Center(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: SoftPop.canvas,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: SoftPop.border, width: 1.5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                      for (final r in ['Original', '1:1', '3:4', '4:3', 'Free'])
+                        InkWell(
+                          onTap: () => _setFramingRatio(r),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: (draft!.framing.ratioName.toLowerCase() == r.toLowerCase() ||
+                                      (r == 'Original' && draft!.framing.isFull))
+                                  ? SoftPop.surface
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: (draft!.framing.ratioName.toLowerCase() == r.toLowerCase() ||
+                                      (r == 'Original' && draft!.framing.isFull))
+                                  ? const [
+                                      BoxShadow(
+                                        color: Color(0x15202633),
+                                        blurRadius: 4,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Text(
+                              r,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: (draft!.framing.ratioName.toLowerCase() == r.toLowerCase() ||
+                                        (r == 'Original' && draft!.framing.isFull))
+                                    ? SoftPop.ink
+                                    : SoftPop.secondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            ],
             const SizedBox(height: 16),
             if (busy) const LinearProgressIndicator(),
             if (error != null)

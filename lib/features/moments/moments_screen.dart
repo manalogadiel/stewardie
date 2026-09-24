@@ -313,8 +313,9 @@ class ClayTelevision extends StatelessWidget {
                   child: InkWell(
                     onTap: onOpen,
                     child: SizedBox.expand(
-                      child: Image.memory(
-                        photo.photo.bytes,
+                      child: FramedPhoto(
+                        bytes: photo.photo.bytes,
+                        framing: photo.framing,
                         fit: BoxFit.contain,
                       ),
                     ),

@@ -35,4 +35,34 @@ void main() {
       expect(RevenueCatService.instance.offerings, isNull);
     },
   );
+
+  test('RevenueCat execution results handle cancelled, pending, and sync outcomes distinctly', () {
+    const cancelled = PurchaseExecutionResult(
+      PurchaseStatus.cancelled,
+      message: 'Purchase was cancelled.',
+    );
+    expect(cancelled.isSuccess, isFalse);
+    expect(cancelled.status, PurchaseStatus.cancelled);
+
+    const pending = PurchaseExecutionResult(
+      PurchaseStatus.pending,
+      message: 'Purchase is pending approval.',
+    );
+    expect(pending.isSuccess, isFalse);
+    expect(pending.status, PurchaseStatus.pending);
+
+    const syncPending = PurchaseExecutionResult(
+      PurchaseStatus.syncPending,
+      message: 'Purchase verified. Account benefits update after secure synchronization.',
+    );
+    expect(syncPending.isSuccess, isFalse);
+    expect(syncPending.status, PurchaseStatus.syncPending);
+
+    const restoreSuccess = RestoreExecutionResult(
+      RestoreStatus.success,
+      message: 'Purchases restored successfully.',
+    );
+    expect(restoreSuccess.isSuccess, isTrue);
+    expect(restoreSuccess.status, RestoreStatus.success);
+  });
 }

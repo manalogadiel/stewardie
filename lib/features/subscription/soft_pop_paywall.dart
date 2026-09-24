@@ -267,29 +267,49 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
     });
 
     final targetPackage = _isAnnual ? annual : monthly;
-    bool success = false;
-
-    if (targetPackage != null) {
-      success = await RevenueCatService.instance.purchasePackage(targetPackage);
-    } else {
-      success = false;
+    if (targetPackage == null) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = 'Selected plan is not currently available.';
+        });
+      }
+      return;
     }
+
+    final result = await RevenueCatService.instance.purchasePackage(targetPackage);
 
     if (mounted) {
       setState(() => _busy = false);
-      if (success) {
+      if (result.status == PurchaseStatus.cancelled) {
+        return;
+      }
+      if (result.status == PurchaseStatus.pending) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment is pending approval from the store.'),
+            backgroundColor: SoftPop.blue,
+          ),
+        );
+        return;
+      }
+      if (result.isSuccess || result.status == PurchaseStatus.syncPending) {
         widget.onPurchased?.call();
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop(true);
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Purchase verified. Account benefits update after secure synchronization.'),
+          SnackBar(
+            content: Text(
+              result.status == PurchaseStatus.syncPending
+                  ? 'Purchase verified. Account benefits update after secure synchronization.'
+                  : 'Welcome to Stewardie Plus!',
+            ),
             backgroundColor: SoftPop.blue,
           ),
         );
       } else {
-        setState(() => _error = 'Purchase could not be completed. Try again.');
+        setState(() => _error = result.message ?? 'Purchase could not be completed. Try again.');
       }
     }
   }
@@ -299,22 +319,28 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
       _busy = true;
       _error = null;
     });
-    final success = await RevenueCatService.instance.restorePurchases();
+    final result = await RevenueCatService.instance.restorePurchases();
     if (mounted) {
       setState(() => _busy = false);
-      if (success) {
+      if (result.isSuccess || result.status == RestoreStatus.syncPending) {
         widget.onPurchased?.call();
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop(true);
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Purchases restored successfully!'),
+          SnackBar(
+            content: Text(
+              result.status == RestoreStatus.syncPending
+                  ? 'Purchases found. Syncing with your account...'
+                  : 'Purchases restored successfully!',
+            ),
             backgroundColor: SoftPop.blue,
           ),
         );
-      } else {
+      } else if (result.status == RestoreStatus.noPurchases) {
         setState(() => _error = 'No previous purchases found.');
+      } else {
+        setState(() => _error = result.message ?? 'Could not restore purchases.');
       }
     }
   }

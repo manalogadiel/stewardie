@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
 import 'package:sembast/sembast.dart';
@@ -13,17 +14,155 @@ final photoRecords = stringMapStoreFactory.store('photos');
 final taskRecords = stringMapStoreFactory.store('tasks');
 final metaRecords = stringMapStoreFactory.store('media-meta');
 
+/// Non-destructive framing rectangle in normalized coordinates [0.0, 1.0].
+class FramingRect {
+  const FramingRect({
+    this.x = 0.0,
+    this.y = 0.0,
+    this.width = 1.0,
+    this.height = 1.0,
+    this.ratioName = 'original',
+  });
+
+  final double x;
+  final double y;
+  final double width;
+  final double height;
+  final String ratioName;
+
+  static const full = FramingRect();
+
+  bool get isFull =>
+      (x <= 0.001) &&
+      (y <= 0.001) &&
+      (width >= 0.999) &&
+      (height >= 0.999);
+
+  double get aspectRatio => width / (height <= 0 ? 1.0 : height);
+
+  Map<String, dynamic> toMap() => {
+    'x': x,
+    'y': y,
+    'width': width,
+    'height': height,
+    'ratioName': ratioName,
+  };
+
+  factory FramingRect.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return FramingRect.full;
+    final x = (map['x'] as num?)?.toDouble() ?? 0.0;
+    final y = (map['y'] as num?)?.toDouble() ?? 0.0;
+    final w = (map['width'] as num?)?.toDouble() ?? 1.0;
+    final h = (map['height'] as num?)?.toDouble() ?? 1.0;
+    final name = map['ratioName'] as String? ?? 'original';
+    final validX = x.clamp(0.0, 1.0);
+    final validY = y.clamp(0.0, 1.0);
+    final validW = w.clamp(0.01, 1.0 - validX);
+    final validH = h.clamp(0.01, 1.0 - validY);
+    return FramingRect(
+      x: validX,
+      y: validY,
+      width: validW,
+      height: validH,
+      ratioName: name,
+    );
+  }
+
+  static FramingRect fromAspectRatio({
+    required double targetRatio,
+    required int imageWidth,
+    required int imageHeight,
+    String ratioName = 'custom',
+  }) {
+    if (imageWidth <= 0 || imageHeight <= 0 || targetRatio <= 0) {
+      return FramingRect.full;
+    }
+    final imageRatio = imageWidth / imageHeight;
+    if ((imageRatio - targetRatio).abs() < 0.01) {
+      return FramingRect(ratioName: ratioName);
+    }
+    if (imageRatio > targetRatio) {
+      final cropW = (targetRatio / imageRatio).clamp(0.01, 1.0);
+      final cropX = ((1.0 - cropW) / 2.0).clamp(0.0, 1.0);
+      return FramingRect(
+        x: cropX,
+        y: 0.0,
+        width: cropW,
+        height: 1.0,
+        ratioName: ratioName,
+      );
+    } else {
+      final cropH = (imageRatio / targetRatio).clamp(0.01, 1.0);
+      final cropY = ((1.0 - cropH) / 2.0).clamp(0.0, 1.0);
+      return FramingRect(
+        x: 0.0,
+        y: cropY,
+        width: 1.0,
+        height: cropH,
+        ratioName: ratioName,
+      );
+    }
+  }
+}
+
+/// Renders a photo with non-destructive framing applied without stretching or distortion.
+class FramedPhoto extends StatelessWidget {
+  const FramedPhoto({
+    super.key,
+    required this.bytes,
+    required this.framing,
+    this.fit = BoxFit.contain,
+  });
+
+  final Uint8List bytes;
+  final FramingRect framing;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    if (framing.isFull) {
+      return Image.memory(bytes, fit: fit);
+    }
+    return ClipRect(
+      child: Align(
+        alignment: Alignment(
+          framing.width >= 0.999
+              ? 0.0
+              : (framing.x / (1.0 - framing.width) * 2.0 - 1.0).clamp(-1.0, 1.0),
+          framing.height >= 0.999
+              ? 0.0
+              : (framing.y / (1.0 - framing.height) * 2.0 - 1.0).clamp(-1.0, 1.0),
+        ),
+        widthFactor: framing.width,
+        heightFactor: framing.height,
+        child: Image.memory(bytes, fit: fit),
+      ),
+    );
+  }
+}
+
 class PhotoDraft {
   const PhotoDraft(
     this.bytes,
     this.thumbnail,
     this.width,
     this.height,
-    this.source,
-  );
+    this.source, {
+    this.framing = FramingRect.full,
+  });
   final Uint8List bytes, thumbnail;
   final int width, height;
   final String source;
+  final FramingRect framing;
+
+  PhotoDraft copyWith({FramingRect? framing}) => PhotoDraft(
+    bytes,
+    thumbnail,
+    width,
+    height,
+    source,
+    framing: framing ?? this.framing,
+  );
 }
 
 // Run in an isolate on native targets. Decode and re-encode pixels into a fresh
@@ -75,12 +214,17 @@ PhotoDraft processPhoto(Map<String, Object> input) {
     width: clean.width >= clean.height ? 320 : null,
     height: clean.height > clean.width ? 320 : null,
   );
+  FramingRect framing = FramingRect.full;
+  if (input['framing'] is Map) {
+    framing = FramingRect.fromMap(Map<String, dynamic>.from(input['framing'] as Map));
+  }
   return PhotoDraft(
     encoded,
     img.encodeJpg(thumb, quality: 75),
     clean.width,
     clean.height,
     input['source'] as String,
+    framing: framing,
   );
 }
 
@@ -97,6 +241,7 @@ class MediaAttachment {
     this.completedBy,
     this.publishedAt,
     this.cloud = false,
+    this.framing = FramingRect.full,
   });
   final String id, spaceId, uploaderId, caption;
   final String? taskId, taskTitle, completedBy;
@@ -104,6 +249,7 @@ class MediaAttachment {
   final DateTime? publishedAt;
   final PhotoDraft photo;
   final bool cloud;
+  final FramingRect framing;
   String get heading => taskTitle == null
       ? (caption.isEmpty ? 'A little moment' : caption)
       : '$taskTitle — done!';
@@ -123,28 +269,36 @@ class MediaAttachment {
     'width': photo.width,
     'height': photo.height,
     'source': photo.source,
+    'framing': framing.toMap(),
   };
-  factory MediaAttachment.fromMap(Map<String, Object?> m) => MediaAttachment(
-    cloud: m['cloud'] == true,
-    id: m['id'] as String,
-    spaceId: m['spaceId'] as String,
-    uploaderId: m['uploaderId'] as String,
-    caption: m['caption'] as String,
-    createdAt: DateTime.parse(m['createdAt'] as String),
-    taskId: m['taskId'] as String?,
-    taskTitle: m['taskTitle'] as String?,
-    completedBy: m['completedBy'] as String?,
-    publishedAt: m['publishedAt'] == null
-        ? null
-        : DateTime.parse(m['publishedAt'] as String),
-    photo: PhotoDraft(
-      base64Decode(m['bytes'] as String),
-      base64Decode(m['thumbnail'] as String),
-      m['width'] as int,
-      m['height'] as int,
-      m['source'] as String,
-    ),
-  );
+  factory MediaAttachment.fromMap(Map<String, Object?> m) {
+    final framing = m['framing'] is Map
+        ? FramingRect.fromMap(Map<String, dynamic>.from(m['framing'] as Map))
+        : FramingRect.full;
+    return MediaAttachment(
+      cloud: m['cloud'] == true,
+      id: m['id'] as String,
+      spaceId: m['spaceId'] as String,
+      uploaderId: m['uploaderId'] as String,
+      caption: m['caption'] as String,
+      createdAt: DateTime.parse(m['createdAt'] as String),
+      taskId: m['taskId'] as String?,
+      taskTitle: m['taskTitle'] as String?,
+      completedBy: m['completedBy'] as String?,
+      publishedAt: m['publishedAt'] == null
+          ? null
+          : DateTime.parse(m['publishedAt'] as String),
+      framing: framing,
+      photo: PhotoDraft(
+        base64Decode(m['bytes'] as String),
+        base64Decode(m['thumbnail'] as String),
+        m['width'] as int,
+        m['height'] as int,
+        m['source'] as String,
+        framing: framing,
+      ),
+    );
+  }
 }
 
 class MediaLibrary extends ChangeNotifier {
@@ -257,6 +411,7 @@ class MediaLibrary extends ChangeNotifier {
       caption: caption.trim(),
       createdAt: now,
       photo: photo,
+      framing: photo.framing,
       taskId: taskId,
       taskTitle: task?.isDone == true ? task!.title : null,
       completedBy: task?.isDone == true ? task!.ownerId : null,

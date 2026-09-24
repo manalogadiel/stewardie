@@ -88,7 +88,8 @@ Deno.serve(async req=>{
    const photo=form.get("photo"),thumb=form.get("thumbnail");
    if(!validId(id)||!validId(space)||(taskId!==null&&!validId(taskId))||typeof caption!=="string"||caption.length>300||!(photo instanceof File)||!(thumb instanceof File))throw new Failure("Invalid photo request.");
    await member(space,auth);
-   const account=await firestore(`accounts/${auth.uid}`,auth.token,true);const plus=account.tier==="plus";
+   const account=await firestore(`accounts/${auth.uid}`,auth.token,true);
+   const plus=account.tier==="plus"&&(account.founderGrant===true||account.entitlementSource==="founder"||!account.subscriptionExpiresAt||new Date(account.subscriptionExpiresAt).getTime()>Date.now());
    const task=taskId?await firestore(`spaces/${space}/tasks/${taskId}`,auth.token):null;
    if(task&&task.creatorUid!==auth.uid&&task.ownerUid!==auth.uid)throw new Failure("Only the task creator or responsible person can attach a photo.",403);
    const bytes=new Uint8Array(await photo.arrayBuffer()),thumbnail=new Uint8Array(await thumb.arrayBuffer());

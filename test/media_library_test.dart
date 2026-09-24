@@ -179,4 +179,65 @@ void main() {
       );
     },
   );
+
+  test('FramingRect computes correct normalized coordinates for aspect ratios', () {
+    // 1600x1200 image (4:3 aspect ratio)
+    final square = FramingRect.fromAspectRatio(
+      targetRatio: 1.0,
+      imageWidth: 1600,
+      imageHeight: 1200,
+      ratioName: '1:1',
+    );
+    expect(square.ratioName, '1:1');
+    expect(square.isFull, isFalse);
+    expect(square.height, 1.0);
+    expect(square.y, 0.0);
+    expect(square.width, closeTo(1200 / 1600, 0.001));
+    expect(square.x, closeTo((1.0 - (1200 / 1600)) / 2.0, 0.001));
+
+    // Matching ratio returns full
+    final matching = FramingRect.fromAspectRatio(
+      targetRatio: 4.0 / 3.0,
+      imageWidth: 1600,
+      imageHeight: 1200,
+      ratioName: '4:3',
+    );
+    expect(matching.isFull, isTrue);
+
+    // Serialization and deserialization
+    final json = square.toMap();
+    final restored = FramingRect.fromMap(json);
+    expect(restored.x, square.x);
+    expect(restored.y, square.y);
+    expect(restored.width, square.width);
+    expect(restored.height, square.height);
+    expect(restored.ratioName, square.ratioName);
+  });
+
+  test('MediaAttachment preserves framing metadata across serialization', () {
+    const customFraming = FramingRect(
+      x: 0.1,
+      y: 0.1,
+      width: 0.8,
+      height: 0.8,
+      ratioName: '1:1',
+    );
+    final attachment = MediaAttachment(
+      id: 'photo-1',
+      spaceId: 'home',
+      uploaderId: 'me',
+      caption: 'Dinner',
+      photo: draft,
+      createdAt: DateTime.utc(2026, 9, 24),
+      framing: customFraming,
+    );
+    expect(attachment.framing.ratioName, '1:1');
+    expect(attachment.framing.width, 0.8);
+
+    final map = attachment.toMap();
+    final fromMap = MediaAttachment.fromMap(map);
+    expect(fromMap.framing.ratioName, '1:1');
+    expect(fromMap.framing.x, 0.1);
+    expect(fromMap.framing.width, 0.8);
+  });
 }

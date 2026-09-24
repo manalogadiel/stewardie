@@ -5,11 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme.dart';
+import 'media_library.dart' show FramingRect;
 
 class CapturedPhoto {
-  const CapturedPhoto(this.bytes, this.source);
+  const CapturedPhoto(
+    this.bytes,
+    this.source, {
+    this.framing = FramingRect.full,
+  });
   final Uint8List bytes;
   final String source;
+  final FramingRect framing;
 }
 
 class CameraScreen extends StatefulWidget {
@@ -26,6 +32,8 @@ class _CameraScreenState extends State<CameraScreen>
   int lens = 0, generation = 0;
   bool busy = false, flash = false, flashAvailable = true, active = true;
   String? error;
+  String selectedRatio = 'Original';
+
   @override
   void initState() {
     super.initState();
@@ -109,10 +117,32 @@ class _CameraScreenState extends State<CameraScreen>
           : await controller!.takePicture();
       if (file != null) {
         final bytes = await file.readAsBytes();
+        FramingRect framing = FramingRect.full;
+        if (!gallery && selectedRatio != 'Original' && controller?.value.previewSize != null) {
+          final preview = controller!.value.previewSize!;
+          final imgW = preview.height.toInt();
+          final imgH = preview.width.toInt();
+          final target = switch (selectedRatio) {
+            '1:1' => 1.0,
+            '3:4' => 3.0 / 4.0,
+            '4:3' => 4.0 / 3.0,
+            _ => 1.0,
+          };
+          framing = FramingRect.fromAspectRatio(
+            targetRatio: target,
+            imageWidth: imgW,
+            imageHeight: imgH,
+            ratioName: selectedRatio,
+          );
+        }
         if (mounted) {
           Navigator.pop(
             context,
-            CapturedPhoto(bytes, gallery ? 'library' : 'camera'),
+            CapturedPhoto(
+              bytes,
+              gallery ? 'library' : 'camera',
+              framing: framing,
+            ),
           );
         }
       }
@@ -153,7 +183,20 @@ class _CameraScreenState extends State<CameraScreen>
                   borderRadius: BorderRadius.circular(28),
                   child: Center(
                     child: camera?.value.isInitialized == true
-                        ? CameraPreview(camera!)
+                        ? AspectRatio(
+                            aspectRatio: camera!.value.previewSize != null
+                                ? (camera.value.previewSize!.height /
+                                    camera.value.previewSize!.width)
+                                : (1 / camera.value.aspectRatio),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CameraPreview(camera),
+                                if (selectedRatio != 'Original')
+                                  _FramingGuideOverlay(ratio: selectedRatio),
+                              ],
+                            ),
+                          )
                         : error == null
                         ? const CircularProgressIndicator(color: Colors.white)
                         : Padding(
@@ -188,8 +231,56 @@ class _CameraScreenState extends State<CameraScreen>
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
+            // Ratio selector
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161B26),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final r in ['Original', '1:1', '3:4', '4:3'])
+                        InkWell(
+                          onTap: () => setState(() => selectedRatio = r),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selectedRatio == r
+                                  ? SoftPop.surface
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              r,
+                              style: TextStyle(
+                                color: selectedRatio == r
+                                    ? SoftPop.ink
+                                    : Colors.white70,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Centered shutter with balanced side controls
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -252,7 +343,7 @@ class _CameraScreenState extends State<CameraScreen>
                   Expanded(
                     child: Align(
                       alignment: Alignment.centerRight,
-                      child: Column(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (cameras.length > 1)
@@ -274,6 +365,8 @@ class _CameraScreenState extends State<CameraScreen>
                                     },
                               icon: const Icon(Icons.flip_camera_ios_outlined),
                             ),
+                          if (cameras.length > 1 && camera != null && flashAvailable)
+                            const SizedBox(width: 8),
                           if (camera != null && flashAvailable)
                             IconButton.filledTonal(
                               style: IconButton.styleFrom(
@@ -296,8 +389,9 @@ class _CameraScreenState extends State<CameraScreen>
                                               ? FlashMode.off
                                               : FlashMode.always,
                                         );
-                                        if (mounted)
+                                        if (mounted) {
                                           setState(() => flash = !flash);
+                                        }
                                       } catch (_) {
                                         if (mounted) {
                                           setState(
@@ -330,6 +424,55 @@ class _CameraScreenState extends State<CameraScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FramingGuideOverlay extends StatelessWidget {
+  const _FramingGuideOverlay({required this.ratio});
+  final String ratio;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = switch (ratio) {
+      '1:1' => 1.0,
+      '3:4' => 3.0 / 4.0,
+      '4:3' => 4.0 / 3.0,
+      _ => 1.0,
+    };
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final h = constraints.maxHeight;
+        if (w <= 0 || h <= 0) return const SizedBox.shrink();
+
+        final current = w / h;
+        double frameW = w;
+        double frameH = h;
+        if (current > target) {
+          frameW = h * target;
+        } else {
+          frameH = w / target;
+        }
+
+        return Stack(
+          children: [
+            Center(
+              child: Container(
+                width: frameW,
+                height: frameH,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

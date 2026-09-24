@@ -34,8 +34,19 @@ class SpaceScreen extends ConsumerWidget {
       children: [
         const ClayArt('greeting', height: 140),
         Text(
-          'Our little corner',
+          'Space',
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: SoftPop.ink.withValues(alpha: .75),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          space.name,
           style: Theme.of(context).textTheme.headlineLarge,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 8),
         Text('${space.kind} · ${space.members.length} members'),

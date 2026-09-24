@@ -375,7 +375,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Give your task a name.'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField), 'Set the table');
-    await tester.tap(find.byType(CheckboxListTile));
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Me').last);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Add task'));
     await tester.pumpAndSettle();

@@ -129,7 +129,18 @@ class FirebaseTimelineRepository extends TimelineRepository {
   void start() {
     _subscriptions.add(
       backend.account(currentUserId).listen((doc) {
-        final next = doc.data()?['tier'] == 'plus';
+        final data = doc.data();
+        final rawPlus = data?['tier'] == 'plus';
+        final isFounder = data?['founderGrant'] == true || data?['entitlementSource'] == 'founder';
+        final expiry = data?['subscriptionExpiresAt'];
+        DateTime? expiryDate;
+        if (expiry is Timestamp) {
+          expiryDate = expiry.toDate();
+        } else if (expiry is String) {
+          expiryDate = DateTime.tryParse(expiry);
+        }
+        final notExpired = expiryDate == null || expiryDate.isAfter(DateTime.now());
+        final next = rawPlus && (isFounder || notExpired);
         if (_plus != next) {
           _plus = next;
           _done.clear();

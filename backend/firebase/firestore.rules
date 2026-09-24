@@ -7,12 +7,20 @@ service cloud.firestore {
     function afterSpace(id) { return getAfter(/databases/$(database)/documents/spaces/$(id)).data; }
     function member(id) { return verified() && request.auth.uid in sp(id).memberUids; }
     function owner(id) { return member(id) && sp(id).ownerUid == request.auth.uid; }
-    function plus() { return get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.tier == 'plus'; }
+    function isTierPlus(d) {
+      return d.tier == 'plus' && (
+        d.get('founderGrant', false) == true ||
+        d.get('entitlementSource', '') == 'founder' ||
+        d.get('subscriptionExpiresAt', null) == null ||
+        d.subscriptionExpiresAt > request.time
+      );
+    }
+    function plus() { return isTierPlus(get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data); }
     function shortText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
     function accountShape(d) {
       return d.spaceIds is list && d.ownedSpaceIds is list
-        && d.spaceIds.size() <= (d.tier == 'plus' ? 50 : 20)
-        && d.ownedSpaceIds.size() <= (d.tier == 'plus' ? 20 : 3)
+        && d.spaceIds.size() <= (isTierPlus(d) ? 50 : 20)
+        && d.ownedSpaceIds.size() <= (isTierPlus(d) ? 20 : 3)
         && d.spaceIds.toSet().size() == d.spaceIds.size()
         && d.ownedSpaceIds.toSet().size() == d.ownedSpaceIds.size()
         && d.spaceIds.hasAll(d.ownedSpaceIds);
