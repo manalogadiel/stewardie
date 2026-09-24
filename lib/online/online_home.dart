@@ -955,7 +955,17 @@ class _OnlineHomeState extends State<OnlineHome> {
             StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: widget.backend.account(widget.user.uid),
               builder: (context, snapshot) {
-                final plus = snapshot.data?.data()?['tier'] == 'plus';
+                final data = snapshot.data?.data();
+                final rawPlus = data?['tier'] == 'plus';
+                final isFounder = data?['founderGrant'] == true || data?['entitlementSource'] == 'founder';
+                final expiry = data?['subscriptionExpiresAt'];
+                DateTime? expiryDate;
+                if (expiry is Timestamp) {
+                  expiryDate = expiry.toDate();
+                } else if (expiry is String) {
+                  expiryDate = DateTime.tryParse(expiry);
+                }
+                final plus = rawPlus && (isFounder || (expiryDate != null && expiryDate.isAfter(DateTime.now())));
                 return ClayPanel(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -205,6 +205,22 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
           ratioName: '4:3',
         );
         break;
+      case '9:16':
+        framing = FramingRect.fromAspectRatio(
+          targetRatio: 9.0 / 16.0,
+          imageWidth: draft!.width,
+          imageHeight: draft!.height,
+          ratioName: '9:16',
+        );
+        break;
+      case '16:9':
+        framing = FramingRect.fromAspectRatio(
+          targetRatio: 16.0 / 9.0,
+          imageWidth: draft!.width,
+          imageHeight: draft!.height,
+          ratioName: '16:9',
+        );
+        break;
       case 'Free':
         framing = const FramingRect(
           x: 0.05,
@@ -219,6 +235,34 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
     }
     setState(() {
       draft = draft!.copyWith(framing: framing);
+    });
+  }
+
+  void _updateFreeFraming({
+    double? x,
+    double? y,
+    double? width,
+    double? height,
+  }) {
+    if (draft == null) return;
+    final current = draft!.framing;
+    final newW = (width ?? current.width).clamp(0.1, 1.0);
+    final newH = (height ?? current.height).clamp(0.1, 1.0);
+    final maxX = (1.0 - newW).clamp(0.0, 0.99);
+    final maxY = (1.0 - newH).clamp(0.0, 0.99);
+    final newX = (x ?? current.x).clamp(0.0, maxX);
+    final newY = (y ?? current.y).clamp(0.0, maxY);
+
+    setState(() {
+      draft = draft!.copyWith(
+        framing: FramingRect(
+          x: newX,
+          y: newY,
+          width: newW,
+          height: newH,
+          ratioName: 'Free',
+        ),
+      );
     });
   }
 
@@ -370,10 +414,22 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                   height: 260,
                   color: const Color(0xFF161B26),
                   alignment: Alignment.center,
-                  child: FramedPhoto(
-                    bytes: draft!.bytes,
-                    framing: draft!.framing,
-                    fit: BoxFit.contain,
+                  child: GestureDetector(
+                    onPanUpdate: (details) {
+                      if (draft?.framing.ratioName == 'Free') {
+                        final dx = details.delta.dx / 260.0;
+                        final dy = details.delta.dy / 260.0;
+                        _updateFreeFraming(
+                          x: draft!.framing.x + dx,
+                          y: draft!.framing.y + dy,
+                        );
+                      }
+                    },
+                    child: FramedPhoto(
+                      bytes: draft!.bytes,
+                      framing: draft!.framing,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ),
@@ -391,7 +447,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                      for (final r in ['Original', '1:1', '3:4', '4:3', 'Free'])
+                      for (final r in ['Original', '1:1', '3:4', '4:3', '9:16', '16:9', 'Free'])
                         InkWell(
                           onTap: () => _setFramingRatio(r),
                           borderRadius: BorderRadius.circular(16),
@@ -432,6 +488,160 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                 ),
               ),
             ),
+            if (draft!.framing.ratioName == 'Free')
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: SoftPop.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: SoftPop.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.crop_free_rounded, size: 16, color: SoftPop.blue),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Free crop adjustment',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: SoftPop.ink,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(48, 24),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: () {
+                              _updateFreeFraming(
+                                x: (1.0 - draft!.framing.width) / 2,
+                                y: (1.0 - draft!.framing.height) / 2,
+                              );
+                            },
+                            child: const Text('Center', style: TextStyle(fontSize: 11, color: SoftPop.blue)),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 44,
+                            child: Text('Width', style: TextStyle(fontSize: 11, color: SoftPop.secondary)),
+                          ),
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                              ),
+                              child: Slider(
+                                value: draft!.framing.width,
+                                min: 0.2,
+                                max: 1.0,
+                                activeColor: SoftPop.blue,
+                                onChanged: (val) => _updateFreeFraming(width: val),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 34,
+                            child: Text(
+                              '${(draft!.framing.width * 100).round()}%',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 44,
+                            child: Text('Height', style: TextStyle(fontSize: 11, color: SoftPop.secondary)),
+                          ),
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                              ),
+                              child: Slider(
+                                value: draft!.framing.height,
+                                min: 0.2,
+                                max: 1.0,
+                                activeColor: SoftPop.blue,
+                                onChanged: (val) => _updateFreeFraming(height: val),
+                              ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 34,
+                            child: Text(
+                              '${(draft!.framing.height * 100).round()}%',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 44,
+                            child: Text('Pan X', style: TextStyle(fontSize: 11, color: SoftPop.secondary)),
+                          ),
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                              ),
+                              child: Slider(
+                                value: draft!.framing.x,
+                                min: 0.0,
+                                max: (1.0 - draft!.framing.width).clamp(0.001, 1.0),
+                                activeColor: SoftPop.blue,
+                                onChanged: (val) => _updateFreeFraming(x: val),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 34),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          const SizedBox(
+                            width: 44,
+                            child: Text('Pan Y', style: TextStyle(fontSize: 11, color: SoftPop.secondary)),
+                          ),
+                          Expanded(
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                              ),
+                              child: Slider(
+                                value: draft!.framing.y,
+                                min: 0.0,
+                                max: (1.0 - draft!.framing.height).clamp(0.001, 1.0),
+                                activeColor: SoftPop.blue,
+                                onChanged: (val) => _updateFreeFraming(y: val),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 34),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
             const SizedBox(height: 16),
             if (busy) const LinearProgressIndicator(),

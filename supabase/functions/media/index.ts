@@ -85,18 +85,34 @@ Deno.serve(async req=>{
   if(isUpload){
    const form=await new Response(raw,{headers:{"Content-Type":req.headers.get("content-type")??""}}).formData();
    const id=form.get("id"),space=form.get("space"),taskId=form.get("task")||null,caption=form.get("caption")??"";
-   const photo=form.get("photo"),thumb=form.get("thumbnail");
+   const photo=form.get("photo"),thumb=form.get("thumbnail"),framingRaw=form.get("framing");
    if(!validId(id)||!validId(space)||(taskId!==null&&!validId(taskId))||typeof caption!=="string"||caption.length>300||!(photo instanceof File)||!(thumb instanceof File))throw new Failure("Invalid photo request.");
+   let framing={x:0,y:0,width:1,height:1,ratioName:"original"};
+   if(typeof framingRaw==="string"&&framingRaw.length>0&&framingRaw.length<500){
+    try{
+     const p=JSON.parse(framingRaw);
+     if(typeof p==="object"&&p!==null){
+      const rx=Number(p.x??0),ry=Number(p.y??0),rw=Number(p.width??1),rh=Number(p.height??1);
+      if(Number.isFinite(rx)&&Number.isFinite(ry)&&Number.isFinite(rw)&&Number.isFinite(rh)){
+       const x=Math.min(Math.max(rx,0),0.99),y=Math.min(Math.max(ry,0),0.99);
+       const maxW=Math.max(0.01,1-x),maxH=Math.max(0.01,1-y);
+       const width=Math.min(Math.max(rw,0.01),maxW),height=Math.min(Math.max(rh,0.01),maxH);
+       const ratioName=typeof p.ratioName==="string"?p.ratioName.slice(0,32):"custom";
+       framing={x,y,width,height,ratioName};
+      }
+     }
+    }catch(_){}
+   }
    await member(space,auth);
    const account=await firestore(`accounts/${auth.uid}`,auth.token,true);
-   const plus=account.tier==="plus"&&(account.founderGrant===true||account.entitlementSource==="founder"||!account.subscriptionExpiresAt||new Date(account.subscriptionExpiresAt).getTime()>Date.now());
+   const plus=account.tier==="plus"&&(account.founderGrant===true||account.entitlementSource==="founder"||(account.subscriptionExpiresAt&&new Date(account.subscriptionExpiresAt).getTime()>Date.now()));
    const task=taskId?await firestore(`spaces/${space}/tasks/${taskId}`,auth.token):null;
    if(task&&task.creatorUid!==auth.uid&&task.ownerUid!==auth.uid)throw new Failure("Only the task creator or responsible person can attach a photo.",403);
    const bytes=new Uint8Array(await photo.arrayBuffer()),thumbnail=new Uint8Array(await thumb.arrayBuffer());
    const dimensions=jpeg(bytes,2000000,1600);jpeg(thumbnail,200000,320);
    const hashInput=new Uint8Array(bytes.length+thumbnail.length);hashInput.set(bytes);hashInput.set(thumbnail,bytes.length);
    const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",hashInput))).map(b=>b.toString(16).padStart(2,"0")).join("");
-   const row=check(await sb.rpc("reserve_media",{p:{id,uid:auth.uid,space,task:taskId,caption,digest,bytes:bytes.length+thumbnail.length,...dimensions,source:"shared",plus}}));
+   const row=check(await sb.rpc("reserve_media",{p:{id,uid:auth.uid,space,task:taskId,caption,digest,bytes:bytes.length+thumbnail.length,...dimensions,source:"shared",plus,framing}}));
    if(row.state==="ready")return json({item:row});
    const prefix=`${space}/${auth.uid}/${id}`;
    check(await bucket.upload(`${prefix}/photo.jpg`,bytes,{contentType:"image/jpeg",upsert:true}));

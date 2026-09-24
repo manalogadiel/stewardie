@@ -6,7 +6,6 @@ import '../../../core/equal_height_row.dart';
 import '../../../core/demo_state.dart';
 import '../../../core/people_filter.dart';
 import '../../../core/theme.dart';
-import '../../../core/top_controls.dart';
 import '../../../core/person_labels.dart';
 import '../../calendar/calendar_view.dart';
 import '../../moods/mood_sheet.dart';
@@ -195,42 +194,49 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             SliverToBoxAdapter(
               child: Column(
                 children: [
-                  ClayPanel(
-                    color: SoftPop.today,
-                    padding: EdgeInsets.fromLTRB(
-                      20,
-                      topControlsClearance(context),
-                      16,
-                      18,
-                    ),
-                    radius: const BorderRadius.vertical(
-                      bottom: Radius.circular(28),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Today',
-                                style: Theme.of(context).textTheme.headlineLarge
-                                    ?.copyWith(fontSize: 32),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                MaterialLocalizations.of(context)
-                                    .formatMediumDate(today),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text('Little things, together.'),
-                            ],
-                          ),
+                  Builder(
+                    builder: (context) {
+                      final scale = MediaQuery.textScalerOf(context).scale(16);
+                      final topClearance = MediaQuery.paddingOf(context).top +
+                          (scale > 22 ? 140.0 : 68.0);
+                      return ClayPanel(
+                        color: SoftPop.today,
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          topClearance,
+                          16,
+                          12,
                         ),
-                        if (!large)
-                          const ClayArt('greeting', height: 112, width: 154),
-                      ],
-                    ),
+                        radius: const BorderRadius.vertical(
+                          bottom: Radius.circular(28),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Today',
+                                    style: Theme.of(context).textTheme.headlineLarge
+                                        ?.copyWith(fontSize: 32),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    MaterialLocalizations.of(context)
+                                        .formatMediumDate(today),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text('Little things, together.'),
+                                ],
+                              ),
+                            ),
+                            if (!large && scale <= 22)
+                              const ClayArt('greeting', height: 96, width: 132),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),

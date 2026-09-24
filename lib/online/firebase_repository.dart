@@ -70,6 +70,8 @@ class FirebaseTimelineRepository extends TimelineRepository {
   @override
   String? get syncError => error;
   bool _plus = false, _closed = false;
+  bool _rawPlus = false, _isFounder = false;
+  DateTime? _subscriptionExpiry;
   Timer? _timer;
   DateTime _historyDay = dateOnly(DateTime.now().toUtc());
   @override
@@ -130,8 +132,8 @@ class FirebaseTimelineRepository extends TimelineRepository {
     _subscriptions.add(
       backend.account(currentUserId).listen((doc) {
         final data = doc.data();
-        final rawPlus = data?['tier'] == 'plus';
-        final isFounder = data?['founderGrant'] == true || data?['entitlementSource'] == 'founder';
+        _rawPlus = data?['tier'] == 'plus';
+        _isFounder = data?['founderGrant'] == true || data?['entitlementSource'] == 'founder';
         final expiry = data?['subscriptionExpiresAt'];
         DateTime? expiryDate;
         if (expiry is Timestamp) {
@@ -139,8 +141,9 @@ class FirebaseTimelineRepository extends TimelineRepository {
         } else if (expiry is String) {
           expiryDate = DateTime.tryParse(expiry);
         }
-        final notExpired = expiryDate == null || expiryDate.isAfter(DateTime.now());
-        final next = rawPlus && (isFounder || notExpired);
+        _subscriptionExpiry = expiryDate;
+        final notExpired = expiryDate != null && expiryDate.isAfter(DateTime.now());
+        final next = _rawPlus && (_isFounder || notExpired);
         if (_plus != next) {
           _plus = next;
           _done.clear();
@@ -172,6 +175,16 @@ class FirebaseTimelineRepository extends TimelineRepository {
         _historyDay = today;
         for (final id in _refs.keys) {
           unawaited(refreshHistory(id));
+        }
+      }
+      if (_rawPlus && !_isFounder && _subscriptionExpiry != null) {
+        final notExpired = _subscriptionExpiry!.isAfter(DateTime.now());
+        if (_plus != notExpired) {
+          _plus = notExpired;
+          _done.clear();
+          for (final id in _refs.keys) {
+            unawaited(refreshHistory(id));
+          }
         }
       }
       _notify();

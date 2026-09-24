@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -50,15 +51,26 @@ class FramingRect {
 
   factory FramingRect.fromMap(Map<String, dynamic>? map) {
     if (map == null) return FramingRect.full;
-    final x = (map['x'] as num?)?.toDouble() ?? 0.0;
-    final y = (map['y'] as num?)?.toDouble() ?? 0.0;
-    final w = (map['width'] as num?)?.toDouble() ?? 1.0;
-    final h = (map['height'] as num?)?.toDouble() ?? 1.0;
+    final rawX = (map['x'] as num?)?.toDouble() ?? 0.0;
+    final rawY = (map['y'] as num?)?.toDouble() ?? 0.0;
+    final rawW = (map['width'] as num?)?.toDouble() ?? 1.0;
+    final rawH = (map['height'] as num?)?.toDouble() ?? 1.0;
     final name = map['ratioName'] as String? ?? 'original';
-    final validX = x.clamp(0.0, 1.0);
-    final validY = y.clamp(0.0, 1.0);
-    final validW = w.clamp(0.01, 1.0 - validX);
-    final validH = h.clamp(0.01, 1.0 - validY);
+
+    if (rawX.isNaN || rawX.isInfinite ||
+        rawY.isNaN || rawY.isInfinite ||
+        rawW.isNaN || rawW.isInfinite ||
+        rawH.isNaN || rawH.isInfinite) {
+      return FramingRect.full;
+    }
+
+    final validX = rawX.clamp(0.0, 0.99);
+    final validY = rawY.clamp(0.0, 0.99);
+    final maxW = (1.0 - validX).clamp(0.01, 1.0);
+    final maxH = (1.0 - validY).clamp(0.01, 1.0);
+    final validW = rawW.clamp(0.01, maxW);
+    final validH = rawH.clamp(0.01, maxH);
+
     return FramingRect(
       x: validX,
       y: validY,
@@ -106,7 +118,7 @@ class FramingRect {
 }
 
 /// Renders a photo with non-destructive framing applied without stretching or distortion.
-class FramedPhoto extends StatelessWidget {
+class FramedPhoto extends StatefulWidget {
   const FramedPhoto({
     super.key,
     required this.bytes,
@@ -119,27 +131,152 @@ class FramedPhoto extends StatelessWidget {
   final BoxFit fit;
 
   @override
-  Widget build(BuildContext context) {
-    if (framing.isFull) {
-      return Image.memory(bytes, fit: fit);
+  State<FramedPhoto> createState() => _FramedPhotoState();
+}
+
+class _FramedPhotoState extends State<FramedPhoto> {
+  ImageStream? _imageStream;
+  ImageStreamListener? _listener;
+  ImageInfo? _imageInfo;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolveImage();
+  }
+
+  @override
+  void didUpdateWidget(FramedPhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!listEquals(widget.bytes, oldWidget.bytes)) {
+      _resolveImage();
     }
-    return ClipRect(
-      child: Align(
-        alignment: Alignment(
-          framing.width >= 0.999
-              ? 0.0
-              : (framing.x / (1.0 - framing.width) * 2.0 - 1.0).clamp(-1.0, 1.0),
-          framing.height >= 0.999
-              ? 0.0
-              : (framing.y / (1.0 - framing.height) * 2.0 - 1.0).clamp(-1.0, 1.0),
-        ),
-        widthFactor: framing.width,
-        heightFactor: framing.height,
-        child: Image.memory(bytes, fit: fit),
-      ),
+  }
+
+  void _resolveImage() {
+    final provider = MemoryImage(widget.bytes);
+    final newStream = provider.resolve(createLocalImageConfiguration(context));
+    if (_imageStream?.key != newStream.key) {
+      if (_listener != null && _imageStream != null) {
+        _imageStream!.removeListener(_listener!);
+      }
+      _imageStream = newStream;
+      _listener = ImageStreamListener(
+        (info, synchronousCall) {
+          if (mounted) {
+            setState(() {
+              _imageInfo?.dispose();
+              _imageInfo = info;
+            });
+          }
+        },
+        onError: (exception, stackTrace) {
+          debugPrint('Error loading framed photo: $exception');
+        },
+      );
+      newStream.addListener(_listener!);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_listener != null && _imageStream != null) {
+      _imageStream!.removeListener(_listener!);
+    }
+    _imageInfo?.dispose();
+    _imageInfo = null;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.framing.isFull) {
+      return Image.memory(widget.bytes, fit: widget.fit);
+    }
+    if (_imageInfo == null) {
+      return const SizedBox.shrink();
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final h = constraints.maxHeight;
+        final Size layoutSize;
+        if (h.isInfinite && w.isFinite) {
+          layoutSize = Size(w, w / widget.framing.aspectRatio);
+        } else if (w.isInfinite && h.isFinite) {
+          layoutSize = Size(h * widget.framing.aspectRatio, h);
+        } else {
+          layoutSize = Size(w.isFinite ? w : 300, h.isFinite ? h : 200);
+        }
+        return SizedBox(
+          width: layoutSize.width,
+          height: layoutSize.height,
+          child: ClipRect(
+            child: CustomPaint(
+              size: layoutSize,
+              painter: _FramedImagePainter(
+                image: _imageInfo!.image,
+                framing: widget.framing,
+                fit: widget.fit,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
+
+class _FramedImagePainter extends CustomPainter {
+  const _FramedImagePainter({
+    required this.image,
+    required this.framing,
+    required this.fit,
+  });
+
+  final ui.Image image;
+  final FramingRect framing;
+  final BoxFit fit;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+    final imgW = image.width.toDouble();
+    final imgH = image.height.toDouble();
+    if (imgW <= 0 || imgH <= 0) return;
+
+    final srcX = (framing.x * imgW).clamp(0.0, imgW);
+    final srcY = (framing.y * imgH).clamp(0.0, imgH);
+    final maxW = (imgW - srcX).clamp(1.0, imgW);
+    final maxH = (imgH - srcY).clamp(1.0, imgH);
+    final srcW = (framing.width * imgW).clamp(1.0, maxW);
+    final srcH = (framing.height * imgH).clamp(1.0, maxH);
+    final srcRect = Rect.fromLTWH(srcX, srcY, srcW, srcH);
+
+    final fittedSizes = applyBoxFit(fit, srcRect.size, size);
+    final dstRect = Alignment.center.inscribe(
+      fittedSizes.destination,
+      Offset.zero & size,
+    );
+
+    final paint = Paint()
+      ..filterQuality = FilterQuality.medium
+      ..isAntiAlias = true;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    canvas.drawImageRect(image, srcRect, dstRect, paint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_FramedImagePainter oldDelegate) {
+    return oldDelegate.image != image ||
+        oldDelegate.framing != framing ||
+        oldDelegate.fit != fit;
+  }
+}
+
 
 class PhotoDraft {
   const PhotoDraft(

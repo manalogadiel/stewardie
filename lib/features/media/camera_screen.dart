@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show DeviceOrientation;
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme.dart';
@@ -109,6 +111,14 @@ class _CameraScreenState extends State<CameraScreen>
     if (busy) return;
     setState(() => busy = true);
     try {
+      final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
+      if (!gallery && controller != null) {
+        try {
+          await controller!.lockCaptureOrientation(
+            isLandscape ? DeviceOrientation.landscapeLeft : DeviceOrientation.portraitUp,
+          );
+        } catch (_) {}
+      }
       final file = gallery
           ? await ImagePicker().pickImage(
               source: ImageSource.gallery,
@@ -118,22 +128,34 @@ class _CameraScreenState extends State<CameraScreen>
       if (file != null) {
         final bytes = await file.readAsBytes();
         FramingRect framing = FramingRect.full;
-        if (!gallery && selectedRatio != 'Original' && controller?.value.previewSize != null) {
-          final preview = controller!.value.previewSize!;
-          final imgW = preview.height.toInt();
-          final imgH = preview.width.toInt();
-          final target = switch (selectedRatio) {
-            '1:1' => 1.0,
-            '3:4' => 3.0 / 4.0,
-            '4:3' => 4.0 / 3.0,
-            _ => 1.0,
-          };
-          framing = FramingRect.fromAspectRatio(
-            targetRatio: target,
-            imageWidth: imgW,
-            imageHeight: imgH,
-            ratioName: selectedRatio,
-          );
+        if (!gallery && selectedRatio != 'Original') {
+          int imgW = 0;
+          int imgH = 0;
+          final decoded = img.decodeImage(bytes);
+          if (decoded != null) {
+            imgW = decoded.width;
+            imgH = decoded.height;
+          } else if (controller?.value.previewSize != null) {
+            final preview = controller!.value.previewSize!;
+            imgW = isLandscape ? preview.width.toInt() : preview.height.toInt();
+            imgH = isLandscape ? preview.height.toInt() : preview.width.toInt();
+          }
+          if (imgW > 0 && imgH > 0) {
+            final target = switch (selectedRatio) {
+              '1:1' => 1.0,
+              '3:4' => 3.0 / 4.0,
+              '4:3' => 4.0 / 3.0,
+              '9:16' => 9.0 / 16.0,
+              '16:9' => 16.0 / 9.0,
+              _ => 1.0,
+            };
+            framing = FramingRect.fromAspectRatio(
+              targetRatio: target,
+              imageWidth: imgW,
+              imageHeight: imgH,
+              ratioName: selectedRatio,
+            );
+          }
         }
         if (mounted) {
           Navigator.pop(
@@ -183,19 +205,34 @@ class _CameraScreenState extends State<CameraScreen>
                   borderRadius: BorderRadius.circular(28),
                   child: Center(
                     child: camera?.value.isInitialized == true
-                        ? AspectRatio(
-                            aspectRatio: camera!.value.previewSize != null
-                                ? (camera.value.previewSize!.height /
-                                    camera.value.previewSize!.width)
-                                : (1 / camera.value.aspectRatio),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                CameraPreview(camera),
-                                if (selectedRatio != 'Original')
-                                  _FramingGuideOverlay(ratio: selectedRatio),
-                              ],
-                            ),
+                        ? Builder(
+                            builder: (context) {
+                              final isLandscape =
+                                  MediaQuery.orientationOf(context) == Orientation.landscape;
+                              final ps = camera!.value.previewSize;
+                              final double previewAspect;
+                              if (ps != null) {
+                                previewAspect = isLandscape
+                                    ? (ps.width / ps.height)
+                                    : (ps.height / ps.width);
+                              } else {
+                                final raw = camera.value.aspectRatio;
+                                previewAspect = isLandscape
+                                    ? (raw <= 0 ? 1.0 : raw)
+                                    : (1.0 / (raw <= 0 ? 1.0 : raw));
+                              }
+                              return AspectRatio(
+                                aspectRatio: previewAspect,
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    CameraPreview(camera),
+                                    if (selectedRatio != 'Original')
+                                      _FramingGuideOverlay(ratio: selectedRatio),
+                                  ],
+                                ),
+                              );
+                            },
                           )
                         : error == null
                         ? const CircularProgressIndicator(color: Colors.white)
@@ -246,7 +283,7 @@ class _CameraScreenState extends State<CameraScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      for (final r in ['Original', '1:1', '3:4', '4:3'])
+                      for (final r in ['Original', '1:1', '3:4', '4:3', '9:16', '16:9'])
                         InkWell(
                           onTap: () => setState(() => selectedRatio = r),
                           borderRadius: BorderRadius.circular(16),
@@ -438,6 +475,8 @@ class _FramingGuideOverlay extends StatelessWidget {
       '1:1' => 1.0,
       '3:4' => 3.0 / 4.0,
       '4:3' => 4.0 / 3.0,
+      '9:16' => 9.0 / 16.0,
+      '16:9' => 16.0 / 9.0,
       _ => 1.0,
     };
 

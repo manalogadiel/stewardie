@@ -1,4 +1,4 @@
-import { decodeProtectedHeader, importX509, jwtVerify } from "https://esm.sh/jose@5.9.6";
+import { decodeProtectedHeader, importPKCS8, importX509, jwtVerify, SignJWT } from "https://esm.sh/jose@5.9.6";
 
 const project = Deno.env.get("FIREBASE_PROJECT_ID") || "stewardie";
 const cors = {
@@ -57,6 +57,64 @@ async function identify(req: Request): Promise<{ uid: string; token: string }> {
   return { uid: payload.sub, token };
 }
 
+let cachedServerToken: { token: string; expiresAt: number } | null = null;
+
+async function getServerAuthToken(): Promise<string> {
+  const explicit = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_TOKEN");
+  if (explicit) return explicit;
+
+  const clientEmail = Deno.env.get("FIREBASE_CLIENT_EMAIL");
+  const privateKeyPem = Deno.env.get("FIREBASE_PRIVATE_KEY");
+  if (!clientEmail || !privateKeyPem) {
+    throw new Failure("Server database credentials are not configured.", 503);
+  }
+
+  if (cachedServerToken && Date.now() < cachedServerToken.expiresAt - 60000) {
+    return cachedServerToken.token;
+  }
+
+  try {
+    const formattedKey = privateKeyPem.replace(/\\n/g, "\n");
+    const key = await importPKCS8(formattedKey, "RS256");
+    const now = Math.floor(Date.now() / 1000);
+    const jwt = await new SignJWT({
+      iss: clientEmail,
+      sub: clientEmail,
+      aud: "https://oauth2.googleapis.com/token",
+      scope: "https://www.googleapis.com/auth/datastore",
+    })
+      .setProtectedHeader({ alg: "RS256", typ: "JWT" })
+      .setIssuedAt(now)
+      .setExpirationTime(now + 3600)
+      .sign(key);
+
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }),
+    });
+
+    if (!res.ok) {
+      console.error("OAuth token exchange failed", res.status);
+      throw new Failure("Server database authentication failed.", 502);
+    }
+
+    const data = await res.json();
+    cachedServerToken = {
+      token: data.access_token,
+      expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000,
+    };
+    return cachedServerToken.token;
+  } catch (err) {
+    if (err instanceof Failure) throw err;
+    console.error("Failed to generate server token", err);
+    throw new Failure("Server database authentication failed.", 502);
+  }
+}
+
 function unpack(v: any): any {
   if (v === undefined || v === null) return null;
   if ("stringValue" in v) return v.stringValue;
@@ -104,6 +162,7 @@ async function updateAccountSubscription(
   serverAuthToken: string,
   fields: {
     tier: string;
+    entitlementSource: string;
     subscription: Record<string, any>;
     subscriptionExpiresAt: string | null;
     lastReconciledAt: string;
@@ -116,6 +175,7 @@ async function updateAccountSubscription(
 
   const mask = [
     "updateMask.fieldPaths=tier",
+    "updateMask.fieldPaths=entitlementSource",
     "updateMask.fieldPaths=subscription",
     "updateMask.fieldPaths=subscriptionExpiresAt",
     "updateMask.fieldPaths=lastReconciledAt",
@@ -123,6 +183,7 @@ async function updateAccountSubscription(
 
   const firestoreFields: Record<string, any> = {
     tier: pack(fields.tier),
+    entitlementSource: pack(fields.entitlementSource),
     subscription: pack(fields.subscription),
     lastReconciledAt: pack(new Date(fields.lastReconciledAt)),
   };
@@ -141,9 +202,40 @@ async function updateAccountSubscription(
     body: JSON.stringify({ fields: firestoreFields }),
   });
 
-  if (!res.ok && res.status !== 404) {
-    console.error("Firestore patch error", res.status, await res.text());
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "");
+    console.error("Firestore patch error", res.status, errorText);
+    throw new Failure("Failed to update subscription in database.", 502);
   }
+}
+
+async function recordWebhookEvent(eventId: string, serverToken: string): Promise<boolean> {
+  const emulatorHost = Deno.env.get("FIRESTORE_EMULATOR_HOST");
+  const baseUrl = emulatorHost
+    ? `http://${emulatorHost}/v1/projects/${project}/databases/(default)/documents`
+    : `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+
+  const checkRes = await fetch(`${baseUrl}/revenuecat_events/${encodeURIComponent(eventId)}`, {
+    headers: { Authorization: `Bearer ${serverToken}` },
+  });
+  if (checkRes.ok) {
+    return false; // Already recorded
+  }
+
+  await fetch(`${baseUrl}/revenuecat_events?documentId=${encodeURIComponent(eventId)}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serverToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      fields: {
+        processedAt: pack(new Date()),
+        eventId: pack(eventId),
+      },
+    }),
+  });
+  return true;
 }
 
 async function fetchRevenueCatSubscriber(uid: string): Promise<{
@@ -151,18 +243,12 @@ async function fetchRevenueCatSubscriber(uid: string): Promise<{
   expiresDate: string | null;
   store: string | null;
   productId: string | null;
+  environment: string;
   raw: any;
 }> {
   const rcKey = Deno.env.get("REVENUECAT_SECRET_KEY") || Deno.env.get("REVENUECAT_API_KEY");
   if (!rcKey) {
-    // In local sandbox without server key, return graceful fallback
-    return {
-      active: false,
-      expiresDate: null,
-      store: "none",
-      productId: null,
-      raw: null,
-    };
+    throw new Failure("RevenueCat credentials are not configured.", 503);
   }
 
   const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(uid)}`, {
@@ -174,7 +260,7 @@ async function fetchRevenueCatSubscriber(uid: string): Promise<{
 
   if (!res.ok) {
     if (res.status === 404) {
-      return { active: false, expiresDate: null, store: null, productId: null, raw: null };
+      return { active: false, expiresDate: null, store: null, productId: null, environment: "production", raw: null };
     }
     throw new Failure("RevenueCat subscriber status is temporarily unavailable.", 502);
   }
@@ -184,18 +270,21 @@ async function fetchRevenueCatSubscriber(uid: string): Promise<{
   const entitlement = subscriber?.entitlements?.stewardie_plus;
 
   if (!entitlement) {
-    return { active: false, expiresDate: null, store: null, productId: null, raw: subscriber };
+    return { active: false, expiresDate: null, store: null, productId: null, environment: "production", raw: subscriber };
   }
 
   const expiresDate = entitlement.expires_date ?? null;
   const isExpired = expiresDate != null && new Date(expiresDate).getTime() <= Date.now();
   const active = !isExpired;
+  const store = entitlement.store ?? null;
+  const environment = store === "test_store" || entitlement.is_sandbox ? "test" : "production";
 
   return {
     active,
     expiresDate,
-    store: entitlement.store ?? null,
+    store,
     productId: entitlement.product_identifier ?? null,
+    environment,
     raw: subscriber,
   };
 }
@@ -207,6 +296,15 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function isAuthorizedTester(uid: string, account: Record<string, any>): boolean {
+  if (account.founderGrant === true || account.entitlementSource === "founder") return true;
+  const founderUid = Deno.env.get("FOUNDER_UID");
+  if (founderUid && uid === founderUid) return true;
+  const allowedTesters = (Deno.env.get("ALLOWED_TEST_UIDS") || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (allowedTesters.includes(uid)) return true;
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   if (req.method !== "POST") return json({ error: "Use POST." }, 405);
@@ -216,10 +314,13 @@ Deno.serve(async (req) => {
     const isWebhook = url.searchParams.get("webhook") === "true";
 
     if (isWebhook) {
-      // Idempotent RevenueCat webhook verification
+      // Require webhook secret and valid authentication; fail-closed
       const webhookSecret = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
+      if (!webhookSecret) {
+        throw new Failure("Webhook handling is not configured.", 503);
+      }
       const authHeader = req.headers.get("x-webhook-auth") || req.headers.get("authorization");
-      if (webhookSecret && authHeader !== webhookSecret && authHeader !== `Bearer ${webhookSecret}`) {
+      if (!authHeader || (authHeader !== webhookSecret && authHeader !== `Bearer ${webhookSecret}`)) {
         throw new Failure("Unauthorized webhook delivery.", 401);
       }
 
@@ -229,56 +330,73 @@ Deno.serve(async (req) => {
         return json({ error: "Missing app_user_id in webhook payload." }, 400);
       }
 
-      // Deduplicate deliveries and refetch current state so delayed events cannot reinstate an expired grant
-      const rcStatus = await fetchRevenueCatSubscriber(appUserId);
-      const serverToken = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_TOKEN") || "";
-      if (serverToken) {
-        const account = await getAccountDoc(appUserId, serverToken);
-        const isFounder = account.founderGrant === true || account.entitlementSource === "founder";
-        const effectiveTier = isFounder || rcStatus.active ? "plus" : "basic";
-
-        await updateAccountSubscription(appUserId, serverToken, {
-          tier: effectiveTier,
-          subscription: {
-            active: rcStatus.active,
-            entitlement: "stewardie_plus",
-            expiresAt: rcStatus.expiresDate,
-            store: rcStatus.store,
-            productId: rcStatus.productId,
-            environment: rcStatus.store === "test_store" ? "test" : "production",
-            lastVerifiedAt: new Date().toISOString(),
-          },
-          subscriptionExpiresAt: rcStatus.expiresDate,
-          lastReconciledAt: new Date().toISOString(),
-        });
+      const serverToken = await getServerAuthToken();
+      const eventId = body.event?.id;
+      if (eventId && typeof eventId === "string") {
+        const isNew = await recordWebhookEvent(eventId, serverToken);
+        if (!isNew) {
+          return json({ received: true, duplicate: true, uid: appUserId });
+        }
       }
 
-      return json({ received: true, uid: appUserId, active: rcStatus.active });
+      const rcStatus = await fetchRevenueCatSubscriber(appUserId);
+      const account = await getAccountDoc(appUserId, serverToken);
+      const isFounder = account.founderGrant === true || account.entitlementSource === "founder";
+      const isTestStore = rcStatus.store === "test_store" || rcStatus.environment === "test";
+      const isTester = isAuthorizedTester(appUserId, account);
+
+      // Only authorized testers/founders may receive Plus from test store / sandbox
+      const effectiveStorePlus = rcStatus.active && (!isTestStore || isTester);
+      const effectiveTier = isFounder || effectiveStorePlus ? "plus" : "basic";
+      const entitlementSource = isFounder ? "founder" : (effectiveStorePlus ? "store" : "none");
+
+      await updateAccountSubscription(appUserId, serverToken, {
+        tier: effectiveTier,
+        entitlementSource,
+        subscription: {
+          active: rcStatus.active,
+          entitlement: "stewardie_plus",
+          expiresAt: rcStatus.expiresDate,
+          store: rcStatus.store,
+          productId: rcStatus.productId,
+          environment: rcStatus.environment,
+          lastVerifiedAt: new Date().toISOString(),
+        },
+        subscriptionExpiresAt: isFounder ? null : rcStatus.expiresDate,
+        lastReconciledAt: new Date().toISOString(),
+      });
+
+      return json({ received: true, uid: appUserId, active: effectiveTier === "plus" });
     }
 
     // Direct user-authenticated reconciliation
     const auth = await identify(req);
-    const account = await getAccountDoc(auth.uid, auth.token);
+    const serverToken = await getServerAuthToken();
+    const account = await getAccountDoc(auth.uid, serverToken);
 
     const isFounder = account.founderGrant === true || account.entitlementSource === "founder";
     const rcStatus = await fetchRevenueCatSubscriber(auth.uid);
+    const isTestStore = rcStatus.store === "test_store" || rcStatus.environment === "test";
+    const isTester = isAuthorizedTester(auth.uid, account);
 
-    // Founder Plus survives all test subscription cycles
-    const effectiveTier = isFounder || rcStatus.active ? "plus" : "basic";
+    // Test subscriptions are only honored for authorized testers/founders
+    const effectiveStorePlus = rcStatus.active && (!isTestStore || isTester);
+    const effectiveTier = isFounder || effectiveStorePlus ? "plus" : "basic";
+    const entitlementSource = isFounder ? "founder" : (effectiveStorePlus ? "store" : "none");
 
-    const serverToken = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_TOKEN") || auth.token;
     await updateAccountSubscription(auth.uid, serverToken, {
       tier: effectiveTier,
+      entitlementSource,
       subscription: {
         active: rcStatus.active,
         entitlement: "stewardie_plus",
         expiresAt: rcStatus.expiresDate,
         store: rcStatus.store,
         productId: rcStatus.productId,
-        environment: rcStatus.store === "test_store" ? "test" : "production",
+        environment: rcStatus.environment,
         lastVerifiedAt: new Date().toISOString(),
       },
-      subscriptionExpiresAt: rcStatus.expiresDate,
+      subscriptionExpiresAt: isFounder ? null : rcStatus.expiresDate,
       lastReconciledAt: new Date().toISOString(),
     });
 
@@ -288,12 +406,15 @@ Deno.serve(async (req) => {
       tier: effectiveTier,
       isPlus: effectiveTier === "plus",
       isFounder,
+      isSubscriptionActive: effectiveStorePlus,
+      entitlementSource,
       subscription: {
         active: rcStatus.active,
         entitlement: "stewardie_plus",
         expiresAt: rcStatus.expiresDate,
         store: rcStatus.store,
         productId: rcStatus.productId,
+        environment: rcStatus.environment,
       },
     });
   } catch (e) {

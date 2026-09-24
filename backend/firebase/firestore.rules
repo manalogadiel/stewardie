@@ -11,8 +11,7 @@ service cloud.firestore {
       return d.tier == 'plus' && (
         d.get('founderGrant', false) == true ||
         d.get('entitlementSource', '') == 'founder' ||
-        d.get('subscriptionExpiresAt', null) == null ||
-        d.subscriptionExpiresAt > request.time
+        (d.get('subscriptionExpiresAt', null) != null && d.subscriptionExpiresAt > request.time)
       );
     }
     function plus() { return isTierPlus(get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data); }

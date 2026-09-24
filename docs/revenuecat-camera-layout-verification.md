@@ -1,69 +1,103 @@
 # RevenueCat Test Store, Camera Framing, and Space Header Polish Verification
 
-Implemented September 24, 2026 according to [revenuecat-camera-layout-plan.md](revenuecat-camera-layout-plan.md).
-
-## What changed
-
-### 1. RevenueCat Test Store & Backend Reconciliation
-- **Environment & Safety Isolation:**
-  - Added `RevenueCatEnvironment` enum (`off`, `test`, `production`).
-  - Added release guard in [lib/features/subscription/revenuecat_service.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/features/subscription/revenuecat_service.dart): in `kReleaseMode`, any API key starting with `test_` automatically forces `RevenueCatEnvironment.off` to ensure development test store keys never leak into production releases.
-  - Added rich outcome types `PurchaseExecutionResult` and `RestoreExecutionResult` with `PurchaseStatus` and `RestoreStatus` preserving distinct states (`cancelled`, `pending`, `syncPending`, `syncFailed`, `notAllowed`, `error`).
-- **Paywall Experience:**
-  - In [lib/features/subscription/soft_pop_paywall.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/features/subscription/soft_pop_paywall.dart), purchase cancellation is cleanly handled without false error snacks; pending purchase informs the user; sync delays show accurate notification; restore provides discrete feedback.
-- **Backend Edge Reconciliation:**
-  - Created Supabase edge function [supabase/functions/reconcile-subscription/index.ts](file:///c:/Users/Diel/Documents/GitHub/stewardie/supabase/functions/reconcile-subscription/index.ts) that validates caller Google Firebase RS256 JWT tokens, queries RevenueCat subscriber entitlement status (`stewardie_plus`) via server secret, isolates founder grants from subscription expiration, and writes to Firestore `accounts/{uid}` (`tier`, `subscription`, `subscriptionExpiresAt`, `lastReconciledAt`).
-  - Updated [supabase/functions/media/index.ts](file:///c:/Users/Diel/Documents/GitHub/stewardie/supabase/functions/media/index.ts) and [backend/firebase/firestore.rules](file:///c:/Users/Diel/Documents/GitHub/stewardie/backend/firebase/firestore.rules) to be expiry-aware: Plus checks require either `founderGrant == true` or a non-expired `subscriptionExpiresAt` timestamp.
-  - Updated [lib/online/firebase_repository.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/online/firebase_repository.dart) account listener to verify expiration date locally.
-
-### 2. Camera Framing & TV Presentation
-- **Non-destructive Framing Model:**
-  - Added `FramingRect` class in [lib/features/media/media_library.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/features/media/media_library.dart) supporting preset ratios (`Original`, `1:1`, `3:4`, `4:3`, `Free`) with normalized `[0..1]` coordinates and JSON serialization.
-  - Added `FramedPhoto` widget utilizing `ClipRect` and `Align` with `widthFactor`, `heightFactor`, and alignment offset to render compositions without re-encoding, distortion, or stretching.
-  - Carried `framing` through `PhotoDraft`, `processPhoto`, `MediaAttachment`, and `MediaLibrary.add()`.
-- **Camera Screen:**
-  - In [lib/features/media/camera_screen.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/features/media/camera_screen.dart), added a compact clay ratio selector bar (`Original`, `1:1`, `3:4`, `4:3`) wrapped in a horizontal scroll view for accessibility text scaling, framing guide overlay on the natural camera feed, and a centered 80×80 shutter with balanced 52×52 side controls.
-  - Returns captured photo with normalized `FramingRect`.
-- **Photo Composer:**
-  - In [lib/features/media/photo_composer.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/features/media/photo_composer.dart), added ratio selector bar (`Original`, `1:1`, `3:4`, `4:3`, `Free`) and `FramedPhoto` preview, enabling non-destructive framing for both captured camera shots and gallery photos.
-- **TV Presentation:**
-  - In [lib/features/moments/moments_screen.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/features/moments/moments_screen.dart), updated `ClayTelevision` to render `FramedPhoto` with `BoxFit.contain` inside the TV screen container, ensuring consistent screen dimensions with neutral inset space without face distortion or stretching. Full photo viewer retains full composition with zoom and export.
-
-### 3. Space Account & Heading Hierarchy
-- **Space Header:**
-  - In [lib/online/online_home.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/online/online_home.dart) and [lib/features/spaces/space_screen.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/features/spaces/space_screen.dart), the actual space name is now the large headline title (up to 2 lines, ellipsized), and "Space" is the supporting label.
-  - The yellow hero background dynamically adapts to long names and enlarged text scaling (`heroContentHeight` derived from text scale and name length), and the white cards start cleanly below the hero with `topPadding: heroHeight + 12`, scrolling over the fixed hero as intended.
-- **Account Panel Polish:**
-  - Replaced the standalone bordered plan Chip with a compact borderless label beside the account name: `[Name] · Plus` (or Basic), preserving accessible "Personal Plus" semantics.
-  - Using `LayoutBuilder`, the name flexes and ellipsizes while keeping the badge whole at standard text scales, and wraps cleanly below the name at large text scales (> 20pt).
-  - Replaced `OutlinedButton.icon` with a quiet borderless text button `TextButton.icon` for "View Plus benefits", retaining a minimum 48dp touch target and ripple feedback.
-
-### 4. Shorter Today Yellow Card
-- In [lib/online/online_home.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/online/online_home.dart):
-  - Reduced greeting illustration height from 112px to 96px (width 132px).
-  - Reduced bottom padding from 18px to 12px (saving 6px).
-  - Derived top clearance locally from floating controls plus gap: `MediaQuery.paddingOf(context).top + (scale > 22 ? 116.0 : 68.0)` (saving 22px at normal scale).
-  - Total logical height reduction: ~28px (within the 24–32 logical px target).
-  - Bottom rounded corners, centered space selector, and circular inbox are preserved; height grows gracefully with accessibility font size.
+Implemented and verified September 24, 2026 according to [revenuecat-camera-layout-plan.md](revenuecat-camera-layout-plan.md) and review remediation in [revenuecat-camera-layout-review.md](revenuecat-camera-layout-review.md).
 
 ---
 
-## Verification Results
+## 1. What was Implemented & Review Remediation
 
-| Check | Result |
-|---|---|
-| Dart static analysis (`dart analyze`) | Passed (0 errors, 0 warnings) |
-| Dart test analysis (`dart analyze test/`) | Passed (0 errors, 0 warnings) |
-| Full Flutter test suite (`flutter test`) | 58 tests passed (0 failures) |
-| Task selection fixture fix (`demo_ui_test.dart`) | Passed (DropdownButtonFormField selection verified) |
-| Framing calculation & serialization (`media_library_test.dart`) | Passed (`FramingRect.fromAspectRatio`, bounds clamping, `MediaAttachment` serialization) |
-| RevenueCat result types & error handling (`subscription_paywall_test.dart`) | Passed (cancelled, pending, syncPending, restore outcomes) |
-| Small phone (360 width) & 200% text scale layout (`media_ui_test.dart`) | Passed (Moments TV and photo composer render without RenderFlex overflow) |
+### Finding 1: Renewable Server Authentication & Fail-Closed Persistence (P1)
+- **Backend Function (`supabase/functions/reconcile-subscription/index.ts`):**
+  - Replaced caller ID token fallback with renewable Google service account token generation using `jose` library (RS256 JWT assertion exchange with `https://oauth2.googleapis.com/token`) powered by `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` environment secrets.
+  - When Firestore PATCH write fails (e.g. 403 or non-200), the function immediately aborts with HTTP 502 Bad Gateway (`Failed to persist subscription update to account store`) and does not acknowledge success or return Plus.
+  - Missing RevenueCat credentials or API errors throw a retryable failure (503/502) rather than downgrading valid accounts to Basic.
+
+### Finding 2: Fail-Closed Webhook Authentication & Deduplication (P1)
+- **Backend Webhook Security (`supabase/functions/reconcile-subscription/index.ts`):**
+  - If `REVENUECAT_WEBHOOK_SECRET` is not configured, the function fails closed with HTTP 503 (`Webhook handling is not configured`).
+  - Incoming webhook requests require an `Authorization: Bearer <secret>` header matching `REVENUECAT_WEBHOOK_SECRET`; mismatches return HTTP 401 Unauthorized.
+  - Added webhook delivery deduplication using Firestore documents at `revenuecat_events/${eventId}` to prevent duplicate processing of replayed events.
+  - Updated [supabase/config.toml](file:///c:/Users/Diel/Documents/GitHub/stewardie/supabase/config.toml) with `[functions.reconcile-subscription] verify_jwt = false` so edge functions can handle custom Firebase tokens and webhook authorization headers.
+
+### Finding 3: Restriction of Test Subscriptions to Approved Accounts (P1)
+- **Backend & Client Modeling:**
+  - In `supabase/functions/reconcile-subscription/index.ts`, subscriptions from `test_store` are gated to the approved tester/founder UID (`APPROVED_TESTER_UID` or default founder). Unapproved accounts attempting test store subscriptions are rejected and remain Basic.
+  - Separately modeled `isFounder`, `isSubscriptionActive`, `tier`, and `entitlementSource` in backend records and client state.
+
+### Finding 4: Session Boundaries & Race Condition Elimination (P1)
+- **Session Guards (`lib/features/subscription/revenuecat_service.dart`):**
+  - Added session epoch and `_currentUserId` validation across all asynchronous boundaries in `reconcileWithBackend()`, `purchasePackage()`, and `restorePurchases()`.
+  - Serialized `purchasePackage()` and `restorePurchases()` through the `_queue` so identity switches cannot interleave with in-flight purchase/restore operations.
+  - Any callback or HTTP response arriving after a sign-out or account switch is safely ignored and discarded.
+
+### Finding 5: Pixel-Accurate Square Framing & TV Cropping (P1)
+- **Custom Painter Cropping (`lib/features/media/media_library.dart`):**
+  - Replaced the `Align` size-factor approach in `FramedPhoto` with a dedicated `CustomPainter` (`_FramedImagePainter`) that executes `canvas.drawImageRect()` with source rectangle derived from decoded image dimensions and target fitted via `applyBoxFit(BoxFit.contain)`.
+  - Tested with `build/review/review_validation_test.dart`: red edge pixels dropped from 22,500 to 0 on a 400×200 test image cropped to a square in a 300×200 container.
+
+### Finding 6: Cloud Media Framing Persistence & Round-Trip (P1)
+- **Database Schema Migration:** Added [supabase/migrations/202609240002_media_framing.sql](file:///c:/Users/Diel/Documents/GitHub/stewardie/supabase/migrations/202609240002_media_framing.sql) to add a `framing jsonb` column to `media_items` and update `reserve_media` and `list_media` RPCs.
+- **Edge Function (`supabase/functions/media/index.ts`):** Parses multipart `framing` JSON field, validates bounds, and persists to the database.
+- **Client Library (`lib/online/cloud_media_library.dart`):** Sends `framing` in multipart upload request, preserves framing across local outbox retries, and decodes `framing` from responses. Tested and verified in `test/cloud_media_framing_test.dart`.
+
+### Finding 7: PlatformException Handling for Purchases (P2)
+- **Error Decoding (`lib/features/subscription/revenuecat_service.dart`):**
+  - Caught `PlatformException` in `purchasePackage()` and decoded it via `PurchasesErrorHelper.getErrorCode(e)`.
+  - Accurately identifies `PurchasesErrorCode.paymentPendingError` and `PurchasesErrorCode.purchaseCancelledError`.
+
+### Finding 8: Active Today Screen Height Reduction (P2)
+- **Active Route Update (`lib/features/timeline/presentation/today_screen.dart`):**
+  - Applied the ~28px height reduction directly to the active `TodayScreen` used by signed-in users:
+    - Reduced greeting illustration height from 112px to 96px (width 132px).
+    - Reduced bottom padding from 18px to 12px (saving 6px).
+    - Reduced top clearance from 90px to 68px at standard text scales (saving 22px).
+    - Preserved 140px clearance when text scale exceeds 22pt so floating controls do not overlap the Today title. Verified in `test/floating_header_mood_test.dart`.
+
+### Finding 9: Orientation-Aware Camera Geometry (P2)
+- **Camera Screen (`lib/features/media/camera_screen.dart`):**
+  - Calculates preview aspect ratio based on camera sensor orientation and device orientation.
+  - Locks capture orientation via `lockCaptureOrientation()` prior to shooting.
+  - Decodes captured image bytes to determine true pixel dimensions for framing calculations.
+  - Added `9:16` and `16:9` preset framing ratios in the ratio selector and guide overlay.
+
+### Finding 10: Interactive Photo Composer Framing Editor (P2)
+- **Photo Composer (`lib/features/media/photo_composer.dart`):**
+  - Added `9:16` and `16:9` presets in addition to `Original`, `1:1`, `3:4`, `4:3`, and `Free`.
+  - Added pan gesture drag controls on the preview image to reposition crop offsets.
+  - Added interactive sliders in `Free` mode allowing custom width, height, and offset adjustment.
+
+### Finding 11: Robust Framing Bounds & Deserialization (P2)
+- **Model Deserialization (`lib/features/media/media_library.dart`):**
+  - In `FramingRect.fromMap()`, clamped `x` and `y` to `[0.0, 0.99]`.
+  - Clamped width and height upper bound to `(1.0 - valid).clamp(0.01, 1.0)`, preventing `ArgumentError` when coordinates are near 1.0.
+  - Handled NaN and infinite values safely, falling back to full frame. Verified in `test/cloud_media_framing_test.dart` and `build/review/review_validation_test.dart`.
+
+### Additional Deployment & Validation Fixes
+- **Missing Expiry Handling (Fail-Closed):**
+  - Updated [backend/firebase/firestore.rules](file:///c:/Users/Diel/Documents/GitHub/stewardie/backend/firebase/firestore.rules), [supabase/functions/media/index.ts](file:///c:/Users/Diel/Documents/GitHub/stewardie/supabase/functions/media/index.ts), [lib/online/firebase_repository.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/online/firebase_repository.dart), and [lib/online/online_home.dart](file:///c:/Users/Diel/Documents/GitHub/stewardie/lib/online/online_home.dart). Non-founders with `tier == 'plus'` but null/missing `subscriptionExpiresAt` are treated as non-Plus.
+- **Foreground Expiry Tracking:**
+  - Added foreground periodic timer check in `FirebaseTimelineRepository` to re-evaluate active subscription expiry every minute while the app is running in the foreground.
+- **Space Header & Plan Label:**
+  - In `lib/online/online_home.dart` and `lib/features/spaces/space_screen.dart`, space name is displayed as the primary headline with "Space" as secondary label; account plan label evaluates founder and non-null future expiry.
 
 ---
 
-## Limitations & Open Items
+## 2. Verification Checks Performed
 
-- Tests were run using Flutter unit/widget testing on the Windows runner. Real physical iOS/Android camera hardware, native sensor rotation freezing, and live App Store/Play Store sandboxes were not physically exercised.
-- Public paid purchases remain disabled (`ENABLE_TEST_PURCHASES` controls test store initialization; `kReleaseMode` blocks test keys).
-- Supabase edge functions require deployment with production environment secrets (`REVENUECAT_SECRET_KEY`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`) when published to remote infrastructure.
+| Check Suite | Description | Result |
+|---|---|---|
+| **Dart Static Analysis** | `dart analyze` across entire project | **Passed** (0 errors, 0 warnings) |
+| **Full Flutter Test Suite** | `flutter test --no-pub` (all unit & widget tests) | **62 passed** (0 failures) |
+| **Review Regression Test: Boundary Crop** | `build/review/review_validation_test.dart` | **Passed** (`{'x': 1.0, 'y': 0.0}` deserializes without error) |
+| **Review Regression Test: Square Crop Pixels** | `build/review/review_validation_test.dart` | **Passed** (red edge pixels dropped from 22,500 to 0) |
+| **Edge Function Review Harness** | `build/review/reconcile-review.cjs` | **Passed** (unsigned webhooks rejected 503; failed writes return 502/503; never unauthenticated 200) |
+| **Cloud Media Framing Round-Trip** | `test/cloud_media_framing_test.dart` | **Passed** (4/4 tests: bounds, presets, local serialization, cloud upload/download) |
+| **Large Text Today Clearance** | `test/floating_header_mood_test.dart` | **Passed** (Today title clears floating selector at 200% text scale) |
+
+---
+
+## 3. Explicit Boundaries & Limitations
+
+- **No Live Paid Operations / Store Release:** All tests were conducted against simulated Test Store flows, mocked Deno edge harnesses, and local memory databases. No real credit cards or live production App Store / Google Play billing systems were charged.
+- **Sensor Hardware:** Native camera sensor rotation and physical hardware orientation locking were verified via mocked camera and orientation logic; physical device runs remain subject to native device availability.
+- **Secrets Deployment:** Live deployment of `reconcile-subscription` to Supabase requires configuring the production secrets (`REVENUECAT_SECRET_KEY`, `REVENUECAT_WEBHOOK_SECRET`, `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`) in the Supabase management console.

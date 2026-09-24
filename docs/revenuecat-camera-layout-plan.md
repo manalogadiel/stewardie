@@ -1,6 +1,6 @@
 # RevenueCat testing, camera framing and header polish
 
-Date: September 24, 2026. Status: proposed implementation plan; awaiting approval. This document does not enable purchases, change cloud settings or alter the app.
+Date: September 24, 2026. Status: implemented; review findings addressed and verified. This document records the implemented changes and review remediation.
 
 ## Scope and evidence
 

@@ -2,3 +2,7 @@ project_id = "stewardie"
 [functions.media]
 # Firebase ID tokens are verified inside the gateway before every operation.
 verify_jwt = false
+
+[functions.reconcile-subscription]
+# Firebase ID tokens and RevenueCat webhooks are verified inside the edge function.
+verify_jwt = false

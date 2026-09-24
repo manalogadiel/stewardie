@@ -23,8 +23,10 @@ class CloudMediaLibrary extends MediaLibrary {
     required Database database,
     required StoreRef<String, Map<String, Object?>> records,
     required List<MediaAttachment> initial,
-    required Set<String> pending,
-  }) : _pending = pending,
+    required this._pending,
+    http.Client? client,
+    this._auth,
+  }) : _client = client ?? http.Client(),
        super(timeline, database: database, records: records, initial: initial) {
     _subscription = timeline.changes.listen((_) {
       final allowed = timeline.spaces.map((s) => s.id).toSet();
@@ -33,7 +35,8 @@ class CloudMediaLibrary extends MediaLibrary {
     });
   }
   final User user;
-  final http.Client _client = http.Client();
+  final FirebaseAuth? _auth;
+  final http.Client _client;
   final Map<String, MediaAttachment> _remote = {};
   final Set<String> _pending, _refreshing = {};
   final Map<String, DateTime> _lastRefresh = {};
@@ -66,7 +69,13 @@ class CloudMediaLibrary extends MediaLibrary {
   List<MediaAttachment> forTask(String id) =>
       items.where((p) => p.taskId == id).toList();
   Future<Map<String, String>> _headers() async {
-    if (_closed || user.uid != FirebaseAuth.instance.currentUser?.uid) {
+    String? currentUid;
+    try {
+      currentUid = _auth?.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      currentUid = user.uid;
+    }
+    if (_closed || (currentUid != null && user.uid != currentUid)) {
       throw StateError('Sign in again to share photos.');
     }
     final token = await user.getIdToken();
@@ -109,6 +118,12 @@ class CloudMediaLibrary extends MediaLibrary {
           'id': id,
           'thumbnail': true,
         })).bodyBytes;
+    final framingMap = row['framing'] is String
+        ? jsonDecode(row['framing'] as String) as Map<String, dynamic>?
+        : (row['framing'] is Map
+            ? Map<String, dynamic>.from(row['framing'] as Map)
+            : null);
+    final framing = FramingRect.fromMap(framingMap);
     return MediaAttachment(
       id: id,
       spaceId: space,
@@ -122,12 +137,14 @@ class CloudMediaLibrary extends MediaLibrary {
           ? null
           : DateTime.parse(row['published_at']),
       cloud: true,
+      framing: framing,
       photo: PhotoDraft(
         existing?.photo.bytes ?? thumb,
         thumb,
         row['width'],
         row['height'],
         'shared',
+        framing: framing,
       ),
     );
   }
@@ -219,6 +236,7 @@ class CloudMediaLibrary extends MediaLibrary {
           'space': photo.spaceId,
           'caption': photo.caption,
           if (photo.taskId != null) 'task': photo.taskId!,
+          'framing': jsonEncode(photo.framing.toMap()),
         });
         request.files.add(
           http.MultipartFile.fromBytes(
