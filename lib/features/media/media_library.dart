@@ -96,16 +96,19 @@ class MediaAttachment {
     this.taskTitle,
     this.completedBy,
     this.publishedAt,
+    this.cloud = false,
   });
   final String id, spaceId, uploaderId, caption;
   final String? taskId, taskTitle, completedBy;
   final DateTime createdAt;
   final DateTime? publishedAt;
   final PhotoDraft photo;
+  final bool cloud;
   String get heading => taskTitle == null
       ? (caption.isEmpty ? 'A little moment' : caption)
       : '$taskTitle — done!';
   Map<String, Object?> toMap() => {
+    'cloud': cloud,
     'id': id,
     'spaceId': spaceId,
     'uploaderId': uploaderId,
@@ -122,6 +125,7 @@ class MediaAttachment {
     'source': photo.source,
   };
   factory MediaAttachment.fromMap(Map<String, Object?> m) => MediaAttachment(
+    cloud: m['cloud'] == true,
     id: m['id'] as String,
     spaceId: m['spaceId'] as String,
     uploaderId: m['uploaderId'] as String,
@@ -177,6 +181,18 @@ class MediaLibrary extends ChangeNotifier {
     return next;
   }
 
+  bool get supportsSharing => false;
+  bool get enforceLocalQuotas => true;
+  bool get syncing => false;
+  String? get syncError => null;
+  Set<String> get pendingIds => const {};
+  Future<void> refresh(String spaceId) async {}
+  Future<void> share(MediaAttachment photo) async {
+    throw StateError('Photo sharing is not connected yet.');
+  }
+
+  Future<void> retryPending() async {}
+  Future<Uint8List> fullPhoto(MediaAttachment photo) async => photo.photo.bytes;
   List<MediaAttachment> get items => List.unmodifiable(_items);
   List<MediaAttachment> forTask(String id) =>
       _items.where((p) => p.taskId == id).toList();
@@ -217,7 +233,8 @@ class MediaLibrary extends ChangeNotifier {
           0,
           (n, p) => n + p.photo.bytes.length + p.photo.thumbnail.length,
         );
-    if (size + photo.bytes.length + photo.thumbnail.length > storageLimit) {
+    if (enforceLocalQuotas &&
+        size + photo.bytes.length + photo.thumbnail.length > storageLimit) {
       throw StateError(
         'Photo storage is full. You can still finish without a photo.',
       );
@@ -228,7 +245,7 @@ class MediaLibrary extends ChangeNotifier {
         ? _daily[dayKey] ?? 0
         : (await metaRecords.record(dayKey).get(database!))?['count'] as int? ??
               0;
-    if (current >= dailyLimit) {
+    if (enforceLocalQuotas && current >= dailyLimit) {
       throw StateError(
         'Today’s photo limit is reached. Resets at 00:00 UTC. You can still finish without a photo.',
       );
@@ -257,6 +274,12 @@ class MediaLibrary extends ChangeNotifier {
     return attachment;
   });
 
+  Future<void> cacheAttachment(MediaAttachment photo) async {
+    await records.record(photo.id).putIfDatabase(database, photo.toMap());
+    final index = _items.indexWhere((p) => p.id == photo.id);
+    if (index >= 0) _items[index] = photo;
+  }
+
   Future<void> publishTask(Task supplied) => _serialize(() async {
     final task = _task(supplied.id, supplied.spaceId);
     _member(task.spaceId, timeline.currentUserId);
@@ -266,6 +289,7 @@ class MediaLibrary extends ChangeNotifier {
         .toList();
     for (final old in targets) {
       final updated = MediaAttachment(
+        cloud: old.cloud,
         id: old.id,
         spaceId: old.spaceId,
         uploaderId: old.uploaderId,

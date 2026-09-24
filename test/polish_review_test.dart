@@ -51,6 +51,7 @@ void main() {
     expect(find.byType(BottomSheet), findsOneWidget);
     final sheet = tester.getRect(find.byType(BottomSheet));
     expect(sheet.center.dx, closeTo(215, 1));
+    expect(sheet.height, lessThan(450));
     expect(find.text('Take photo'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();

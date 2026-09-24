@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,80 +17,103 @@ Future<void> viewPhoto(BuildContext context, MediaAttachment photo) =>
       rootNavigator: true,
     ).push<void>(MaterialPageRoute(builder: (_) => PhotoViewer(photo)));
 
-class PhotoViewer extends StatefulWidget {
+class PhotoViewer extends ConsumerStatefulWidget {
   const PhotoViewer(this.photo, {super.key});
   final MediaAttachment photo;
   @override
-  State<PhotoViewer> createState() => _PhotoViewerState();
+  ConsumerState<PhotoViewer> createState() => _PhotoViewerState();
 }
 
-class _PhotoViewerState extends State<PhotoViewer> {
+class _PhotoViewerState extends ConsumerState<PhotoViewer> {
+  late final _full = ref.read(mediaLibraryProvider).fullPhoto(widget.photo);
   bool saving = false;
   String? message;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: SoftPop.ink,
-    appBar: AppBar(
-      foregroundColor: Colors.white,
-      title: const Text('Your moment', style: TextStyle(color: Colors.white)),
-      actions: [
-        IconButton(
-          tooltip: 'Save photo',
-          onPressed: saving
-              ? null
-              : () async {
-                  setState(() => saving = true);
-                  try {
-                    final result = await exportPhoto(
-                      widget.photo.photo.bytes,
-                      widget.photo.id,
-                    );
-                    if (mounted) setState(() => message = result);
-                  } catch (_) {
-                    if (mounted) {
-                      setState(
-                        () => message = 'Could not save. Check photo permissions and available storage, then try again.',
+  Widget build(BuildContext context) {
+    ref.watch(demoProvider);
+    final allowed = ref
+        .read(repositoryProvider)
+        .spaces
+        .any((s) => s.id == widget.photo.spaceId);
+    if (!allowed)
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: Text('This space is no longer available.')),
+      );
+    return Scaffold(
+      backgroundColor: SoftPop.ink,
+      appBar: AppBar(
+        foregroundColor: Colors.white,
+        title: const Text('Your moment', style: TextStyle(color: Colors.white)),
+        actions: [
+          IconButton(
+            tooltip: 'Save photo',
+            onPressed: saving
+                ? null
+                : () async {
+                    setState(() => saving = true);
+                    try {
+                      final result = await exportPhoto(
+                        await ref
+                            .read(mediaLibraryProvider)
+                            .fullPhoto(widget.photo),
+                        widget.photo.id,
                       );
+                      if (mounted) setState(() => message = result);
+                    } catch (_) {
+                      if (mounted) {
+                        setState(
+                          () => message = 'Could not save. Check photo permissions and available storage, then try again.',
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => saving = false);
                     }
-                  } finally {
-                    if (mounted) setState(() => saving = false);
-                  }
-                },
-          icon: const Icon(Icons.download_rounded),
-        ),
-      ],
-    ),
-    body: SafeArea(
-      child: Column(
-        children: [
-          Expanded(
-            child: InteractiveViewer(
-              minScale: .8,
-              maxScale: 5,
-              child: Center(
-                child: Image.memory(
-                  widget.photo.photo.bytes,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
+                  },
+            icon: const Icon(Icons.download_rounded),
           ),
-          if (saving) const LinearProgressIndicator(),
-          if (message != null)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Semantics(
-                liveRegion: true,
-                child: Text(
-                  message!,
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            ),
         ],
       ),
-    ),
-  );
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: InteractiveViewer(
+                minScale: .8,
+                maxScale: 5,
+                child: Center(
+                  child: FutureBuilder(
+                    future: _full,
+                    builder: (context, snapshot) => snapshot.hasError
+                        ? const Text(
+                            'Could not load this photo. Close and try again.',
+                            style: TextStyle(color: Colors.white),
+                          )
+                        : Image.memory(
+                            snapshot.data ?? widget.photo.photo.thumbnail,
+                            fit: BoxFit.contain,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            if (saving) const LinearProgressIndicator(),
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    message!,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 Future<void> removePhoto(
@@ -129,11 +154,38 @@ Future<void> removePhoto(
   }
 }
 
-class TaskPhotos extends ConsumerWidget {
+class TaskPhotos extends ConsumerStatefulWidget {
   const TaskPhotos(this.task, {super.key});
   final Task task;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TaskPhotos> createState() => _TaskPhotosState();
+}
+
+class _TaskPhotosState extends ConsumerState<TaskPhotos> {
+  Timer? _timer;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
+  }
+
+  void _refresh() {
+    if (mounted &&
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused) {
+      unawaited(ref.read(mediaLibraryProvider).refresh(widget.task.spaceId));
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final task = widget.task;
     final photos = ref
         .watch(mediaProvider)
         .where((p) => p.taskId == task.id && p.spaceId == task.spaceId)
@@ -151,6 +203,15 @@ class TaskPhotos extends ConsumerWidget {
         children: [
           Text('Photos', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
+          if (ref.read(mediaLibraryProvider).syncError != null)
+            Text(ref.read(mediaLibraryProvider).syncError!),
+          if (photos.any(
+            (p) => ref.read(mediaLibraryProvider).pendingIds.contains(p.id),
+          ))
+            TextButton(
+              onPressed: () => ref.read(mediaLibraryProvider).retryPending(),
+              child: const Text('Retry sharing photos'),
+            ),
           for (final photo in photos) ...[
             Semantics(
               label: 'Open task photo',

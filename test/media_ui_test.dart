@@ -251,7 +251,9 @@ void main() {
       photo: photo,
     );
     await tester.pumpWidget(
-      MaterialApp(theme: SoftPop.theme, home: PhotoViewer(post)),
+      ProviderScope(
+        child: MaterialApp(theme: SoftPop.theme, home: PhotoViewer(post)),
+      ),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Save photo'));

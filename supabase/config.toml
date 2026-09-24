@@ -1,0 +1,4 @@
+project_id = "stewardie"
+[functions.media]
+# Firebase ID tokens are verified inside the gateway before every operation.
+verify_jwt = false

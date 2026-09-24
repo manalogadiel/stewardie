@@ -2,7 +2,7 @@
 
 A Flutter shared-life app for families, friends, housemates, dormmates, and crews.
 
-Status: The normal Flutter app connects to the live `stewardie` Firebase project using verified email/password accounts and rule-enforced Firestore transactions on Spark. The approved Today / Moments / Space layouts remain in place. Paid purchases and cloud photo uploads are not enabled. See [current implementation and verification](docs/spark-polish-verification.md).
+Status: The normal Flutter app connects to the live `stewardie` Firebase project using verified email/password accounts and rule-enforced Firestore transactions on Spark. The approved Today / Moments / Space layouts remain in place. Private cloud photo sharing is connected through Supabase; paid purchases remain disabled. See [shared Moments deployment and verification](docs/shared-moments-verification.md). See [earlier Spark implementation](docs/spark-polish-verification.md).
 
 ## Start here
 
@@ -27,7 +27,7 @@ flutter run
 
 The default `lib/main.dart` is the signed-in cloud app. `lib/main_online.dart` is an alias; `lib/main_fixture.dart` is the separate offline visual fixture (check the file name before using older commands). Firebase configuration is already present. Accounts must verify their email before shared access. No Blaze upgrade, Functions deployment, or store account is needed for the current trial.
 
-Tasks, memberships, moods, and calendar plans synchronize through Firestore. Personal Plus is protected server-side and reserved for the verified founder account; it never upgrades other members. Today and Moments retain the approved clay assets and interactions. Photos remain private to this device/account and are not synchronized to other members. Remembered accounts store an email/name only; signing back in still requires secure authentication, with platform autofill where available.
+Tasks, memberships, moods, and calendar plans synchronize through Firestore. Personal Plus is protected server-side and reserved for the verified founder account; it never upgrades other members. Today and Moments retain the approved clay assets and interactions. New shared photos use private Supabase storage and member-checked access. Existing local photos require an explicit Share this photo to space action. Moments refreshes on entry, manually, and every 20 seconds while open. Remembered accounts store an email/name only; signing back in still requires secure authentication, with platform autofill where available.
 
 The Spark trial uses UTC boundaries for mood expiry and Basic Done-history access. Space-time-zone boundaries and trusted purchase synchronization require a later backend decision. Public purchases remain disabled. Camera orientation, gallery export, and real two-device behavior still need native-device checks by the owner.
 

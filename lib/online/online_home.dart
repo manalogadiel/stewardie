@@ -272,14 +272,14 @@ class _OnlineHomeState extends State<OnlineHome> {
         },
       );
 
-  Widget _page(List<Widget> children) => Align(
+  Widget _page(List<Widget> children, {double? topPadding}) => Align(
     alignment: Alignment.topCenter,
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 640),
       child: ListView(
         padding: EdgeInsets.fromLTRB(
           20,
-          topControlsClearance(context),
+          topPadding ?? topControlsClearance(context),
           20,
           148,
         ),
@@ -884,213 +884,235 @@ class _OnlineHomeState extends State<OnlineHome> {
         top: 0,
         left: 0,
         right: 0,
-        height: topControlsClearance(context) + 170,
-        child: const DecoratedBox(
-          decoration: BoxDecoration(
+        height:
+            topControlsClearance(context) +
+            174 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.6),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
             color: SoftPop.today,
             borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
           ),
+          child: IgnorePointer(
+            child: Padding(
+              padding: EdgeInsets.only(top: topControlsClearance(context)),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: _hero(
+                    'Space',
+                    space?.data()['name'] as String? ?? 'Your little corner',
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
-      _page([
-        _hero(
-          'Space',
-          space?.data()['name'] as String? ?? 'Your little corner',
-        ),
-        const SizedBox(height: 22),
-        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: widget.backend.account(widget.user.uid),
-          builder: (context, snapshot) {
-            final plus = snapshot.data?.data()?['tier'] == 'plus';
-            return ClayPanel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: SoftPop.sky,
-                        child: Text(
-                          (widget.user.displayName?.trim().isNotEmpty == true
-                                  ? widget.user.displayName!
-                                  : 'Me')
-                              .characters
-                              .first
-                              .toUpperCase(),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.user.displayName ?? 'Your account',
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            Text(
-                              widget.user.email ?? '',
-                              style: const TextStyle(color: SoftPop.secondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Chip(
-                      label: Text(plus ? 'Personal Plus' : 'Basic'),
-                      avatar: Icon(
-                        plus
-                            ? Icons.auto_awesome_rounded
-                            : Icons.person_outline_rounded,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  if (!plus)
-                    OutlinedButton.icon(
-                      onPressed: () => showSoftPopPaywall(context),
-                      icon: const Icon(Icons.auto_awesome_rounded),
-                      label: const Text('View Plus benefits'),
-                    ),
-                  TextButton.icon(
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('Sign out'),
-                    onPressed: () async {
-                      if (!await _confirm(
-                        'Sign out?',
-                        'Sign out of ${widget.user.email}? Your saved photos stay on this device.',
-                        'Sign out',
-                      ))
-                        return;
-                      await RevenueCatService.instance.logOut();
-                      await widget.backend.auth.signOut();
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 18),
-        if (spaceId != null)
+      _page(
+        [
           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: widget.backend.firestore.doc('spaces/$spaceId').snapshots(),
-            builder: (context, spaceSnapshot) {
-              final owner = spaceSnapshot.data?.data()?['ownerUid'];
-              final pendingOwner = spaceSnapshot.data
-                  ?.data()?['pendingOwnerUid'];
-              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                stream: widget.backend.members(spaceId),
-                builder: (context, members) => ClayPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Your people',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      if (members.hasError)
-                        const Text(
-                          'Could not load members. Try again when connected.',
+            stream: widget.backend.account(widget.user.uid),
+            builder: (context, snapshot) {
+              final plus = snapshot.data?.data()?['tier'] == 'plus';
+              return ClayPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: SoftPop.sky,
+                          child: Text(
+                            (widget.user.displayName?.trim().isNotEmpty == true
+                                    ? widget.user.displayName!
+                                    : 'Me')
+                                .characters
+                                .first
+                                .toUpperCase(),
+                          ),
                         ),
-                      for (final person
-                          in members.data?.docs ??
-                              <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-                        if (person.data()['status'] == 'active')
-                          ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(
-                              backgroundColor: SoftPop.rose,
-                              child: Text(
-                                (person.data()['name'] as String? ?? 'M')
-                                        .characters
-                                        .firstOrNull ??
-                                    'M',
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.user.displayName ?? 'Your account',
+                                style: Theme.of(context).textTheme.titleLarge,
                               ),
-                            ),
-                            title: Text(
-                              '${person.data()['name'] ?? 'Member'}${person.id == widget.user.uid ? ' (you)' : ''}',
-                            ),
-                            subtitle: Text(
-                              person.id == owner ? 'Owner' : 'Member',
-                            ),
-                            trailing:
-                                owner == widget.user.uid && person.id != owner
-                                ? PopupMenuButton<String>(
-                                    tooltip: 'Manage ${person.data()['name']}',
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'removeMember',
-                                        child: Text('Remove from space'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'offerOwnership',
-                                        child: Text('Offer ownership'),
-                                      ),
-                                    ],
-                                    onSelected: (action) => _membershipAction(
-                                      action,
-                                      spaceId,
-                                      memberUid: person.id,
-                                      name:
-                                          person.data()['name'] as String? ??
-                                          'Member',
-                                    ),
-                                  )
-                                : null,
+                              Text(
+                                widget.user.email ?? '',
+                                style: const TextStyle(
+                                  color: SoftPop.secondary,
+                                ),
+                              ),
+                            ],
                           ),
-                      if (pendingOwner == widget.user.uid)
-                        FilledButton(
-                          onPressed: () => _membershipAction(
-                            'acceptOwnership',
-                            spaceId,
-                            name: 'You',
-                          ),
-                          child: const Text('Accept ownership'),
                         ),
-                      if (owner == widget.user.uid) ...[
-                        OutlinedButton.icon(
-                          onPressed: () => _invite(spaceId),
-                          icon: const Icon(Icons.ios_share_rounded),
-                          label: const Text('Invite someone'),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Chip(
+                        label: Text(plus ? 'Personal Plus' : 'Basic'),
+                        avatar: Icon(
+                          plus
+                              ? Icons.auto_awesome_rounded
+                              : Icons.person_outline_rounded,
+                          size: 18,
                         ),
-                        const Text(
-                          'To leave, offer ownership to another member first.',
-                          style: TextStyle(color: SoftPop.secondary),
-                        ),
-                      ] else
-                        TextButton(
-                          onPressed: () => _membershipAction(
-                            'leaveSpace',
-                            spaceId,
-                            name: 'You',
-                          ),
-                          child: const Text('Leave space'),
-                        ),
-                    ],
-                  ),
+                      ),
+                    ),
+                    if (!plus)
+                      OutlinedButton.icon(
+                        onPressed: () => showSoftPopPaywall(context),
+                        icon: const Icon(Icons.auto_awesome_rounded),
+                        label: const Text('View Plus benefits'),
+                      ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.logout_rounded),
+                      label: const Text('Sign out'),
+                      onPressed: () async {
+                        if (!await _confirm(
+                          'Sign out?',
+                          'Sign out of ${widget.user.email}? Your saved photos stay on this device.',
+                          'Sign out',
+                        ))
+                          return;
+                        await RevenueCatService.instance.logOut();
+                        await widget.backend.auth.signOut();
+                      },
+                    ),
+                  ],
                 ),
               );
             },
           ),
-        const SizedBox(height: 20),
-        FilledButton.icon(
-          onPressed: _createSpace,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('Create a space'),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _joinSpace,
-          icon: const Icon(Icons.group_add_outlined),
-          label: const Text('Join with a code'),
-        ),
-      ]),
+          const SizedBox(height: 18),
+          if (spaceId != null)
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: widget.backend.firestore
+                  .doc('spaces/$spaceId')
+                  .snapshots(),
+              builder: (context, spaceSnapshot) {
+                final owner = spaceSnapshot.data?.data()?['ownerUid'];
+                final pendingOwner = spaceSnapshot.data
+                    ?.data()?['pendingOwnerUid'];
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: widget.backend.members(spaceId),
+                  builder: (context, members) => ClayPanel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Your people',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        if (members.hasError)
+                          const Text(
+                            'Could not load members. Try again when connected.',
+                          ),
+                        for (final person
+                            in members.data?.docs ??
+                                <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                          if (person.data()['status'] == 'active')
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: CircleAvatar(
+                                backgroundColor: SoftPop.rose,
+                                child: Text(
+                                  (person.data()['name'] as String? ?? 'M')
+                                          .characters
+                                          .firstOrNull ??
+                                      'M',
+                                ),
+                              ),
+                              title: Text(
+                                '${person.data()['name'] ?? 'Member'}${person.id == widget.user.uid ? ' (you)' : ''}',
+                              ),
+                              subtitle: Text(
+                                person.id == owner ? 'Owner' : 'Member',
+                              ),
+                              trailing:
+                                  owner == widget.user.uid && person.id != owner
+                                  ? PopupMenuButton<String>(
+                                      tooltip:
+                                          'Manage ${person.data()['name']}',
+                                      itemBuilder: (_) => const [
+                                        PopupMenuItem(
+                                          value: 'removeMember',
+                                          child: Text('Remove from space'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'offerOwnership',
+                                          child: Text('Offer ownership'),
+                                        ),
+                                      ],
+                                      onSelected: (action) => _membershipAction(
+                                        action,
+                                        spaceId,
+                                        memberUid: person.id,
+                                        name:
+                                            person.data()['name'] as String? ??
+                                            'Member',
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                        if (pendingOwner == widget.user.uid)
+                          FilledButton(
+                            onPressed: () => _membershipAction(
+                              'acceptOwnership',
+                              spaceId,
+                              name: 'You',
+                            ),
+                            child: const Text('Accept ownership'),
+                          ),
+                        if (owner == widget.user.uid) ...[
+                          OutlinedButton.icon(
+                            onPressed: () => _invite(spaceId),
+                            icon: const Icon(Icons.ios_share_rounded),
+                            label: const Text('Invite someone'),
+                          ),
+                          const Text(
+                            'To leave, offer ownership to another member first.',
+                            style: TextStyle(color: SoftPop.secondary),
+                          ),
+                        ] else
+                          TextButton(
+                            onPressed: () => _membershipAction(
+                              'leaveSpace',
+                              spaceId,
+                              name: 'You',
+                            ),
+                            child: const Text('Leave space'),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: _createSpace,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Create a space'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _joinSpace,
+            icon: const Icon(Icons.group_add_outlined),
+            label: const Text('Join with a code'),
+          ),
+        ],
+        topPadding:
+            topControlsClearance(context) +
+            154 * MediaQuery.textScalerOf(context).scale(1).clamp(1, 1.6),
+      ),
     ],
   );
 

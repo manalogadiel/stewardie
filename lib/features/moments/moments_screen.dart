@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,20 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
   PageController pages = PageController();
   int index = 0;
   String scope = '';
+  Timer? _refreshTimer;
+  String? _cloudSpace;
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted &&
+          WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused &&
+          _cloudSpace != null) {
+        unawaited(ref.read(mediaLibraryProvider).refresh(_cloudSpace!));
+      }
+    });
+  }
+
   Future<void> discardRecovery() async {
     try {
       await ref.read(recoveredPhotoProvider.notifier).dismiss();
@@ -41,6 +56,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     pages.dispose();
     super.dispose();
   }
@@ -62,6 +78,16 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
             )
             .toList()
           ..sort((a, b) => b.publishedAt!.compareTo(a.publishedAt!));
+    final library = ref.read(mediaLibraryProvider);
+    if (_cloudSpace != space.id) {
+      _cloudSpace = space.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(library.refresh(space.id));
+          unawaited(library.retryPending());
+        }
+      });
+    }
     final newScope =
         '${space.id}/${state.personId}/${posts.map((p) => p.id).join(',')}';
     if (scope != newScope) {
@@ -99,7 +125,42 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
         ),
         const SizedBox(height: 8),
         Text('The good bits from ${space.name}.'),
-        if (repo.isShared) const Text('Photos stay on this device.'),
+        if (repo.isShared && !library.supportsSharing)
+          const Text('Photos stay on this device.'),
+        if (library.syncing) const LinearProgressIndicator(),
+        if (library.syncError != null)
+          Text(
+            library.syncError!,
+            style: const TextStyle(color: SoftPop.secondary),
+          ),
+        if (library.pendingIds.isNotEmpty)
+          TextButton.icon(
+            onPressed: library.syncing ? null : () => library.retryPending(),
+            icon: const Icon(Icons.cloud_upload_outlined),
+            label: Text('Retry sharing (${library.pendingIds.length})'),
+          ),
+        if (library.supportsSharing)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: library.syncing
+                  ? null
+                  : () => library.refresh(space.id),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Refresh moments'),
+            ),
+          ),
+        if (photo != null &&
+            !photo.cloud &&
+            library.supportsSharing &&
+            !library.pendingIds.contains(photo.id))
+          TextButton.icon(
+            onPressed: () => library.share(photo),
+            icon: const Icon(Icons.cloud_upload_outlined),
+            label: const Text('Share this photo to space'),
+          ),
+        if (photo != null && library.pendingIds.contains(photo.id))
+          const Text('Saved on this device · waiting to share'),
         const SizedBox(height: 16),
         PeopleFilter(space),
         const SizedBox(height: 16),

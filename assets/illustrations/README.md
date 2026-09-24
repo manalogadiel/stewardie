@@ -39,3 +39,7 @@ Shared reference-edit prompt: “Use case: precise-object-edit. Asset type: tran
 ## Login wave (September 24)
 
 `welcome-wave.gif` and its reduced-motion still `welcome-wave.png` are original code-rendered clay-style illustrations from `WelcomeWavePainter` in `lib/online/login_scene.dart`. `tool/render_welcome_asset.dart` renders 32 frames; no external image or paid service is used. This is shaded 2D artwork, not a rigged 3D model. Existing approved illustrations remain unchanged.
+
+## Single-character 3D login (September 24 follow-up)
+
+`login-3d-still.png` and five `login-3d-*.gif` actions come from the original articulated ellipsoid model and ray tracer in `tool/render_login_3d.py` (NumPy/Pillow). These are rendered 3D geometry, not the old 2D painter or rigged reference screenshots. Five 48-frame clips at 70 ms/frame return to the same neutral pose; Flutter pauses and blends between actions. Original approved Today/Moments illustrations are unchanged. No third-party model or paid rendering service was used.

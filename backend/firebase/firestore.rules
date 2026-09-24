@@ -156,6 +156,18 @@ service cloud.firestore {
           && request.resource.data.color in ['sky','butter','rose'] && request.resource.data.note is string && request.resource.data.note.size() <= 180
           && request.resource.data.updatedAt == request.time && request.resource.data.expiresAt == request.time.date() + duration.value(1, 'd');
       }
+      // Minimal proof for publishing attached photos after Basic task history expires.
+      // No collection listing and no editable completion metadata.
+      match /taskCompletions/{taskId} {
+        allow get: if member(id);
+        allow create: if member(id)
+          && get(/databases/$(database)/documents/spaces/$(id)/tasks/$(taskId)).data.status != 'completed'
+          && getAfter(/databases/$(database)/documents/spaces/$(id)/tasks/$(taskId)).data.status == 'completed'
+          && request.resource.data.keys().hasOnly(['title','ownerUid','completedAt'])
+          && request.resource.data.title == getAfter(/databases/$(database)/documents/spaces/$(id)/tasks/$(taskId)).data.title
+          && request.resource.data.ownerUid == getAfter(/databases/$(database)/documents/spaces/$(id)/tasks/$(taskId)).data.ownerUid
+          && request.resource.data.completedAt == request.time;
+      }
       match /plans/{plan} {
         allow read: if member(id);
         allow delete: if member(id) && resource.data.ownerUid == request.auth.uid;

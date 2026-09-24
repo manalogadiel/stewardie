@@ -15,6 +15,7 @@ import '../features/media/media_library.dart';
 import '../features/media/camera_screen.dart';
 import '../features/media/picker_recovery.dart';
 import 'firebase_repository.dart';
+import 'cloud_media_library.dart';
 import 'online_app.dart';
 import 'online_backend.dart';
 import 'online_home.dart';
@@ -97,8 +98,16 @@ class _SignedInAppState extends State<_SignedInApp> {
     } catch (_) {
       /* Picker recovery must not prevent access to saved work. */
     }
-    final result = MediaLibrary(
+    final queue = await stringMapStoreFactory
+        .store('shared-photo-outbox')
+        .find(widget.database);
+    final result = CloudMediaLibrary(
       timeline,
+      user: widget.user,
+      pending: queue
+          .where((r) => r.value['uid'] == widget.user.uid)
+          .map((r) => r.value['id'] as String)
+          .toSet(),
       database: widget.database,
       records: records,
       initial: photos

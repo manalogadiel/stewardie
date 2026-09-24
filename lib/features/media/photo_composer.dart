@@ -53,11 +53,15 @@ Future<bool?> showPhotoComposer(
   clipBehavior: Clip.antiAlias,
   builder: (sheet) => Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheet).bottom),
-    child: SizedBox(
-      height:
-          (MediaQuery.sizeOf(sheet).height * .86 -
-                  MediaQuery.viewInsetsOf(sheet).bottom)
-              .clamp(180.0, MediaQuery.sizeOf(sheet).height),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight:
+            (MediaQuery.sizeOf(sheet).height -
+                    MediaQuery.paddingOf(sheet).top -
+                    MediaQuery.viewInsetsOf(sheet).bottom -
+                    24)
+                .clamp(180.0, MediaQuery.sizeOf(sheet).height),
+      ),
       child: PhotoComposer(
         space: space,
         task: task,
@@ -271,46 +275,48 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
     onPopInvokedWithResult: (didPop, result) {
       if (!didPop) close();
     },
-    child: Scaffold(
-      resizeToAvoidBottomInset: false,
-      backgroundColor: SoftPop.surface,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          tooltip: 'Close',
-          onPressed: busy ? null : close,
-          icon: const Icon(Icons.close_rounded),
-        ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(10),
-          child: Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 6),
-              decoration: BoxDecoration(
-                color: SoftPop.border,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-          ),
-        ),
-        title: Text(
-          widget.complete
-              ? 'A little win'
-              : widget.task == null
-              ? 'Add a moment'
-              : 'Task photo',
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+    child: Material(
+      color: SoftPop.surface,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: SoftPop.border,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const SizedBox(width: 48),
+                Expanded(
+                  child: Text(
+                    widget.complete
+                        ? 'A little win'
+                        : widget.task == null
+                        ? 'Add a moment'
+                        : 'Task photo',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Close',
+                  onPressed: busy ? null : close,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
             if (draft == null)
-              const ClayArt('greeting', height: 130)
+              const ClayArt('greeting', height: 96)
             else
               ClipRRect(
                 borderRadius: BorderRadius.circular(24),
@@ -328,6 +334,8 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                 child: Semantics(liveRegion: true, child: Text(error!)),
               ),
             Wrap(
+              alignment: WrapAlignment.center,
+              runAlignment: WrapAlignment.center,
               spacing: 12,
               runSpacing: 8,
               children: [
@@ -364,7 +372,8 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      ref.read(repositoryProvider).isShared
+                      ref.read(repositoryProvider).isShared &&
+                              !ref.read(mediaLibraryProvider).supportsSharing
                           ? 'Saved in ${widget.space.name} on this device'
                           : 'Sharing with ${widget.space.name}',
                     ),
@@ -383,11 +392,13 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                 onPressed: busy ? null : save,
                 child: Text(
                   widget.complete
-                      ? (ref.read(repositoryProvider).isShared
+                      ? (ref.read(repositoryProvider).isShared &&
+                                !ref.read(mediaLibraryProvider).supportsSharing
                             ? 'Finish & save photo'
                             : 'Finish & share photo')
                       : widget.task == null
-                      ? (ref.read(repositoryProvider).isShared
+                      ? (ref.read(repositoryProvider).isShared &&
+                                !ref.read(mediaLibraryProvider).supportsSharing
                             ? 'Save moment'
                             : 'Share moment')
                       : 'Attach photo',

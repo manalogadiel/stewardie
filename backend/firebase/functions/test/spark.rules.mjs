@@ -35,7 +35,13 @@ test('Spark task acceptance is recipient-only and completion needs an atomic cou
  await assertSucceeds(task.update(accept));
  await assertFails(task.update({status:'completed',completedAt:now(),version:3,updatedAt:now()}));
  const batch=d.batch();batch.update(task,{status:'completed',completedAt:now(),version:3,updatedAt:now()});batch.update(d.doc('spaces/home'),{activeTaskCount:0,changedTaskId:'task'});
+ batch.set(d.doc('spaces/home/taskCompletions/task'),{title:'Dishes',ownerUid:'bob',completedAt:now()});
  await assertSucceeds(batch.commit());
+ await assertSucceeds(db('alice').doc('spaces/home/taskCompletions/task').get());
+ await assertFails(db('outsider').doc('spaces/home/taskCompletions/task').get());
+ await assertFails(db('alice').doc('spaces/home/taskCompletions/task').update({title:'Forged'}));
+ await assertFails(db('alice').doc('spaces/home/taskCompletions/old').set({title:'Forged',ownerUid:'alice',completedAt:now()}));
+ await assertFails(db('alice').collection('spaces/home/taskCompletions').get());
  await assertFails(db('bob').doc('spaces/home/tasks/old').get());
  await assertSucceeds(db('alice').doc('spaces/home/tasks/old').get());
 });

@@ -142,6 +142,11 @@ class SparkBackend {
                 'offeredUid': null,
               });
             case 'complete':
+              tx.set(space(id).collection('taskCompletions').doc(ref.id), {
+                'title': current['title'],
+                'ownerUid': current['ownerUid'],
+                'completedAt': FieldValue.serverTimestamp(),
+              });
               changes.addAll({
                 'status': 'completed',
                 'offeredUid': null,

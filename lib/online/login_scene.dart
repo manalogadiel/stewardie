@@ -1,82 +1,97 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../core/clay.dart';
 import '../core/theme.dart';
 
-class LoginScene extends StatelessWidget {
+/// Rendered from one articulated 3D model. Every action shares its rest pose.
+class LoginScene extends StatefulWidget {
   const LoginScene({super.key});
+  @override
+  State<LoginScene> createState() => _LoginSceneState();
+}
+
+class _LoginSceneState extends State<LoginScene> with WidgetsBindingObserver {
+  static const _actions = ['wave', 'look', 'bounce', 'peek', 'stretch'];
+  Timer? _timer;
+  int _action = 0, _cycle = 0;
+  bool _moving = false, _foreground = true, _enabled = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _update();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _update();
+  }
+
+  void _update() {
+    final enabled =
+        _foreground &&
+        TickerMode.valuesOf(context).enabled &&
+        !MediaQuery.disableAnimationsOf(context) &&
+        MediaQuery.viewInsetsOf(context).bottom == 0;
+    if (enabled == _enabled) return;
+    _enabled = enabled;
+    _timer?.cancel();
+    if (enabled) {
+      _play();
+    } else {
+      setState(() => _moving = false);
+    }
+  }
+
+  void _play() {
+    if (!_enabled || !mounted) return;
+    setState(() {
+      _moving = true;
+      _cycle++;
+    });
+    _timer = Timer(const Duration(milliseconds: 3360), () {
+      if (!mounted) return;
+      setState(() => _moving = false);
+      _action = (_action + 1) % _actions.length;
+      _timer = Timer(const Duration(milliseconds: 2200), _play);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
     child: SizedBox(
       height: 190,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Positioned(
-            left: 0,
-            bottom: 8,
-            child: Transform.rotate(
-              angle: -.14,
-              child: const ClayArt('calendar', width: 84, height: 88),
-            ),
-          ),
-          Positioned(
-            right: 0,
-            bottom: 4,
-            child: Transform.rotate(
-              angle: .12,
-              child: const ClayArt('celebrate', width: 88, height: 94),
-            ),
-          ),
-          const Positioned(
-            left: 20,
-            top: 14,
-            child: _FlatFriend(color: SoftPop.butter, reading: true),
-          ),
-          const Positioned(
-            right: 20,
-            top: 10,
-            child: _FlatFriend(color: SoftPop.rose, reading: false),
-          ),
-          Image.asset(
-            MediaQuery.disableAnimationsOf(context)
-                ? 'assets/illustrations/welcome-wave.png'
-                : 'assets/illustrations/welcome-wave.gif',
+      child: Center(
+        child: AnimatedSwitcher(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 160),
+          child: Image.asset(
+            _moving
+                ? 'assets/illustrations/login-3d-${_actions[_action]}.gif'
+                : 'assets/illustrations/login-3d-still.png',
+            key: ValueKey(_moving ? '${_actions[_action]}/$_cycle' : 'still'),
             width: 190,
             height: 190,
-            gaplessPlayback: true,
+            fit: BoxFit.contain,
           ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _FlatFriend extends StatelessWidget {
-  const _FlatFriend({required this.color, required this.reading});
-  final Color color;
-  final bool reading;
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 46,
-    height: 50,
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(21),
-      border: Border.all(color: SoftPop.surface, width: 3),
-    ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text('•‿•', style: TextStyle(fontSize: 13, color: SoftPop.ink)),
-        Icon(
-          reading ? Icons.menu_book_rounded : Icons.local_florist_rounded,
-          size: 16,
-          color: SoftPop.ink,
         ),
-      ],
+      ),
     ),
   );
 }
