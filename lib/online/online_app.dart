@@ -68,11 +68,12 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
   void initState() {
     super.initState();
     RememberedAccount.load(widget.database).then((account) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _remembered = account;
           _remember = account != null;
         });
+      }
     });
   }
 
@@ -208,13 +209,14 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
                             ? null
                             : () async {
                                 await RememberedAccount.forget(widget.database);
-                                if (mounted)
+                                if (mounted) {
                                   setState(() {
                                     _remembered = null;
                                     _remember = false;
                                     _email.clear();
                                     _password.clear();
                                   });
+                                }
                               },
                         child: const Text(
                           'Forget account / Use another account',
