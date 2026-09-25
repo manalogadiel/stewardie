@@ -99,6 +99,9 @@ class _OnlineHomeState extends State<OnlineHome> {
   }
 
   String _error(Object error) {
+    if (error is StateError) {
+      return error.message;
+    }
     if (error is FirebaseException) {
       return error.message ?? 'Could not save. Try again.';
     }
@@ -1415,6 +1418,7 @@ class _OnlineHomeState extends State<OnlineHome> {
         );
     if (result == null) return;
     try {
+      await widget.backend.auth.currentUser?.reload();
       await widget.user.getIdToken(true);
       final created = await widget.backend.call('createSpace', {
         'name': result.name,
@@ -1437,6 +1441,8 @@ class _OnlineHomeState extends State<OnlineHome> {
     );
     if (code == null) return;
     try {
+      await widget.backend.auth.currentUser?.reload();
+      await widget.user.getIdToken(true);
       final result = await widget.backend.call('redeemInvite', {'token': code});
       if (mounted) {
         _switchSpace(result['spaceId'] as String);

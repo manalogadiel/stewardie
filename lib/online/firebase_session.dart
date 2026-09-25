@@ -20,7 +20,7 @@ import 'online_app.dart';
 import 'online_backend.dart';
 import 'online_home.dart';
 
-class FirebaseSessionApp extends StatelessWidget {
+class FirebaseSessionApp extends StatefulWidget {
   const FirebaseSessionApp({
     super.key,
     required this.backend,
@@ -28,17 +28,23 @@ class FirebaseSessionApp extends StatelessWidget {
   });
   final OnlineBackend backend;
   final Database database;
+
+  @override
+  State<FirebaseSessionApp> createState() => _FirebaseSessionAppState();
+}
+
+class _FirebaseSessionAppState extends State<FirebaseSessionApp> {
   @override
   Widget build(BuildContext context) => StreamBuilder<User?>(
-    stream: backend.auth.userChanges(),
+    stream: widget.backend.auth.userChanges(),
     builder: (context, snapshot) {
-      final user = snapshot.data;
+      final user = widget.backend.auth.currentUser ?? snapshot.data;
       if (user != null && user.emailVerified) {
         return _SignedInApp(
           key: ValueKey(user.uid),
-          backend: backend,
+          backend: widget.backend,
           user: user,
-          database: database,
+          database: widget.database,
         );
       }
       return MaterialApp(
@@ -48,8 +54,15 @@ class FirebaseSessionApp extends StatelessWidget {
         home: snapshot.connectionState == ConnectionState.waiting
             ? const Scaffold(body: Center(child: CircularProgressIndicator()))
             : user == null
-            ? OnlineAccountEntry(backend: backend, database: database)
-            : OnlineVerifyEmail(backend: backend, user: user, onRefresh: () {}),
+            ? OnlineAccountEntry(
+                backend: widget.backend,
+                database: widget.database,
+              )
+            : OnlineVerifyEmail(
+                backend: widget.backend,
+                user: user,
+                onRefresh: () => setState(() {}),
+              ),
       );
     },
   );
