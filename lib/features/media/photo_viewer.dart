@@ -35,11 +35,12 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
         .read(repositoryProvider)
         .spaces
         .any((s) => s.id == widget.photo.spaceId);
-    if (!allowed)
+    if (!allowed) {
       return Scaffold(
         appBar: AppBar(),
         body: const Center(child: Text('This space is no longer available.')),
       );
+    }
     return Scaffold(
       backgroundColor: SoftPop.ink,
       appBar: AppBar(

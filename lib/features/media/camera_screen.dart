@@ -140,7 +140,8 @@ class _CameraScreenState extends State<CameraScreen>
           } else if (controller?.value.previewSize != null) {
             final preview = controller!.value.previewSize!;
             final currentOrientation = controller?.value.deviceOrientation;
-            final isLandscape = currentOrientation == DeviceOrientation.landscapeLeft ||
+            final isLandscape =
+                currentOrientation == DeviceOrientation.landscapeLeft ||
                 currentOrientation == DeviceOrientation.landscapeRight ||
                 (currentOrientation == null && viewportIsLandscape);
             imgW = isLandscape ? preview.width.toInt() : preview.height.toInt();
@@ -218,11 +219,15 @@ class _CameraScreenState extends State<CameraScreen>
                     child: camera?.value.isInitialized == true
                         ? Builder(
                             builder: (context) {
-                              final devOrientation = camera!.value.deviceOrientation;
+                              final devOrientation =
+                                  camera!.value.deviceOrientation;
                               final isLandscape =
-                                  devOrientation == DeviceOrientation.landscapeLeft ||
-                                  devOrientation == DeviceOrientation.landscapeRight ||
-                                  MediaQuery.orientationOf(context) == Orientation.landscape;
+                                  devOrientation ==
+                                      DeviceOrientation.landscapeLeft ||
+                                  devOrientation ==
+                                      DeviceOrientation.landscapeRight ||
+                                  MediaQuery.orientationOf(context) ==
+                                      Orientation.landscape;
                               final ps = camera.value.previewSize;
                               final double previewAspect;
                               if (ps != null) {
@@ -242,7 +247,9 @@ class _CameraScreenState extends State<CameraScreen>
                                   children: [
                                     CameraPreview(camera),
                                     if (selectedRatio != 'Original')
-                                      _FramingGuideOverlay(ratio: selectedRatio),
+                                      _FramingGuideOverlay(
+                                        ratio: selectedRatio,
+                                      ),
                                   ],
                                 ),
                               );
@@ -288,7 +295,10 @@ class _CameraScreenState extends State<CameraScreen>
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF161B26),
                     borderRadius: BorderRadius.circular(20),
@@ -297,7 +307,14 @@ class _CameraScreenState extends State<CameraScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      for (final r in ['Original', '1:1', '3:4', '4:3', '9:16', '16:9'])
+                      for (final r in [
+                        'Original',
+                        '1:1',
+                        '3:4',
+                        '4:3',
+                        '9:16',
+                        '16:9',
+                      ])
                         InkWell(
                           onTap: () => setState(() => selectedRatio = r),
                           borderRadius: BorderRadius.circular(16),
@@ -416,7 +433,9 @@ class _CameraScreenState extends State<CameraScreen>
                                     },
                               icon: const Icon(Icons.flip_camera_ios_outlined),
                             ),
-                          if (cameras.length > 1 && camera != null && flashAvailable)
+                          if (cameras.length > 1 &&
+                              camera != null &&
+                              flashAvailable)
                             const SizedBox(width: 8),
                           if (camera != null && flashAvailable)
                             IconButton.filledTonal(

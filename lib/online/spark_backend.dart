@@ -111,12 +111,14 @@ class SparkBackend {
           final receipt = ref.collection('operations').doc('${uid}_$operation');
           final previous = await tx.get(receipt);
           if (previous.exists) {
-            if (previous.data()?['action'] != v['action'])
+            if (previous.data()?['action'] != v['action']) {
               throw StateError('This operation was already used.');
+            }
             return;
           }
-          if (current == null)
+          if (current == null) {
             throw StateError('This task is no longer available.');
+          }
           final changes = <String, dynamic>{
             'updatedAt': FieldValue.serverTimestamp(),
             'version': (current['version'] as int? ?? 0) + 1,
@@ -180,7 +182,7 @@ class SparkBackend {
             .collection('tasks')
             .where('status', isEqualTo: 'completed');
         final now = DateTime.now().toUtc();
-        if (!plus)
+        if (!plus) {
           query = query.where(
             'completedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(
@@ -191,6 +193,7 @@ class SparkBackend {
               ).subtract(const Duration(days: 3)),
             ),
           );
+        }
         query = query.orderBy('completedAt', descending: true).limit(50);
         if (v['cursorId'] != null) {
           final cursor = await space(id)
@@ -323,8 +326,9 @@ class SparkBackend {
           for (final task in tasks.docs) {
             snapshots.add(await tx.get(task.reference));
           }
-          if (parent['ownerUid'] == target)
+          if (parent['ownerUid'] == target) {
             throw StateError('Transfer ownership before leaving this space.');
+          }
           tx.update(space(id), {
             'memberUids': FieldValue.arrayRemove([target]),
             'memberCount': FieldValue.increment(-1),

@@ -20,14 +20,14 @@ class CloudMediaLibrary extends MediaLibrary {
   CloudMediaLibrary(
     FirebaseTimelineRepository timeline, {
     required this.user,
-    required Database database,
-    required StoreRef<String, Map<String, Object?>> records,
-    required List<MediaAttachment> initial,
+    required Database super.database,
+    required StoreRef<String, Map<String, Object?>> super.records,
+    required super.initial,
     required this._pending,
     http.Client? client,
     this._auth,
   }) : _client = client ?? http.Client(),
-       super(timeline, database: database, records: records, initial: initial) {
+       super(timeline) {
     _subscription = timeline.changes.listen((_) {
       final allowed = timeline.spaces.map((s) => s.id).toSet();
       _remote.removeWhere((_, value) => !allowed.contains(value.spaceId));
@@ -206,8 +206,9 @@ class CloudMediaLibrary extends MediaLibrary {
 
   @override
   Future<void> share(MediaAttachment photo) async {
-    if (photo.uploaderId != user.uid || !_allowed(photo.spaceId))
+    if (photo.uploaderId != user.uid || !_allowed(photo.spaceId)) {
       throw StateError('You cannot share this photo.');
+    }
     _pending.add(photo.id);
     await _outbox.record('${user.uid}/${photo.id}').put(database!, {
       'id': photo.id,
@@ -278,8 +279,9 @@ class CloudMediaLibrary extends MediaLibrary {
   @override
   Future<Uint8List> fullPhoto(MediaAttachment photo) async {
     if (!photo.cloud) return super.fullPhoto(photo);
-    if (!_allowed(photo.spaceId))
+    if (!_allowed(photo.spaceId)) {
       throw StateError('You no longer have access to this space.');
+    }
     return (await _request({
       'action': 'download',
       'space': photo.spaceId,
@@ -306,22 +308,24 @@ class CloudMediaLibrary extends MediaLibrary {
   }
 
   @override
-  Future<void> remove(MediaAttachment photo, String actor) async {
-    if (_uploading)
+  Future<void> remove(MediaAttachment supplied, String actor) async {
+    if (_uploading) {
       throw StateError('Wait for the current upload before removing a photo.');
-    if (actor != user.uid || photo.uploaderId != user.uid)
+    }
+    if (actor != user.uid || supplied.uploaderId != user.uid) {
       throw StateError('Only the uploader can remove this photo.');
-    if (photo.cloud || _pending.contains(photo.id)) {
+    }
+    if (supplied.cloud || _pending.contains(supplied.id)) {
       await _request({
         'action': 'delete',
-        'space': photo.spaceId,
-        'id': photo.id,
+        'space': supplied.spaceId,
+        'id': supplied.id,
       });
     }
-    await super.remove(photo, actor);
-    _remote.remove(photo.id);
-    _pending.remove(photo.id);
-    await _outbox.record('${user.uid}/${photo.id}').delete(database!);
+    await super.remove(supplied, actor);
+    _remote.remove(supplied.id);
+    _pending.remove(supplied.id);
+    await _outbox.record('${user.uid}/${supplied.id}').delete(database!);
     if (!_closed) notifyListeners();
   }
 

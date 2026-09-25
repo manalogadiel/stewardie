@@ -19,8 +19,9 @@ class RememberedAccount {
   }
 
   Future<void> save(Database? database) async {
-    if (database != null)
+    if (database != null) {
       await _record.put(database, {'email': email, 'name': name});
+    }
   }
 
   static Future<void> forget(Database? database) async {

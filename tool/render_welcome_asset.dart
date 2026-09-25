@@ -22,9 +22,10 @@ void main() {
         final bytes = (await image.toByteData(format: ui.ImageByteFormat.png))!
             .buffer
             .asUint8List();
-        if (frame == 0)
+        if (frame == 0) {
           await File('assets/illustrations/welcome-wave.png')
               .writeAsBytes(bytes);
+        }
         encoder.addFrame(img.decodePng(bytes)!, duration: 7);
         image.dispose();
         picture.dispose();
