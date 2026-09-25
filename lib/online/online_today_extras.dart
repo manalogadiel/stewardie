@@ -365,8 +365,25 @@ class OnlinePlan {
   List<String> get participants =>
       List<String>.from(data['participants'] as List? ?? []);
   bool get allDay => data['allDay'] == true;
-  DateTime get start => (data['startAt'] as Timestamp).toDate();
-  DateTime get end => (data['endAt'] as Timestamp).toDate();
+  DateTime get start {
+    final raw = data['startAt'];
+    if (raw is Timestamp) return raw.toDate();
+    final millis = data['startMillis'];
+    if (millis is int) {
+      return DateTime.fromMillisecondsSinceEpoch(millis);
+    }
+    return DateTime.now();
+  }
+
+  DateTime get end {
+    final raw = data['endAt'];
+    if (raw is Timestamp) return raw.toDate();
+    final millis = data['endMillis'];
+    if (millis is int) {
+      return DateTime.fromMillisecondsSinceEpoch(millis);
+    }
+    return DateTime.now();
+  }
   DateTime get localStart => allDay
       ? DateTime.utc(start.toUtc().year, start.toUtc().month, start.toUtc().day)
       : start.toLocal();

@@ -174,13 +174,24 @@ class SparkBackend {
               .data(),
         };
       case 'listCompletedTasks':
-        final plus =
-            (await db.doc('accounts/$uid').get()).data()?['tier'] == 'plus';
+        final accountDoc = (await db.doc('accounts/$uid').get()).data() ?? {};
+        final isFounder = accountDoc['founderGrant'] == true ||
+            accountDoc['entitlementSource'] == 'founder';
+        final expiry = accountDoc['subscriptionExpiresAt'];
+        DateTime? expiryDate;
+        if (expiry is Timestamp) {
+          expiryDate = expiry.toDate();
+        } else if (expiry is String) {
+          expiryDate = DateTime.tryParse(expiry);
+        }
+        final notExpired =
+            expiryDate != null && expiryDate.isAfter(DateTime.now());
+        final plus = accountDoc['tier'] == 'plus' && (isFounder || notExpired);
         Query<Map<String, dynamic>> query = space(id!)
             .collection('tasks')
             .where('status', isEqualTo: 'completed');
         final now = DateTime.now().toUtc();
-        if (!plus)
+        if (!plus) {
           query = query.where(
             'completedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(
@@ -191,6 +202,7 @@ class SparkBackend {
               ).subtract(const Duration(days: 3)),
             ),
           );
+        }
         query = query.orderBy('completedAt', descending: true).limit(50);
         if (v['cursorId'] != null) {
           final cursor = await space(id)
@@ -207,11 +219,12 @@ class SparkBackend {
         };
       case 'setCheckIn':
         final now = DateTime.now().toUtc();
+        final note = (v['note'] as String? ?? '').trim();
         await space(id!).collection('checkIns').doc(uid).set({
           'uid': uid,
           'mood': v['mood'],
           'color': v['color'],
-          'note': v['note'] ?? '',
+          'note': note.length > 180 ? note.substring(0, 180) : note,
           'updatedAt': FieldValue.serverTimestamp(),
           'expiresAt': Timestamp.fromDate(
             DateTime.utc(now.year, now.month, now.day + 1),
@@ -275,7 +288,19 @@ class SparkBackend {
         String? joined;
         await db.runTransaction((tx) async {
           final invite = db.doc('invites/${v['token']}');
-          final data = (await tx.get(invite)).data()!;
+          final inviteSnap = await tx.get(invite);
+          final data = inviteSnap.data();
+          if (data == null ||
+              data['revoked'] == true ||
+              data['redeemedUid'] != null ||
+              (data['expiresAt'] is Timestamp &&
+                  (data['expiresAt'] as Timestamp)
+                      .toDate()
+                      .isBefore(DateTime.now()))) {
+            throw StateError(
+              'This invitation has expired or was already used. Ask for a new code.',
+            );
+          }
           joined = data['spaceId'] as String;
           final account = db.doc('accounts/$uid');
           final old = (await tx.get(account)).data() ?? {};
