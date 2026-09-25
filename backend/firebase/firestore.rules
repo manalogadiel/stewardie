@@ -18,11 +18,15 @@ service cloud.firestore {
     function shortText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
     function accountShape(d) {
       return d.spaceIds is list && d.ownedSpaceIds is list
-        && d.spaceIds.size() <= (isTierPlus(d) ? 50 : 20)
-        && d.ownedSpaceIds.size() <= (isTierPlus(d) ? 20 : 3)
         && d.spaceIds.toSet().size() == d.spaceIds.size()
         && d.ownedSpaceIds.toSet().size() == d.ownedSpaceIds.size()
         && d.spaceIds.hasAll(d.ownedSpaceIds);
+    }
+    function accountCapacity(old, d) {
+      let maxSpaces = isTierPlus(d) ? 50 : 20;
+      let maxOwned = isTierPlus(d) ? 20 : 3;
+      return (d.spaceIds.size() <= old.spaceIds.size() || d.spaceIds.size() <= maxSpaces)
+        && (d.ownedSpaceIds.size() <= old.ownedSpaceIds.size() || d.ownedSpaceIds.size() <= maxOwned);
     }
     function accountChange(uid, old, d) {
       let id = d.changedSpaceId;
@@ -38,9 +42,12 @@ service cloud.firestore {
       allow read: if self(uid);
       allow create: if self(uid) && request.resource.data.keys().hasOnly(['tier','spaceIds','ownedSpaceIds','changedSpaceId'])
         && request.resource.data.tier == 'basic' && accountShape(request.resource.data)
+        && accountCapacity({'spaceIds': [], 'ownedSpaceIds': []}, request.resource.data)
         && accountChange(uid, {'spaceIds': [], 'ownedSpaceIds': []}, request.resource.data);
       allow update: if verified() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['spaceIds','ownedSpaceIds','changedSpaceId'])
-        && accountShape(request.resource.data) && accountChange(uid, resource.data, request.resource.data)
+        && accountShape(request.resource.data)
+        && accountCapacity(resource.data, request.resource.data)
+        && accountChange(uid, resource.data, request.resource.data)
         && (self(uid) || (owner(request.resource.data.changedSpaceId) && !(uid in afterSpace(request.resource.data.changedSpaceId).memberUids))
           || (sp(request.resource.data.changedSpaceId).ownerUid == uid && afterSpace(request.resource.data.changedSpaceId).ownerUid == request.auth.uid));
       match /spaceRefs/{id} {

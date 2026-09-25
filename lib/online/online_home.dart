@@ -1084,7 +1084,17 @@ class _OnlineHomeState extends State<OnlineHome> {
                                           ),
                                         ),
                                         const SizedBox(width: 6),
-                                        planLabel,
+                                        InkWell(
+                                          onTap: () {
+                                            if (plus) {
+                                              _showSubscriptionDetails(context);
+                                            } else {
+                                              showSoftPopPaywall(context);
+                                            }
+                                          },
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: planLabel,
+                                        ),
                                       ],
                                     );
                                   },
@@ -1120,6 +1130,26 @@ class _OnlineHomeState extends State<OnlineHome> {
                             child: const Text('View Plus benefits'),
                           ),
                         ),
+                      ] else ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () => _showSubscriptionDetails(context),
+                            icon: const Icon(Icons.stars_rounded, size: 18),
+                            label: const Text('Subscription details'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: SoftPop.blue,
+                              minimumSize: const Size(48, 48),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 10,
+                              ),
+                              alignment: Alignment.centerLeft,
+                              tapTargetSize: MaterialTapTargetSize.padded,
+                            ),
+                          ),
+                        ),
                       ],
                       TextButton.icon(
                         icon: const Icon(Icons.logout_rounded),
@@ -1129,8 +1159,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                             'Sign out?',
                             'Sign out of ${widget.user.email}? Your saved photos stay on this device.',
                             'Sign out',
-                          ))
+                          )) {
                             return;
+                          }
                           await RevenueCatService.instance.logOut();
                           await widget.backend.auth.signOut();
                         },
@@ -1478,6 +1509,243 @@ class _OnlineHomeState extends State<OnlineHome> {
     } finally {
       if (mounted) setState(() => _creating = false);
     }
+  }
+
+  void _showSubscriptionDetails(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final revenueCat = RevenueCatService.instance;
+        final isFounder = revenueCat.isFounder;
+        final isSubActive = revenueCat.isSubscriptionActive;
+        final store = revenueCat.subscriptionStore;
+        final expiry = revenueCat.subscriptionExpiry;
+        final productId = revenueCat.subscriptionProductId;
+        final isTester = isFounder ||
+            RevenueCatService.environment == RevenueCatEnvironment.test ||
+            const bool.fromEnvironment('ENABLE_TEST_PURCHASES', defaultValue: false);
+
+        return Container(
+          decoration: const BoxDecoration(
+            color: SoftPop.canvas,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: SoftPop.border,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: SoftPop.blueSoft,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'STEWARDIE PLUS',
+                          style: TextStyle(
+                            color: SoftPop.blue,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: SoftPop.secondary),
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Subscription & Account',
+                    style: Theme.of(sheetContext).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isFounder
+                        ? 'Founder grant active. Personal Plus benefits are enabled across all your authorized spaces.'
+                        : 'Personal Plus is active on your individual account.',
+                    style: Theme.of(sheetContext).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  ClayPanel(
+                    color: SoftPop.surface,
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _detailRow('Access tier', isFounder ? 'Founder Plus' : 'Plus Member'),
+                        const Divider(height: 16, color: SoftPop.canvas),
+                        _detailRow(
+                          'Store subscription',
+                          isSubActive
+                              ? 'Active'
+                              : (expiry != null ? 'Expired' : 'None active'),
+                        ),
+                        if (store != null) ...[
+                          const Divider(height: 16, color: SoftPop.canvas),
+                          _detailRow('Store', store == 'test_store' ? 'Test Store' : store),
+                        ],
+                        if (productId != null) ...[
+                          const Divider(height: 16, color: SoftPop.canvas),
+                          _detailRow('Product', productId),
+                        ],
+                        if (expiry != null) ...[
+                          const Divider(height: 16, color: SoftPop.canvas),
+                          _detailRow(
+                            'Renews / Expires',
+                            '${expiry.year}-${expiry.month.toString().padLeft(2, '0')}-${expiry.day.toString().padLeft(2, '0')}',
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Development / Test Store entry for approved testers and founders
+                  if (isTester) ...[
+                    ClayPanel(
+                      color: SoftPop.surface,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.build_circle_outlined, size: 18, color: SoftPop.blue),
+                              SizedBox(width: 8),
+                              Text(
+                                'Tester Tools (Development)',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: SoftPop.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Test purchases and subscription restoration in the development environment.',
+                            style: TextStyle(fontSize: 12, color: SoftPop.secondary),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    Navigator.of(sheetContext).pop();
+                                    showSoftPopPaywall(context);
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: SoftPop.blue,
+                                    side: const BorderSide(color: SoftPop.blue),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    minimumSize: const Size(48, 48),
+                                  ),
+                                  child: const Text('Open Test Store'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () async {
+                                    final messenger = ScaffoldMessenger.of(context);
+                                    Navigator.of(sheetContext).pop();
+                                    final ok = await RevenueCatService.instance.reconcileWithBackend();
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(ok
+                                            ? 'Subscription synchronized.'
+                                            : 'Synchronization failed. Try again.'),
+                                        backgroundColor: SoftPop.blue,
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: SoftPop.ink,
+                                    side: const BorderSide(color: SoftPop.border),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    minimumSize: const Size(48, 48),
+                                  ),
+                                  child: const Text('Sync with Server'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  TextButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: SoftPop.secondary,
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    child: const Text('Done'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: SoftPop.secondary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: SoftPop.ink,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
   }
 }
 

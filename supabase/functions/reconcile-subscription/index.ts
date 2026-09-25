@@ -209,7 +209,10 @@ async function updateAccountSubscription(
   }
 }
 
-async function recordWebhookEvent(eventId: string, serverToken: string): Promise<boolean> {
+async function claimWebhookEvent(
+  eventId: string,
+  serverToken: string
+): Promise<{ status: "new" | "pending_retry" | "completed" }> {
   const emulatorHost = Deno.env.get("FIRESTORE_EMULATOR_HOST");
   const baseUrl = emulatorHost
     ? `http://${emulatorHost}/v1/projects/${project}/databases/(default)/documents`
@@ -218,11 +221,21 @@ async function recordWebhookEvent(eventId: string, serverToken: string): Promise
   const checkRes = await fetch(`${baseUrl}/revenuecat_events/${encodeURIComponent(eventId)}`, {
     headers: { Authorization: `Bearer ${serverToken}` },
   });
+
   if (checkRes.ok) {
-    return false; // Already recorded
+    const data = await checkRes.json().catch(() => ({}));
+    const fields = data.fields ? Object.fromEntries(Object.entries(data.fields).map(([k, v]) => [k, unpack(v)])) : {};
+    if (fields.status === "completed") {
+      return { status: "completed" };
+    }
+    // Existing event in pending or unfinalized state: allow retry
+    return { status: "pending_retry" };
+  } else if (checkRes.status !== 404) {
+    throw new Failure("Could not verify webhook event status.", 502);
   }
 
-  await fetch(`${baseUrl}/revenuecat_events?documentId=${encodeURIComponent(eventId)}`, {
+  // Atomically claim the event in pending state
+  const createRes = await fetch(`${baseUrl}/revenuecat_events?documentId=${encodeURIComponent(eventId)}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${serverToken}`,
@@ -230,12 +243,70 @@ async function recordWebhookEvent(eventId: string, serverToken: string): Promise
     },
     body: JSON.stringify({
       fields: {
-        processedAt: pack(new Date()),
+        status: pack("pending"),
         eventId: pack(eventId),
+        claimedAt: pack(new Date()),
       },
     }),
   });
-  return true;
+
+  if (!createRes.ok) {
+    if (createRes.status === 409) {
+      // Document was created concurrently, re-check completion status
+      const retryCheck = await fetch(`${baseUrl}/revenuecat_events/${encodeURIComponent(eventId)}`, {
+        headers: { Authorization: `Bearer ${serverToken}` },
+      });
+      if (retryCheck.ok) {
+        const data = await retryCheck.json().catch(() => ({}));
+        const fields = data.fields ? Object.fromEntries(Object.entries(data.fields).map(([k, v]) => [k, unpack(v)])) : {};
+        if (fields.status === "completed") {
+          return { status: "completed" };
+        }
+        return { status: "pending_retry" };
+      }
+    }
+    throw new Failure("Failed to record webhook event claim.", 502);
+  }
+
+  return { status: "new" };
+}
+
+async function markWebhookEventCompleted(
+  eventId: string,
+  serverToken: string,
+  metadata?: { tier?: string; uid?: string }
+): Promise<void> {
+  const emulatorHost = Deno.env.get("FIRESTORE_EMULATOR_HOST");
+  const baseUrl = emulatorHost
+    ? `http://${emulatorHost}/v1/projects/${project}/databases/(default)/documents`
+    : `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+
+  const mask = [
+    "updateMask.fieldPaths=status",
+    "updateMask.fieldPaths=processedAt",
+  ];
+  const fields: Record<string, any> = {
+    status: pack("completed"),
+    processedAt: pack(new Date()),
+  };
+  if (metadata?.tier) {
+    mask.push("updateMask.fieldPaths=reconciledTier");
+    fields.reconciledTier = pack(metadata.tier);
+  }
+
+  const patchRes = await fetch(`${baseUrl}/revenuecat_events/${encodeURIComponent(eventId)}?${mask.join("&")}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${serverToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ fields }),
+  });
+
+  if (!patchRes.ok) {
+    console.error("Failed to mark webhook event completed", patchRes.status);
+    throw new Failure("Failed to finalize webhook event.", 502);
+  }
 }
 
 async function fetchRevenueCatSubscriber(uid: string): Promise<{
@@ -276,14 +347,40 @@ async function fetchRevenueCatSubscriber(uid: string): Promise<{
   const expiresDate = entitlement.expires_date ?? null;
   const isExpired = expiresDate != null && new Date(expiresDate).getTime() <= Date.now();
   const active = !isExpired;
-  const store = entitlement.store ?? null;
-  const environment = store === "test_store" || entitlement.is_sandbox ? "test" : "production";
+
+  const productId = entitlement.product_identifier ?? null;
+  // In RevenueCat REST v1, store and is_sandbox belong to subscriber.subscriptions[productId]
+  // or subscriber.non_subscriptions[productId], not the entitlement.
+  const sub = productId ? subscriber?.subscriptions?.[productId] : null;
+  const nonSubList = productId ? subscriber?.non_subscriptions?.[productId] : null;
+  const nonSub = Array.isArray(nonSubList) && nonSubList.length > 0 ? nonSubList[nonSubList.length - 1] : null;
+  const tx = sub ?? nonSub;
+
+  const store = tx?.store ?? entitlement?.store ?? null;
+  const isSandbox = tx?.is_sandbox === true || entitlement?.is_sandbox === true;
+
+  const validProductionStores = [
+    "app_store",
+    "mac_app_store",
+    "play_store",
+    "stripe",
+    "amazon",
+    "promotional",
+  ];
+
+  let environment = "test";
+  if (!isSandbox && store && validProductionStores.includes(store)) {
+    environment = "production";
+  } else {
+    // Fail closed: test_store, sandbox, missing store, or unknown metadata -> environment = test
+    environment = "test";
+  }
 
   return {
     active,
     expiresDate,
     store,
-    productId: entitlement.product_identifier ?? null,
+    productId,
     environment,
     raw: subscriber,
   };
@@ -333,17 +430,34 @@ Deno.serve(async (req) => {
       const serverToken = await getServerAuthToken();
       const eventId = body.event?.id;
       if (eventId && typeof eventId === "string") {
-        const isNew = await recordWebhookEvent(eventId, serverToken);
-        if (!isNew) {
+        const claim = await claimWebhookEvent(eventId, serverToken);
+        if (claim.status === "completed") {
           return json({ received: true, duplicate: true, uid: appUserId });
         }
       }
 
       const rcStatus = await fetchRevenueCatSubscriber(appUserId);
+      if (body.event?.environment === "SANDBOX" || String(body.event?.store || "").toLowerCase() === "test_store") {
+        rcStatus.environment = "test";
+        if (!rcStatus.store) rcStatus.store = "test_store";
+      }
+
       const account = await getAccountDoc(appUserId, serverToken);
       const isFounder = account.founderGrant === true || account.entitlementSource === "founder";
       const isTestStore = rcStatus.store === "test_store" || rcStatus.environment === "test";
       const isTester = isAuthorizedTester(appUserId, account);
+
+      // Prevent stale out-of-order events from overwriting newer state
+      const eventTimestampMs = typeof body.event?.event_timestamp_ms === "number"
+        ? body.event.event_timestamp_ms
+        : Date.now();
+      const existingEventMs = account.subscription?.eventTimestampMs;
+      if (typeof existingEventMs === "number" && eventTimestampMs < existingEventMs) {
+        if (eventId && typeof eventId === "string") {
+          await markWebhookEventCompleted(eventId, serverToken, { uid: appUserId });
+        }
+        return json({ received: true, ignored: "stale_event", uid: appUserId });
+      }
 
       // Only authorized testers/founders may receive Plus from test store / sandbox
       const effectiveStorePlus = rcStatus.active && (!isTestStore || isTester);
@@ -360,11 +474,19 @@ Deno.serve(async (req) => {
           store: rcStatus.store,
           productId: rcStatus.productId,
           environment: rcStatus.environment,
+          eventTimestampMs,
           lastVerifiedAt: new Date().toISOString(),
         },
         subscriptionExpiresAt: isFounder ? null : rcStatus.expiresDate,
         lastReconciledAt: new Date().toISOString(),
       });
+
+      if (eventId && typeof eventId === "string") {
+        await markWebhookEventCompleted(eventId, serverToken, {
+          tier: effectiveTier,
+          uid: appUserId,
+        });
+      }
 
       return json({ received: true, uid: appUserId, active: effectiveTier === "plus" });
     }
@@ -394,6 +516,7 @@ Deno.serve(async (req) => {
         store: rcStatus.store,
         productId: rcStatus.productId,
         environment: rcStatus.environment,
+        eventTimestampMs: Date.now(),
         lastVerifiedAt: new Date().toISOString(),
       },
       subscriptionExpiresAt: isFounder ? null : rcStatus.expiresDate,

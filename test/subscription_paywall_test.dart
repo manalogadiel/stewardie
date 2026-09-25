@@ -64,5 +64,36 @@ void main() {
     );
     expect(restoreSuccess.isSuccess, isTrue);
     expect(restoreSuccess.status, RestoreStatus.success);
+
+    const restoreSyncPending = RestoreExecutionResult(
+      RestoreStatus.syncPending,
+      message: 'Purchases found. Syncing with your account...',
+    );
+    expect(restoreSyncPending.isSuccess, isFalse);
+    expect(restoreSyncPending.status, RestoreStatus.syncPending);
+  });
+
+  test('RevenueCat configuration paths guard test keys and track subscription activity independently', () {
+    // 1. Environment and apiKey guards
+    final env = RevenueCatService.environment;
+    final purchasesEnabled = RevenueCatService.purchasesEnabled;
+    if (env == RevenueCatEnvironment.off) {
+      expect(purchasesEnabled, isFalse);
+    } else {
+      expect(purchasesEnabled, isTrue);
+    }
+
+    // 2. Explicit platform key helper returns null when no overrides are passed
+    expect(RevenueCatService.explicitPlatformKey, isNull);
+
+    // 3. Service getters track subscription activity independently from founder status
+    final service = RevenueCatService.instance;
+    expect(service.isSubscriptionActive, isFalse);
+    expect(service.isFounder, isFalse);
+    expect(service.isPlus, isFalse);
+    expect(service.entitlementSource, isNull);
+    expect(service.subscriptionExpiry, isNull);
+    expect(service.subscriptionStore, isNull);
+    expect(service.subscriptionProductId, isNull);
   });
 }

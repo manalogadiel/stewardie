@@ -59,13 +59,24 @@ class RevenueCatService extends ChangeNotifier {
   static const String _defaultAndroidKey = 'test_FNaFLEDIUHKYuDjOZtSICpQHVvc';
   static const String _defaultIosKey = 'test_FNaFLEDIUHKYuDjOZtSICpQHVvc';
 
-  static String get apiKey {
+  static String? get explicitPlatformKey {
     const override = String.fromEnvironment('REVENUECAT_API_KEY');
     if (override.isNotEmpty) return override;
-    const googleKey = String.fromEnvironment('REVENUECAT_GOOGLE_API_KEY');
-    if (!kIsWeb && Platform.isAndroid && googleKey.isNotEmpty) return googleKey;
-    const appleKey = String.fromEnvironment('REVENUECAT_APPLE_API_KEY');
-    if (!kIsWeb && Platform.isIOS && appleKey.isNotEmpty) return appleKey;
+    if (!kIsWeb) {
+      if (Platform.isAndroid) {
+        const googleKey = String.fromEnvironment('REVENUECAT_GOOGLE_API_KEY');
+        if (googleKey.isNotEmpty) return googleKey;
+      } else if (Platform.isIOS) {
+        const appleKey = String.fromEnvironment('REVENUECAT_APPLE_API_KEY');
+        if (appleKey.isNotEmpty) return appleKey;
+      }
+    }
+    return null;
+  }
+
+  static String get apiKey {
+    final explicit = explicitPlatformKey;
+    if (explicit != null) return explicit;
     if (kIsWeb) return _defaultAndroidKey;
     return Platform.isAndroid ? _defaultAndroidKey : _defaultIosKey;
   }
@@ -76,14 +87,19 @@ class RevenueCatService extends ChangeNotifier {
   );
 
   static RevenueCatEnvironment get environment {
-    // Release builds must never silently use a test key
+    // Release builds must never use test keys
     if (kReleaseMode && apiKey.startsWith('test_')) {
       return RevenueCatEnvironment.off;
     }
     const envOverride = String.fromEnvironment('REVENUECAT_ENVIRONMENT');
     if (envOverride == 'production') {
       const allowProd = bool.fromEnvironment('ENABLE_PRODUCTION_PURCHASES', defaultValue: false);
-      return allowProd && !apiKey.startsWith('test_')
+      final explicitKey = explicitPlatformKey;
+      // Production requires an explicit valid platform key that does not use test keys
+      final validProdKey = explicitKey != null &&
+          explicitKey.isNotEmpty &&
+          !explicitKey.startsWith('test_');
+      return allowProd && validProdKey
           ? RevenueCatEnvironment.production
           : RevenueCatEnvironment.off;
     }
@@ -105,6 +121,8 @@ class RevenueCatService extends ChangeNotifier {
   bool _initialized = false;
   bool _isPlus = false;
   bool _isFounder = false;
+  bool _isSubscriptionActive = false;
+  String? _entitlementSource;
   DateTime? _subscriptionExpiry;
   String? _subscriptionStore;
   String? _subscriptionProductId;
@@ -117,6 +135,8 @@ class RevenueCatService extends ChangeNotifier {
 
   bool get isPlus => _isPlus;
   bool get isFounder => _isFounder;
+  bool get isSubscriptionActive => _isSubscriptionActive;
+  String? get entitlementSource => _entitlementSource;
   DateTime? get subscriptionExpiry => _subscriptionExpiry;
   String? get subscriptionStore => _subscriptionStore;
   String? get subscriptionProductId => _subscriptionProductId;
@@ -135,6 +155,8 @@ class RevenueCatService extends ChangeNotifier {
     _currentUserId = userId;
     _isPlus = false;
     _isFounder = false;
+    _isSubscriptionActive = false;
+    _entitlementSource = null;
     _subscriptionExpiry = null;
     _subscriptionStore = null;
     _subscriptionProductId = null;
@@ -142,7 +164,16 @@ class RevenueCatService extends ChangeNotifier {
     _offerings = null;
     error = null;
     notifyListeners();
-    if (kIsWeb || userId == null) return;
+    if (userId == null) return;
+
+    // If purchases are disabled (environment is off or running on Web),
+    // do NOT configure Purchases SDK with test keys or query store offerings.
+    // Founder access and account status are still refreshed via backend reconciliation.
+    if (kIsWeb || environment == RevenueCatEnvironment.off) {
+      await reconcileWithBackend();
+      return;
+    }
+
     try {
       if (!_initialized) {
         await Purchases.setLogLevel(
@@ -189,6 +220,8 @@ class RevenueCatService extends ChangeNotifier {
     _currentUserId = null;
     _isPlus = false;
     _isFounder = false;
+    _isSubscriptionActive = false;
+    _entitlementSource = null;
     _subscriptionExpiry = null;
     _subscriptionStore = null;
     _subscriptionProductId = null;
@@ -235,7 +268,9 @@ class RevenueCatService extends ChangeNotifier {
         if (data is Map<String, dynamic>) {
           if (epoch != _epoch || expectedUid != _currentUserId) return false;
           _isFounder = data['isFounder'] == true;
-          _isPlus = data['isPlus'] == true;
+          _isSubscriptionActive = data['isSubscriptionActive'] == true;
+          _entitlementSource = data['entitlementSource'] as String?;
+          _isPlus = data['isPlus'] == true || _isFounder || _isSubscriptionActive;
           final sub = data['subscription'] as Map<String, dynamic>?;
           if (sub != null) {
             final exp = sub['expiresAt'] as String?;
@@ -308,15 +343,24 @@ class RevenueCatService extends ChangeNotifier {
           return;
         }
 
-        if (reconciled && _isPlus) {
+        // Confirm purchase against actual subscription state/product rather than founder grant alone
+        final productMatches = _subscriptionProductId == null ||
+            _subscriptionProductId == package.storeProduct.identifier;
+        if (reconciled && _isSubscriptionActive && productMatches) {
           completer.complete(PurchaseExecutionResult(
             PurchaseStatus.success,
+            customerInfo: purchaseResult.customerInfo,
+          ));
+        } else if (!reconciled) {
+          completer.complete(PurchaseExecutionResult(
+            PurchaseStatus.syncPending,
+            message: 'Purchase completed with store, but verification timed out. It will synchronize automatically.',
             customerInfo: purchaseResult.customerInfo,
           ));
         } else {
           completer.complete(PurchaseExecutionResult(
             PurchaseStatus.syncPending,
-            message: 'Purchase verified. Account benefits update after secure synchronization.',
+            message: 'Purchase recorded with store. Subscription activation is pending server authorization.',
             customerInfo: purchaseResult.customerInfo,
           ));
         }
@@ -430,7 +474,7 @@ class RevenueCatService extends ChangeNotifier {
           return;
         }
 
-        if (reconciled && _isPlus) {
+        if (reconciled && _isSubscriptionActive) {
           completer.complete(RestoreExecutionResult(
             RestoreStatus.success,
             customerInfo: info,
@@ -458,7 +502,8 @@ class RevenueCatService extends ChangeNotifier {
     _customerInfo = info;
     final active = info.entitlements.active;
     final entitlement = active['stewardie_plus'];
-    _isPlus = entitlement != null;
+    _isSubscriptionActive = entitlement != null;
+    _isPlus = _isFounder || _isSubscriptionActive;
     if (entitlement != null) {
       _subscriptionStore = entitlement.store.name;
       _subscriptionProductId = entitlement.productIdentifier;

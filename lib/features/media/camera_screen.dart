@@ -110,13 +110,15 @@ class _CameraScreenState extends State<CameraScreen>
   Future<void> capture(bool gallery) async {
     if (busy) return;
     setState(() => busy = true);
+    bool orientationLocked = false;
+    final viewportIsLandscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     try {
-      final isLandscape = MediaQuery.orientationOf(context) == Orientation.landscape;
       if (!gallery && controller != null) {
         try {
-          await controller!.lockCaptureOrientation(
-            isLandscape ? DeviceOrientation.landscapeLeft : DeviceOrientation.portraitUp,
-          );
+          final actualOrientation = controller!.value.deviceOrientation;
+          await controller!.lockCaptureOrientation(actualOrientation);
+          orientationLocked = true;
         } catch (_) {}
       }
       final file = gallery
@@ -137,6 +139,10 @@ class _CameraScreenState extends State<CameraScreen>
             imgH = decoded.height;
           } else if (controller?.value.previewSize != null) {
             final preview = controller!.value.previewSize!;
+            final currentOrientation = controller?.value.deviceOrientation;
+            final isLandscape = currentOrientation == DeviceOrientation.landscapeLeft ||
+                currentOrientation == DeviceOrientation.landscapeRight ||
+                (currentOrientation == null && viewportIsLandscape);
             imgW = isLandscape ? preview.width.toInt() : preview.height.toInt();
             imgH = isLandscape ? preview.height.toInt() : preview.width.toInt();
           }
@@ -173,6 +179,11 @@ class _CameraScreenState extends State<CameraScreen>
         setState(() => error = 'The photo could not be captured. Try again.');
       }
     } finally {
+      if (orientationLocked && controller != null) {
+        try {
+          await controller!.unlockCaptureOrientation();
+        } catch (_) {}
+      }
       if (mounted) setState(() => busy = false);
     }
   }
@@ -207,9 +218,12 @@ class _CameraScreenState extends State<CameraScreen>
                     child: camera?.value.isInitialized == true
                         ? Builder(
                             builder: (context) {
+                              final devOrientation = camera!.value.deviceOrientation;
                               final isLandscape =
+                                  devOrientation == DeviceOrientation.landscapeLeft ||
+                                  devOrientation == DeviceOrientation.landscapeRight ||
                                   MediaQuery.orientationOf(context) == Orientation.landscape;
-                              final ps = camera!.value.previewSize;
+                              final ps = camera.value.previewSize;
                               final double previewAspect;
                               if (ps != null) {
                                 previewAspect = isLandscape
