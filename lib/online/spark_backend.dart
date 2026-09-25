@@ -49,23 +49,36 @@ class SparkBackend {
         };
         await db.runTransaction((tx) async {
           final account = db.doc('accounts/$uid');
-          final old = (await tx.get(account)).data() ?? {};
+          final accountSnap = await tx.get(account);
+          final old = accountSnap.data() ?? {};
           tx.set(ref, data);
           tx.set(ref.collection('members').doc(uid), member('owner'));
           tx.set(
             account.collection('spaceRefs').doc(ref.id),
             reference(ref.id, data),
           );
-          tx.set(account, {
-            ...old,
-            'tier': old['tier'] ?? 'basic',
-            'spaceIds': [...List<String>.from(old['spaceIds'] ?? []), ref.id],
-            'ownedSpaceIds': [
-              ...List<String>.from(old['ownedSpaceIds'] ?? []),
-              ref.id,
-            ],
-            'changedSpaceId': ref.id,
-          });
+          final newSpaceIds = [
+            ...List<String>.from((old['spaceIds'] as Iterable?) ?? const []),
+            ref.id,
+          ];
+          final newOwnedSpaceIds = [
+            ...List<String>.from((old['ownedSpaceIds'] as Iterable?) ?? const []),
+            ref.id,
+          ];
+          if (accountSnap.exists) {
+            tx.update(account, {
+              'spaceIds': newSpaceIds,
+              'ownedSpaceIds': newOwnedSpaceIds,
+              'changedSpaceId': ref.id,
+            });
+          } else {
+            tx.set(account, {
+              'tier': old['tier'] ?? 'basic',
+              'spaceIds': newSpaceIds,
+              'ownedSpaceIds': newOwnedSpaceIds,
+              'changedSpaceId': ref.id,
+            });
+          }
         });
         return {'spaceId': ref.id};
       case 'createTask':
@@ -111,12 +124,14 @@ class SparkBackend {
           final receipt = ref.collection('operations').doc('${uid}_$operation');
           final previous = await tx.get(receipt);
           if (previous.exists) {
-            if (previous.data()?['action'] != v['action'])
+            if (previous.data()?['action'] != v['action']) {
               throw StateError('This operation was already used.');
+            }
             return;
           }
-          if (current == null)
+          if (current == null) {
             throw StateError('This task is no longer available.');
+          }
           final changes = <String, dynamic>{
             'updatedAt': FieldValue.serverTimestamp(),
             'version': (current['version'] as int? ?? 0) + 1,
@@ -303,7 +318,8 @@ class SparkBackend {
           }
           joined = data['spaceId'] as String;
           final account = db.doc('accounts/$uid');
-          final old = (await tx.get(account)).data() ?? {};
+          final accountSnap = await tx.get(account);
+          final old = accountSnap.data() ?? {};
           if (List.from(old['spaceIds'] ?? []).contains(joined)) return;
           tx.update(invite, {'redeemedUid': uid});
           tx.update(space(joined!), {
@@ -322,13 +338,26 @@ class SparkBackend {
               'kind': data['kind'],
             }),
           );
-          tx.set(account, {
-            ...old,
-            'tier': old['tier'] ?? 'basic',
-            'spaceIds': [...List.from(old['spaceIds'] ?? []), joined],
-            'ownedSpaceIds': old['ownedSpaceIds'] ?? [],
-            'changedSpaceId': joined,
-          });
+          final newSpaceIds = [
+            ...List<String>.from((old['spaceIds'] as Iterable?) ?? const []),
+            joined!,
+          ];
+          final newOwnedSpaceIds =
+              List<String>.from((old['ownedSpaceIds'] as Iterable?) ?? const []);
+          if (accountSnap.exists) {
+            tx.update(account, {
+              'spaceIds': newSpaceIds,
+              'ownedSpaceIds': newOwnedSpaceIds,
+              'changedSpaceId': joined,
+            });
+          } else {
+            tx.set(account, {
+              'tier': old['tier'] ?? 'basic',
+              'spaceIds': newSpaceIds,
+              'ownedSpaceIds': newOwnedSpaceIds,
+              'changedSpaceId': joined,
+            });
+          }
         });
         return {'spaceId': joined};
       case 'revokeInvite':
@@ -348,8 +377,9 @@ class SparkBackend {
           for (final task in tasks.docs) {
             snapshots.add(await tx.get(task.reference));
           }
-          if (parent['ownerUid'] == target)
+          if (parent['ownerUid'] == target) {
             throw StateError('Transfer ownership before leaving this space.');
+          }
           tx.update(space(id), {
             'memberUids': FieldValue.arrayRemove([target]),
             'memberCount': FieldValue.increment(-1),

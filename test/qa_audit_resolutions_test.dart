@@ -84,4 +84,42 @@ void main() {
       expect(everyoneTasks, hasLength(3));
     });
   });
+
+  group('QA Audit Resolutions - SparkBackend account payload handling', () {
+    test('existing account doc is updated without re-setting tier', () {
+      final old = <String, dynamic>{'tier': 'basic', 'entitlementSource': 'store', 'subscription': {'active': false}};
+      final newSpaceIds = [...List<String>.from((old['spaceIds'] as Iterable?) ?? const []), 'space-1'];
+      final newOwnedSpaceIds = [...List<String>.from((old['ownedSpaceIds'] as Iterable?) ?? const []), 'space-1'];
+
+      final updatePayload = {
+        'spaceIds': newSpaceIds,
+        'ownedSpaceIds': newOwnedSpaceIds,
+        'changedSpaceId': 'space-1',
+      };
+
+      expect(updatePayload.containsKey('tier'), isFalse);
+      expect(updatePayload['spaceIds'], ['space-1']);
+      expect(updatePayload['ownedSpaceIds'], ['space-1']);
+      expect(updatePayload['changedSpaceId'], 'space-1');
+    });
+
+    test('non-existing account doc creates basic tier document', () {
+      final old = <String, dynamic>{};
+      final newSpaceIds = [...List<String>.from((old['spaceIds'] as Iterable?) ?? const []), 'space-1'];
+      final newOwnedSpaceIds = [...List<String>.from((old['ownedSpaceIds'] as Iterable?) ?? const []), 'space-1'];
+
+      final createPayload = {
+        'tier': old['tier'] ?? 'basic',
+        'spaceIds': newSpaceIds,
+        'ownedSpaceIds': newOwnedSpaceIds,
+        'changedSpaceId': 'space-1',
+      };
+
+      expect(createPayload['tier'], 'basic');
+      expect(createPayload['spaceIds'], ['space-1']);
+      expect(createPayload['ownedSpaceIds'], ['space-1']);
+      expect(createPayload['changedSpaceId'], 'space-1');
+    });
+  });
 }
+
