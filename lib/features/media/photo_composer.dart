@@ -290,17 +290,23 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
         if (widget.task != null && mounted) setState(() => attached = true);
       }
       if (widget.complete) {
-        if (!ref
+        final current = ref
             .read(demoProvider)
             .tasks
-            .firstWhere((t) => t.id == widget.task!.id)
-            .isDone) {
+            .where((t) => t.id == widget.task!.id)
+            .firstOrNull;
+        if (current != null && !current.isDone) {
           await ref
               .read(demoProvider.notifier)
               .act(widget.task!, TaskAction.complete);
         }
         final state = ref.read(demoProvider);
-        final updated = state.tasks.firstWhere((t) => t.id == widget.task!.id);
+        final updated = state.tasks
+            .where((t) => t.id == widget.task!.id)
+            .firstOrNull;
+        if (updated == null) {
+          return;
+        }
         if (!updated.isDone) {
           throw StateError(
             state.errors[updated.id] ??
@@ -755,10 +761,10 @@ Future<void> _completeWithPhoto(
   Task task,
 ) async {
   final library = ref.read(mediaLibraryProvider);
-  final space = ref
-      .read(repositoryProvider)
-      .spaces
-      .firstWhere((s) => s.id == task.spaceId);
+  final spaces = ref.read(repositoryProvider).spaces;
+  final space = spaces.where((s) => s.id == task.spaceId).firstOrNull ??
+      spaces.firstOrNull;
+  if (space == null) return;
   if (library.forTask(task.id).isEmpty) {
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -810,17 +816,8 @@ Future<void> _completeWithPhoto(
         complete: true,
         initialCamera: choice == 'camera',
       );
-      if (result != true &&
-          context.mounted &&
-          library.forTask(task.id).isEmpty &&
-          !ref
-              .read(demoProvider)
-              .tasks
-              .firstWhere((t) => t.id == task.id)
-              .isDone) {
-        // A retained photo after a failed completion must never turn Cancel
-        // into an implicit completion. Always ask for an explicit decision.
-        await _completeWithPhoto(context, ref, task);
+      if (result != true) {
+        return;
       }
       return;
     }
@@ -829,8 +826,9 @@ Future<void> _completeWithPhoto(
   final updated = ref
       .read(demoProvider)
       .tasks
-      .firstWhere((t) => t.id == task.id);
-  if (updated.isDone) {
+      .where((t) => t.id == task.id)
+      .firstOrNull;
+  if (updated != null && updated.isDone) {
     try {
       await library.publishTask(updated);
     } catch (_) {

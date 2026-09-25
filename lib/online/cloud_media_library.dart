@@ -38,6 +38,7 @@ class CloudMediaLibrary extends MediaLibrary {
   final FirebaseAuth? _auth;
   final http.Client _client;
   final Map<String, MediaAttachment> _remote = {};
+  final Map<String, Uint8List> _fullCache = {};
   final Set<String> _pending, _refreshing = {};
   final Map<String, DateTime> _lastRefresh = {};
   StreamSubscription<void>? _subscription;
@@ -169,8 +170,13 @@ class CloudMediaLibrary extends MediaLibrary {
             'offset': offset,
           })).body,
         );
-        for (final raw in data['items'] as List) {
-          final item = await _decode(Map<String, dynamic>.from(raw));
+        final rawItems = (data['items'] as List)
+            .map((raw) => Map<String, dynamic>.from(raw as Map))
+            .toList();
+        final decodedItems = await Future.wait(
+          rawItems.map((raw) => _decode(raw)),
+        );
+        for (final item in decodedItems) {
           fetched[item.id] = item;
         }
         offset = data['nextOffset'] as int?;
@@ -180,8 +186,12 @@ class CloudMediaLibrary extends MediaLibrary {
       _remote.addAll(fetched);
       _error = null;
     } catch (e) {
-      // Do not leave stale remote photos visible after a permission failure.
-      _remote.removeWhere((_, p) => p.spaceId == spaceId);
+      if (e is StateError &&
+          (e.message.contains('access') ||
+              e.message.contains('permission') ||
+              e.message.contains('not a member'))) {
+        _remote.removeWhere((_, p) => p.spaceId == spaceId);
+      }
       _error = e is StateError
           ? e.message
           : 'Could not refresh shared photos. Try again.';
@@ -278,13 +288,18 @@ class CloudMediaLibrary extends MediaLibrary {
   @override
   Future<Uint8List> fullPhoto(MediaAttachment photo) async {
     if (!photo.cloud) return super.fullPhoto(photo);
-    if (!_allowed(photo.spaceId))
+    if (!_allowed(photo.spaceId)) {
       throw StateError('You no longer have access to this space.');
-    return (await _request({
+    }
+    final cached = _fullCache[photo.id];
+    if (cached != null) return cached;
+    final bytes = (await _request({
       'action': 'download',
       'space': photo.spaceId,
       'id': photo.id,
     })).bodyBytes;
+    _fullCache[photo.id] = bytes;
+    return bytes;
   }
 
   @override
@@ -321,6 +336,7 @@ class CloudMediaLibrary extends MediaLibrary {
     await super.remove(photo, actor);
     _remote.remove(photo.id);
     _pending.remove(photo.id);
+    _fullCache.remove(photo.id);
     await _outbox.record('${user.uid}/${photo.id}').delete(database!);
     if (!_closed) notifyListeners();
   }
@@ -329,6 +345,7 @@ class CloudMediaLibrary extends MediaLibrary {
   void dispose() {
     _closed = true;
     _client.close();
+    _fullCache.clear();
     unawaited(_subscription?.cancel());
     super.dispose();
   }
