@@ -436,18 +436,19 @@ String _initials(String name) => name.trim().isEmpty
 
 CalendarPlan _plan(String spaceId, String id, Map<String, dynamic> data) {
   final allDay = data['allDay'] == true;
-  DateTime date(Object? value) {
-    final time = firebaseDate(value)!.toUtc();
+  DateTime date(Object? value, Object? millisFallback) {
+    final parsed = firebaseDate(value) ?? firebaseDate(millisFallback) ?? DateTime.now();
+    final time = parsed.toUtc();
     return allDay ? DateTime(time.year, time.month, time.day) : time;
   }
 
   return CalendarPlan(
     id: id,
     spaceId: spaceId,
-    ownerId: data['ownerUid'] as String,
-    title: data['title'] as String,
-    start: date(data['startAt']),
-    end: date(data['endAt']),
+    ownerId: data['ownerUid'] as String? ?? '',
+    title: data['title'] as String? ?? '',
+    start: date(data['startAt'], data['startMillis']),
+    end: date(data['endAt'], data['endMillis']),
     allDay: allDay,
     note: data['note'] as String? ?? '',
     participants: List<String>.from(data['participants'] as List? ?? []),

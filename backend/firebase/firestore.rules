@@ -25,17 +25,21 @@ service cloud.firestore {
     function accountCapacity(old, d) {
       let maxSpaces = isTierPlus(d) ? 50 : 20;
       let maxOwned = isTierPlus(d) ? 20 : 3;
-      return (d.spaceIds.size() <= old.spaceIds.size() || d.spaceIds.size() <= maxSpaces)
-        && (d.ownedSpaceIds.size() <= old.ownedSpaceIds.size() || d.ownedSpaceIds.size() <= maxOwned);
+      let oldSpaces = old.get('spaceIds', []).size();
+      let oldOwned = old.get('ownedSpaceIds', []).size();
+      return (d.spaceIds.size() <= oldSpaces || d.spaceIds.size() <= maxSpaces)
+        && (d.ownedSpaceIds.size() <= oldOwned || d.ownedSpaceIds.size() <= maxOwned);
     }
     function accountChange(uid, old, d) {
       let id = d.changedSpaceId;
       let joined = uid in afterSpace(id).memberUids;
       let owns = afterSpace(id).ownerUid == uid;
-      return d.spaceIds.toSet().difference(old.spaceIds.toSet()).hasOnly([id])
-        && old.spaceIds.toSet().difference(d.spaceIds.toSet()).hasOnly([id])
-        && d.ownedSpaceIds.toSet().difference(old.ownedSpaceIds.toSet()).hasOnly([id])
-        && old.ownedSpaceIds.toSet().difference(d.ownedSpaceIds.toSet()).hasOnly([id])
+      let oldSpaces = old.get('spaceIds', []).toSet();
+      let oldOwned = old.get('ownedSpaceIds', []).toSet();
+      return d.spaceIds.toSet().difference(oldSpaces).hasOnly([id])
+        && oldSpaces.difference(d.spaceIds.toSet()).hasOnly([id])
+        && d.ownedSpaceIds.toSet().difference(oldOwned).hasOnly([id])
+        && oldOwned.difference(d.ownedSpaceIds.toSet()).hasOnly([id])
         && (id in d.spaceIds) == joined && (id in d.ownedSpaceIds) == owns;
     }
     match /accounts/{uid} {
@@ -70,7 +74,7 @@ service cloud.firestore {
         && shortText(request.resource.data.name, 80) && request.resource.data.kind in ['family','housemates','friends','crew','custom']
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.memberUids == [request.auth.uid]
         && request.resource.data.memberCount == 1 && request.resource.data.activeTaskCount == 0 && request.resource.data.createdAt == request.time
-        && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.ownedSpaceIds;
+        && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.get('ownedSpaceIds', []);
       function joining() {
         let d = request.resource.data;
         return verified() && !(request.auth.uid in resource.data.memberUids)

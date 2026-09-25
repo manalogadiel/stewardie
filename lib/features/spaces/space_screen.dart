@@ -28,7 +28,11 @@ class SpaceScreen extends ConsumerWidget {
         },
       );
     }
-    final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
+    final space = repo.spaces.where((s) => s.id == state.spaceId).firstOrNull ??
+        repo.spaces.firstOrNull;
+    if (space == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return PageBody(
       padding: EdgeInsets.fromLTRB(20, topControlsClearance(context), 20, 150),
       children: [

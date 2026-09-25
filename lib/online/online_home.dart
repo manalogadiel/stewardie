@@ -371,7 +371,13 @@ class _OnlineHomeState extends State<OnlineHome> {
                         )
                         .toList() ??
                     [];
-                final done = [...firstPage, ..._moreDone];
+                final allDone = [...firstPage, ..._moreDone];
+                final done = _personId == null
+                    ? allDone
+                    : allDone.where((data) =>
+                        data['ownerUid'] == _personId ||
+                        data['requestedUid'] == _personId ||
+                        data['creatorUid'] == _personId).toList();
                 final count = doneSnapshot.data?['totalCount'] as int?;
                 final nextCursor = _moreDone.isEmpty
                     ? (doneSnapshot.data?['nextCursorId'] as String?)
