@@ -1105,13 +1105,8 @@ class _OnlineHomeState extends State<OnlineHome> {
                         const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
+                          child: TextButton(
                             onPressed: () => showSoftPopPaywall(context),
-                            icon: const Icon(
-                              Icons.auto_awesome_rounded,
-                              size: 18,
-                            ),
-                            label: const Text('View Plus benefits'),
                             style: TextButton.styleFrom(
                               foregroundColor: SoftPop.blue,
                               minimumSize: const Size(48, 48),
@@ -1122,6 +1117,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                               alignment: Alignment.centerLeft,
                               tapTargetSize: MaterialTapTargetSize.padded,
                             ),
+                            child: const Text('View Plus benefits'),
                           ),
                         ),
                       ],
