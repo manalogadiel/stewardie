@@ -268,11 +268,41 @@ class SparkBackend {
             .delete();
         return {'removed': true};
       case 'createInvite':
-        final data = (await space(id!).get()).data()!;
+        final spaceRef = space(id!);
+        final spaceSnap = await spaceRef.get();
+        final data = spaceSnap.data()!;
+        final forceNew = v['forceNew'] == true;
+        final existingToken = data['activeInviteToken'] as String?;
+
+        if (!forceNew && existingToken != null && existingToken.trim().isNotEmpty) {
+          try {
+            final existingSnap = await db.doc('invites/$existingToken').get();
+            final existingData = existingSnap.data();
+            if (existingData != null &&
+                existingData['revoked'] != true &&
+                existingData['redeemedUid'] == null &&
+                existingData['expiresAt'] is Timestamp &&
+                (existingData['expiresAt'] as Timestamp)
+                    .toDate()
+                    .isAfter(DateTime.now())) {
+              return {'token': existingToken};
+            }
+          } catch (_) {}
+        }
+
+        if (existingToken != null && existingToken.trim().isNotEmpty) {
+          try {
+            await db.doc('invites/$existingToken').update({'revoked': true});
+          } catch (_) {}
+        }
+
         final random = Random.secure();
-        final token = base64UrlEncode(
-          List.generate(24, (_) => random.nextInt(256)),
-        );
+        const charset = InviteLinks.codeCharset;
+        final token = List.generate(
+          6,
+          (_) => charset[random.nextInt(charset.length)],
+        ).join();
+
         await db.doc('invites/$token').set({
           'spaceId': id,
           'spaceName': data['name'],
@@ -285,9 +315,15 @@ class SparkBackend {
           'redeemedUid': null,
           'revoked': false,
         });
+
+        try {
+          await spaceRef.update({'activeInviteToken': token});
+        } catch (_) {}
+
         return {'token': token};
       case 'previewInvite':
-        final data = (await db.doc('invites/${v['token']}').get()).data();
+        final token = InviteLinks.sanitize(v['token'] as String);
+        final data = (await db.doc('invites/$token').get()).data();
         if (data == null ||
             data['revoked'] == true ||
             data['redeemedUid'] != null ||
@@ -300,9 +336,10 @@ class SparkBackend {
         }
         return data;
       case 'redeemInvite':
+        final token = InviteLinks.sanitize(v['token'] as String);
         String? joined;
         await db.runTransaction((tx) async {
-          final invite = db.doc('invites/${v['token']}');
+          final invite = db.doc('invites/$token');
           final inviteSnap = await tx.get(invite);
           final data = inviteSnap.data();
           if (data == null ||
@@ -325,11 +362,11 @@ class SparkBackend {
           tx.update(space(joined!), {
             'memberUids': FieldValue.arrayUnion([uid]),
             'memberCount': FieldValue.increment(1),
-            'joinToken': v['token'],
+            'joinToken': token,
           });
           tx.set(space(joined!).collection('members').doc(uid), {
             ...member('member'),
-            'joinToken': v['token'],
+            'joinToken': token,
           });
           tx.set(
             account.collection('spaceRefs').doc(joined),
@@ -361,7 +398,8 @@ class SparkBackend {
         });
         return {'spaceId': joined};
       case 'revokeInvite':
-        await db.doc('invites/${v['token']}').update({'revoked': true});
+        final token = InviteLinks.sanitize(v['token'] as String);
+        await db.doc('invites/$token').update({'revoked': true});
         return {'ok': true};
       case 'removeMember':
       case 'leaveSpace':

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/clay.dart';
 import '../../core/demo_state.dart';
@@ -24,7 +25,10 @@ class SpaceScreen extends ConsumerWidget {
         spaceOnly: true,
         spaceId: state.spaceId,
         onSpaceSelected: (id) {
-          if (id != null) ref.read(demoProvider.notifier).switchSpace(id);
+          if (id != null) {
+            ref.read(demoProvider.notifier).switchSpace(id);
+            context.go('/today');
+          }
         },
       );
     }

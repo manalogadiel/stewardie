@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sembast/sembast.dart';
 
 import '../app.dart';
+import '../core/invite_links.dart';
 import '../features/subscription/revenuecat_service.dart';
 import '../core/backend_provider.dart';
 import '../core/demo_state.dart';
@@ -91,11 +93,65 @@ class _SignedInAppState extends State<_SignedInApp> {
   late final Future<MediaLibrary> library = _loadLibrary();
   MediaLibrary? _loadedLibrary;
   CapturedPhoto? _recovered;
+  bool _checkedInvite = false;
   @override
   void initState() {
     super.initState();
     timeline.start();
     unawaited(RevenueCatService.instance.init(userId: widget.user.uid));
+  }
+
+  void _checkInviteOnLaunch(BuildContext context) {
+    if (_checkedInvite) return;
+    _checkedInvite = true;
+    final token = InviteLinks.sanitize(
+      kIsWeb
+          ? (Uri.base.queryParameters['invite'] ??
+              Uri.base.queryParameters['token'] ??
+              Uri.base.queryParameters['code'] ??
+              '')
+          : '',
+    );
+    if (token.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!context.mounted) return;
+      try {
+        final preview =
+            await widget.backend.call('previewInvite', {'token': token});
+        if (!context.mounted) return;
+        final spaceName = preview['spaceName'] as String? ?? 'this space';
+        final shouldJoin = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Join space?'),
+            content: Text('You were invited to join $spaceName.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Join'),
+              ),
+            ],
+          ),
+        );
+        if (shouldJoin == true && context.mounted) {
+          await widget.backend.auth.currentUser?.reload();
+          await widget.user.getIdToken(true);
+          final result =
+              await widget.backend.call('redeemInvite', {'token': token});
+          final joinedSpaceId = result['spaceId'] as String?;
+          if (joinedSpaceId != null && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Joined $spaceName!')),
+            );
+          }
+        }
+      } catch (_) {}
+    });
   }
 
   Future<MediaLibrary> _loadLibrary() async {
@@ -147,46 +203,47 @@ class _SignedInAppState extends State<_SignedInApp> {
     home: Scaffold(body: body),
   );
   @override
-  Widget build(BuildContext context) => FutureBuilder<MediaLibrary>(
-    future: library,
-    builder: (context, photoSnapshot) => StreamBuilder<void>(
-      stream: timeline.changes,
-      builder: (context, _) {
-        if (photoSnapshot.hasError) {
-          return _standalone(
-            const Center(
-              child: Text(
-                'Your saved photos could not be opened. Restart the app to try again.',
+  Widget build(BuildContext context) {
+    _checkInviteOnLaunch(context);
+    return FutureBuilder<MediaLibrary>(
+      future: library,
+      builder: (context, photoSnapshot) => StreamBuilder<void>(
+        stream: timeline.changes,
+        builder: (context, _) {
+          if (photoSnapshot.hasError) {
+            return _standalone(
+              const Center(
+                child: Text(
+                  'Your saved photos could not be opened. Restart the app to try again.',
+                ),
               ),
-            ),
+            );
+          }
+          if (!photoSnapshot.hasData || timeline.loading) {
+            return _standalone(const Center(child: CircularProgressIndicator()));
+          }
+          if (timeline.spaces.isEmpty) {
+            return _standalone(
+              OnlineHome(
+                backend: widget.backend,
+                user: widget.user,
+                spaceOnly: true,
+              ),
+            );
+          }
+          return ProviderScope(
+            key: ValueKey(widget.user.uid),
+            overrides: [
+              sharedBackendProvider.overrideWithValue(widget.backend),
+              repositoryProvider.overrideWithValue(timeline),
+              calendarRepositoryProvider.overrideWithValue(calendar),
+              mediaLibraryProvider.overrideWithValue(photoSnapshot.data!),
+              recoveredPhotoInitialProvider.overrideWithValue(_recovered),
+            ],
+            child: const StewardieApp(),
           );
-        }
-        if (!photoSnapshot.hasData || timeline.loading) {
-          return _standalone(const Center(child: CircularProgressIndicator()));
-        }
-        if (timeline.spaces.isEmpty) {
-          return _standalone(
-            OnlineHome(
-              backend: widget.backend,
-              user: widget.user,
-              spaceOnly: true,
-            ),
-          );
-        }
-        return ProviderScope(
-          key: ValueKey(
-            '${widget.user.uid}/${timeline.spaces.map((s) => s.id).join('/')}',
-          ),
-          overrides: [
-            sharedBackendProvider.overrideWithValue(widget.backend),
-            repositoryProvider.overrideWithValue(timeline),
-            calendarRepositoryProvider.overrideWithValue(calendar),
-            mediaLibraryProvider.overrideWithValue(photoSnapshot.data!),
-            recoveredPhotoInitialProvider.overrideWithValue(_recovered),
-          ],
-          child: const StewardieApp(),
-        );
-      },
-    ),
-  );
+        },
+      ),
+    );
+  }
 }

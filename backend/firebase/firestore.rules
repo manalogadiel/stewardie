@@ -104,6 +104,7 @@ service cloud.firestore {
           || (get(path).data.status != 'completed' && getAfter(path).data.status == 'completed' && d.activeTaskCount == resource.data.activeTaskCount - 1));
       }
       allow update: if joining() || removing() || taskCount()
+        || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeInviteToken']))
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && request.resource.data.pendingOwnerUid in resource.data.memberUids)
         || (member(id) && resource.data.get('pendingOwnerUid', null) == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid','pendingOwnerUid'])
@@ -201,7 +202,7 @@ service cloud.firestore {
     }
     match /invites/{token} {
       allow get: if verified() && ((resource.data.expiresAt > request.time && resource.data.revoked == false) || owner(resource.data.spaceId));
-      allow create: if verified() && token.matches('[A-Za-z0-9_-]{32}') && owner(request.resource.data.spaceId)
+      allow create: if verified() && token.matches('[A-Za-z0-9_-]{6,32}') && owner(request.resource.data.spaceId)
         && request.resource.data.keys().hasOnly(['spaceId','spaceName','kind','creatorUid','createdAt','expiresAt','redeemedUid','revoked'])
         && request.resource.data.spaceName == sp(request.resource.data.spaceId).name && request.resource.data.kind == sp(request.resource.data.spaceId).kind
         && request.resource.data.creatorUid == request.auth.uid && request.resource.data.createdAt == request.time

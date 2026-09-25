@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../app.dart' show GlassDock;
 import '../core/clay.dart';
+import '../core/invite_links.dart';
 import '../core/theme.dart';
 import '../core/top_controls.dart';
 import 'online_backend.dart';
@@ -1445,8 +1446,10 @@ class _OnlineHomeState extends State<OnlineHome> {
       await widget.user.getIdToken(true);
       final result = await widget.backend.call('redeemInvite', {'token': code});
       if (mounted) {
-        _switchSpace(result['spaceId'] as String);
+        final newSpaceId = result['spaceId'] as String;
+        _switchSpace(newSpaceId);
         setState(() => _destination = 0);
+        widget.onSpaceSelected?.call(newSpaceId);
       }
     } catch (error) {
       _message(_error(error));
@@ -1458,41 +1461,121 @@ class _OnlineHomeState extends State<OnlineHome> {
       final result = await widget.backend.call('createInvite', {
         'spaceId': spaceId,
       });
-      final code = result['token'] as String;
+      var currentCode = result['token'] as String;
+      var isRegenerating = false;
       if (!mounted) return;
       await showDialog<void>(
         context: context,
-        builder: (dialog) => AlertDialog(
-          title: const Text('Invite someone'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Share this code with someone you trust. It can be used once and expires in 7 days.',
+        builder: (dialog) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Invite someone'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Share this code or link with someone you trust. It can be used once and expires in 7 days.',
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: SoftPop.surface,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: SelectableText(
+                        currentCode,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 4.0,
+                          color: SoftPop.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: isRegenerating
+                          ? null
+                          : () async {
+                              final confirmed = await showDialog<bool>(
+                                context: dialogContext,
+                                builder: (confirmCtx) => AlertDialog(
+                                  title: const Text('Generate new code?'),
+                                  content: const Text(
+                                    'This will revoke the previous invitation code. Anyone with the old code will no longer be able to join.',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(confirmCtx, false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          Navigator.pop(confirmCtx, true),
+                                      child: const Text('Get new code'),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirmed != true || !mounted) return;
+                              setDialogState(() => isRegenerating = true);
+                              try {
+                                final res = await widget.backend.call(
+                                  'createInvite',
+                                  {'spaceId': spaceId, 'forceNew': true},
+                                );
+                                setDialogState(() {
+                                  currentCode = res['token'] as String;
+                                  isRegenerating = false;
+                                });
+                                _message('New invite code ready.');
+                              } catch (e) {
+                                setDialogState(() => isRegenerating = false);
+                                _message(_error(e));
+                              }
+                            },
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Get new code'),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-              SelectableText(
-                code,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog),
-              child: const Text('Close'),
-            ),
-            FilledButton.icon(
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: code));
-                if (dialog.mounted) Navigator.pop(dialog);
-                _message('Code copied.');
-              },
-              icon: const Icon(Icons.copy_rounded),
-              label: const Text('Copy'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialog),
+                  child: const Text('Close'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final link = InviteLinks.buildUrl(currentCode);
+                    await Clipboard.setData(ClipboardData(text: link));
+                    if (dialog.mounted) Navigator.pop(dialog);
+                    _message('Invite link copied.');
+                  },
+                  icon: const Icon(Icons.link_rounded),
+                  label: const Text('Copy link'),
+                ),
+                FilledButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: currentCode));
+                    if (dialog.mounted) Navigator.pop(dialog);
+                    _message('Code copied.');
+                  },
+                  icon: const Icon(Icons.copy_rounded),
+                  label: const Text('Copy code'),
+                ),
+              ],
+            );
+          },
         ),
       );
     } catch (error) {
@@ -1900,7 +1983,10 @@ class _JoinSpaceDialogState extends State<_JoinSpaceDialog> {
             preview = null;
             error = null;
           }),
-          decoration: const InputDecoration(labelText: 'Invitation code'),
+          decoration: const InputDecoration(
+            labelText: 'Invitation code or link',
+            hintText: 'e.g. KMXPQR or paste link',
+          ),
         ),
         if (checking)
           const Padding(
@@ -1926,16 +2012,17 @@ class _JoinSpaceDialogState extends State<_JoinSpaceDialog> {
       ),
       if (preview == null)
         FilledButton(
-          onPressed: checking || code.text.trim().isEmpty
+          onPressed: checking || InviteLinks.sanitize(code.text).isEmpty
               ? null
               : () async {
+                  final token = InviteLinks.sanitize(code.text);
                   setState(() {
                     checking = true;
                     error = null;
                   });
                   try {
                     final result = await widget.backend.call('previewInvite', {
-                      'token': code.text.trim(),
+                      'token': token,
                     });
                     if (mounted) {
                       setState(() => preview = result['spaceName'] as String);
@@ -1952,7 +2039,8 @@ class _JoinSpaceDialogState extends State<_JoinSpaceDialog> {
         )
       else
         FilledButton(
-          onPressed: () => Navigator.pop(context, code.text.trim()),
+          onPressed: () =>
+              Navigator.pop(context, InviteLinks.sanitize(code.text)),
           child: const Text('Join'),
         ),
     ],
