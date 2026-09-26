@@ -30,6 +30,7 @@ jobs:
 
       - name: Package Payload into IPA
         run: |
+          rm -rf Payload app.ipa
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
           zip -r -q app.ipa Payload
