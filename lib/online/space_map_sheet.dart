@@ -50,11 +50,36 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   Map<String, dynamic>? _selectedMember;
   bool _showRadarView = false;
   LatLng _lastKnownCenter = const LatLng(14.5995, 120.9842);
+  LatLng? _currentUserLatLng;
 
   @override
   void initState() {
     super.initState();
+    final cached = LiveLocationService.instance.currentPosition.value;
+    if (cached != null) {
+      final pos = LatLng(cached.latitude, cached.longitude);
+      _lastKnownCenter = pos;
+      _currentUserLatLng = pos;
+    }
+    LiveLocationService.instance.currentPosition.addListener(_onPositionChanged);
     _initUserLocation();
+  }
+
+  void _onPositionChanged() {
+    final pos = LiveLocationService.instance.currentPosition.value;
+    if (pos != null && mounted) {
+      setState(() {
+        final latLng = LatLng(pos.latitude, pos.longitude);
+        _currentUserLatLng = latLng;
+        _lastKnownCenter = latLng;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    LiveLocationService.instance.currentPosition.removeListener(_onPositionChanged);
+    super.dispose();
   }
 
   Future<void> _initUserLocation() async {
@@ -63,9 +88,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
       final userLatLng = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _lastKnownCenter = userLatLng;
+        _currentUserLatLng = userLatLng;
       });
       try {
-        _mapController.move(userLatLng, 14.5);
+        _mapController.move(userLatLng, 15.0);
       } catch (_) {}
     }
   }
@@ -74,6 +100,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
     final pos = await LiveLocationService.instance.determinePosition();
     if (pos != null && mounted) {
       final userLatLng = LatLng(pos.latitude, pos.longitude);
+      setState(() {
+        _lastKnownCenter = userLatLng;
+        _currentUserLatLng = userLatLng;
+      });
       _mapController.move(userLatLng, 15.0);
     }
   }
@@ -192,86 +222,76 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                     );
                   }
 
+                  final myUid = widget.backend.auth.currentUser?.uid;
+                  final myUser = widget.backend.auth.currentUser;
+                  final myRawName = myUser?.displayName?.isNotEmpty == true
+                      ? myUser!.displayName!
+                      : (myUser?.email?.split('@').first ?? 'You');
+                  final myInitial = myRawName.isNotEmpty ? myRawName[0].toUpperCase() : 'Y';
+
                   // Build markers for all active sessions
                   final markers = <Marker>[];
+                  bool userHasSessionMarker = false;
+
                   for (final s in sessions) {
                     final lat = (s['lat'] as num?)?.toDouble();
                     final lng = (s['lng'] as num?)?.toDouble();
                     if (lat == null || lng == null) continue;
 
-                    final name = s['name'] as String? ?? 'Member';
-                    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
+                    final isMe = s['uid'] == myUid;
+                    if (isMe) userHasSessionMarker = true;
+
+                    final name = isMe ? 'You' : (s['name'] as String? ?? 'Member');
+                    final initial = isMe
+                        ? myInitial
+                        : (name.isNotEmpty ? name[0].toUpperCase() : 'M');
                     final isSelected = _selectedMember?['uid'] == s['uid'];
 
                     markers.add(
                       Marker(
                         point: LatLng(lat, lng),
                         width: 56,
-                        height: 60,
+                        height: 62,
                         child: GestureDetector(
                           onTap: () {
                             setState(() => _selectedMember = s);
                           },
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFF244BFF)
-                                      : const Color(0xFFFFFEFB),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xFF244BFF),
-                                    width: 2.5,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.15),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    initial,
-                                    style: TextStyle(
-                                      fontFamily: 'NunitoSans',
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : const Color(0xFF202633),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                margin: const EdgeInsets.only(top: 2),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 1.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF202633),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  name.length > 7 ? '${name.substring(0, 7)}..' : name,
-                                  style: const TextStyle(
-                                    fontFamily: 'NunitoSans',
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          child: _buildPin(
+                            initial: initial,
+                            label: isMe ? 'You' : name,
+                            isSelected: isSelected,
+                            isMe: isMe,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Always show user's current GPS pin if not already in active Firestore sessions
+                  final userPoint = _currentUserLatLng ?? _lastKnownCenter;
+                  if (!userHasSessionMarker) {
+                    final isSelected = _selectedMember?['uid'] == myUid;
+                    markers.add(
+                      Marker(
+                        point: userPoint,
+                        width: 56,
+                        height: 62,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedMember = {
+                                'uid': myUid,
+                                'name': '$myRawName (You)',
+                                'lat': userPoint.latitude,
+                                'lng': userPoint.longitude,
+                              };
+                            });
+                          },
+                          child: _buildPin(
+                            initial: myInitial,
+                            label: 'You',
+                            isSelected: isSelected,
+                            isMe: true,
                           ),
                         ),
                       ),
@@ -546,6 +566,81 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPin({
+    required String initial,
+    required String label,
+    required bool isSelected,
+    required bool isMe,
+  }) {
+    final bgColor = isMe
+        ? const Color(0xFF244BFF)
+        : (isSelected ? const Color(0xFF244BFF) : const Color(0xFFFFFEFB));
+    final textColor =
+        (isMe || isSelected) ? Colors.white : const Color(0xFF202633);
+    final borderColor =
+        (isMe || isSelected) ? Colors.white : const Color(0xFF244BFF);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: isMe
+                    ? const Color(0xFF244BFF).withValues(alpha: 0.45)
+                    : Colors.black.withValues(alpha: 0.15),
+                blurRadius: isMe ? 8 : 6,
+                spreadRadius: isMe ? 1.5 : 0,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              initial,
+              style: TextStyle(
+                fontFamily: 'NunitoSans',
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: isMe ? const Color(0xFF244BFF) : const Color(0xFF202633),
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Text(
+            label.length > 7 ? '${label.substring(0, 7)}..' : label,
+            style: const TextStyle(
+              fontFamily: 'NunitoSans',
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
