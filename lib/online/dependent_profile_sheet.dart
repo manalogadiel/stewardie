@@ -98,12 +98,22 @@ class _DependentProfileSheetState extends State<DependentProfileSheet> {
 
     setState(() => _busy = true);
     try {
-      await widget.backend.createDependentProfile(
-        widget.spaceId,
-        name: name,
-        familyRole: _selectedRole,
-        color: _selectedColor,
-      );
+      if (widget.memberId != null) {
+        await widget.backend.updateDependentProfile(
+          widget.spaceId,
+          widget.memberId!,
+          name: name,
+          familyRole: _selectedRole,
+          color: _selectedColor,
+        );
+      } else {
+        await widget.backend.createDependentProfile(
+          widget.spaceId,
+          name: name,
+          familyRole: _selectedRole,
+          color: _selectedColor,
+        );
+      }
       if (mounted) {
         widget.onSaved();
         Navigator.of(context).pop();

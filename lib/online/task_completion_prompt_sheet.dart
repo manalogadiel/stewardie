@@ -97,16 +97,38 @@ class _TaskCompletionPromptSheetState
       return;
     }
 
+    if (!mounted) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: const Color(0xFFFAF9F6),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Take photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
     final picked = await picker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       maxWidth: 1600,
       imageQuality: 85,
-    ) ??
-        await picker.pickImage(
-          source: ImageSource.gallery,
-          maxWidth: 1600,
-          imageQuality: 85,
-        );
+    );
 
     if (picked != null) {
       setState(() {
@@ -139,9 +161,15 @@ class _TaskCompletionPromptSheetState
         );
       }
 
-      await widget.backend.call('markTaskDone', {
+      final operationId = widget.backend.firestore
+          .collection('operationIds')
+          .doc()
+          .id;
+      await widget.backend.call('actOnTask', {
         'spaceId': widget.spaceId,
         'taskId': widget.taskId,
+        'operationId': operationId,
+        'action': 'complete',
       });
 
       if (mounted) {
