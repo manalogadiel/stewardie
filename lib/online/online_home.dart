@@ -70,6 +70,7 @@ class _OnlineHomeState extends State<OnlineHome> {
   @override
   void dispose() {
     RevenueCatService.instance.removeListener(_onRevenueCatUpdate);
+    LiveLocationService.instance.stopSharing();
     super.dispose();
   }
 
@@ -292,7 +293,28 @@ class _OnlineHomeState extends State<OnlineHome> {
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                       child: Row(
                         children: [
-                          const SizedBox(width: 48),
+                          SizedBox(
+                            width: 48,
+                            child: IconButton(
+                              tooltip: 'Space map',
+                              style: IconButton.styleFrom(
+                                backgroundColor: SoftPop.surface,
+                                shape: const CircleBorder(),
+                              ),
+                              onPressed: selected == null
+                                  ? null
+                                  : () => SpaceMapSheet.show(
+                                        context,
+                                        backend: widget.backend,
+                                        spaceId: selected,
+                                      ),
+                              icon: const Icon(
+                                Icons.map_outlined,
+                                color: SoftPop.ink,
+                                size: 22,
+                              ),
+                            ),
+                          ),
                           Expanded(
                             child: Center(
                               child: TextButton(

@@ -64,11 +64,6 @@ class LiveLocationService {
     double? lng,
   }) async {
     if (_backend == null) return;
-    _activeSpaceId = spaceId;
-    _expiresAt = DateTime.now().toUtc().add(Duration(minutes: durationMinutes));
-    isSharing.value = true;
-    remainingMinutes.value = durationMinutes;
-
     var actualLat = lat;
     var actualLng = lng;
     if (actualLat == null || actualLng == null) {
@@ -77,10 +72,16 @@ class LiveLocationService {
         actualLat = pos.latitude;
         actualLng = pos.longitude;
       } else {
-        actualLat = 37.7749;
-        actualLng = -122.4194;
+        throw StateError(
+          'Unable to acquire GPS location. Please turn on device location services and grant permission.',
+        );
       }
     }
+
+    _activeSpaceId = spaceId;
+    _expiresAt = DateTime.now().toUtc().add(Duration(minutes: durationMinutes));
+    isSharing.value = true;
+    remainingMinutes.value = durationMinutes;
 
     await _backend!.call('startLocationSession', {
       'spaceId': spaceId,

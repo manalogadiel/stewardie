@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'external_launcher.dart';
@@ -48,7 +49,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   int _selectedDuration = 15; // 15, 30, 60
   Map<String, dynamic>? _selectedMember;
   bool _showRadarView = false;
-  LatLng _lastKnownCenter = const LatLng(37.7749, -122.4194);
+  LatLng _lastKnownCenter = const LatLng(14.5995, 120.9842);
 
   @override
   void initState() {
@@ -163,8 +164,24 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                         height: 260,
                         child: GestureDetector(
                           onTapUp: (details) {
-                            if (sessions.isNotEmpty) {
-                              setState(() => _selectedMember = sessions.first);
+                            if (sessions.isEmpty) return;
+                            const boxSize = 260.0;
+                            const center = Offset(boxSize / 2, boxSize / 2);
+                            final maxRadius = boxSize / 2 - 12;
+                            final dist = maxRadius * 0.65;
+                            Map<String, dynamic>? closest;
+                            double minDistance = double.infinity;
+                            for (var i = 0; i < sessions.length; i++) {
+                              final angle = (i * (2 * pi / max(1, sessions.length))) - (pi / 2);
+                              final pinPos = Offset(center.dx + cos(angle) * dist, center.dy + sin(angle) * dist);
+                              final d = (details.localPosition - pinPos).distance;
+                              if (d < minDistance && d < 28) {
+                                minDistance = d;
+                                closest = sessions[i];
+                              }
+                            }
+                            if (closest != null) {
+                              setState(() => _selectedMember = closest);
                             }
                           },
                           child: CustomPaint(
@@ -277,7 +294,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                             mapController: _mapController,
                             options: MapOptions(
                               initialCenter: sessions.isNotEmpty &&
-                                      sessions.first['lat'] != null
+                                      sessions.first['lat'] != null &&
+                                      sessions.first['lng'] != null
                                   ? LatLng(
                                       (sessions.first['lat'] as num).toDouble(),
                                       (sessions.first['lng'] as num).toDouble(),
@@ -480,11 +498,29 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                         width: double.infinity,
                         height: 52,
                         child: FilledButton(
-                          onPressed: () {
-                            locationService.startSharing(
-                              spaceId: widget.spaceId,
-                              durationMinutes: _selectedDuration,
-                            );
+                          onPressed: () async {
+                            try {
+                              await locationService.startSharing(
+                                spaceId: widget.spaceId,
+                                durationMinutes: _selectedDuration,
+                              );
+                            } catch (e) {
+                              if (context.mounted) {
+                                final message = e.toString()
+                                    .replaceAll('Bad state: ', '')
+                                    .replaceAll('StateError: ', '')
+                                    .replaceAll('Exception: ', '');
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(message),
+                                    action: SnackBarAction(
+                                      label: 'Settings',
+                                      onPressed: () => Geolocator.openLocationSettings(),
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
                           },
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF244BFF),
