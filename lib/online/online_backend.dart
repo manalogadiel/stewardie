@@ -207,6 +207,75 @@ class OnlineBackend {
           .collection('reactions')
           .snapshots();
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> pendingJoins(String spaceId) =>
+      firestore
+          .collection('spaces')
+          .doc(spaceId)
+          .collection('pendingJoins')
+          .snapshots();
+
+  Future<void> setSubtasks(
+    String spaceId,
+    String taskId,
+    List<Map<String, dynamic>> subtasks,
+  ) =>
+      call('setSubtasks', {
+        'spaceId': spaceId,
+        'taskId': taskId,
+        'subtasks': subtasks,
+      });
+
+  Future<void> requestHelp(String spaceId, String taskId) =>
+      call('requestHelp', {'spaceId': spaceId, 'taskId': taskId});
+
+  Future<void> takeOverTask(String spaceId, String taskId) =>
+      call('takeOverTask', {'spaceId': spaceId, 'taskId': taskId});
+
+  Future<void> createDependentProfile(
+    String spaceId, {
+    required String name,
+    required String familyRole,
+    required String color,
+  }) =>
+      call('createDependentProfile', {
+        'spaceId': spaceId,
+        'name': name,
+        'familyRole': familyRole,
+        'color': color,
+      });
+
+  Future<void> deleteDependentProfile(String spaceId, String memberId) =>
+      call('deleteDependentProfile', {
+        'spaceId': spaceId,
+        'memberId': memberId,
+      });
+
+  Future<void> setJoinApprovalPolicy(String spaceId, bool requireApproval) =>
+      call('setJoinApprovalPolicy', {
+        'spaceId': spaceId,
+        'requireApproval': requireApproval,
+      });
+
+  Future<void> requestJoinSpace(String spaceId) =>
+      call('requestJoinSpace', {'spaceId': spaceId});
+
+  Future<void> approveJoinRequest(
+    String spaceId,
+    String targetUid,
+    String targetName,
+  ) =>
+      call('approveJoinRequest', {
+        'spaceId': spaceId,
+        'targetUid': targetUid,
+        'targetName': targetName,
+      });
+
+  Future<void> declineJoinRequest(String spaceId, String targetUid) =>
+      call('declineJoinRequest', {
+        'spaceId': spaceId,
+        'targetUid': targetUid,
+      });
+
   Future<void> updateProfileName(String newName) async {
     final user = auth.currentUser;
     if (user != null) {

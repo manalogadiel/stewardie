@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sembast/sembast.dart';
 
+import 'external_launcher.dart';
 import 'online_backend.dart';
 import '../core/clay.dart';
 import '../core/theme.dart';
@@ -305,6 +306,37 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
                 photo.heading,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
+              if (photo.caption.contains(' • ')) ...[
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: InkWell(
+                    onTap: () {
+                      final place = photo.caption.split(' • ').last.trim();
+                      if (place.isNotEmpty) {
+                        ExternalLauncher.openMapDirections(context, query: place);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8EEFF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '📍 ${photo.caption.split(' • ').last.trim()}',
+                        style: const TextStyle(
+                          fontFamily: 'NunitoSans',
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF244BFF),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 'You · ${MaterialLocalizations.of(context).formatMediumDate(photo.publishedAt!.toLocal())}',

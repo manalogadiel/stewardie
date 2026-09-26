@@ -8,6 +8,7 @@ import '../core/invite_links.dart';
 import '../core/theme.dart';
 import '../core/top_controls.dart';
 import 'account_settings_sheet.dart';
+import 'dependent_profile_sheet.dart';
 import 'live_location_pill.dart';
 import 'live_location_service.dart';
 import 'online_backend.dart';
@@ -874,6 +875,13 @@ class _OnlineHomeState extends State<OnlineHome> {
       ),
       _ => null,
     };
+    final subtasks = List<Map<String, dynamic>>.from(
+      (task['subtasks'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+    );
+    final hasSubtasks = subtasks.isNotEmpty;
+    final doneSubtasks = subtasks.where((s) => s['done'] == true).length;
+    final isHelpNeeded = task['helpNeeded'] == true || status == 'needsHelp';
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GestureDetector(
@@ -887,7 +895,45 @@ class _OnlineHomeState extends State<OnlineHome> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 4),
-              Text(label),
+              Row(
+                children: [
+                  Expanded(child: Text(label)),
+                  if (hasSubtasks)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8EEFF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$doneSubtasks/${subtasks.length}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF244BFF),
+                        ),
+                      ),
+                    ),
+                  if (isHelpNeeded) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'Help needed',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFD97706),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
               if (action != null ||
                   (status == 'requested' && requested == widget.user.uid) ||
                   (status == 'accepted' && owner == widget.user.uid)) ...[
@@ -1322,11 +1368,18 @@ class _OnlineHomeState extends State<OnlineHome> {
                         for (final person
                             in members.data?.docs ??
                                 <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-                          if (person.data()['status'] == 'active')
-                            ListTile(
+                          if (person.data()['status'] == 'active') () {
+                            final isDependent = person.data()['isDependent'] == true;
+                            final familyRole = person.data()['familyRole'] as String?;
+                            final subtitleText = isDependent
+                                ? (familyRole != null ? '$familyRole • Dependent' : 'Dependent')
+                                : (person.id == owner
+                                    ? (familyRole != null ? '$familyRole • Owner' : 'Owner')
+                                    : (familyRole != null ? '$familyRole • Member' : 'Member'));
+                            return ListTile(
                               contentPadding: EdgeInsets.zero,
                               leading: CircleAvatar(
-                                backgroundColor: SoftPop.rose,
+                                backgroundColor: isDependent ? SoftPop.butter : SoftPop.rose,
                                 child: Text(
                                   (person.data()['name'] as String? ?? 'M')
                                           .characters
@@ -1337,36 +1390,64 @@ class _OnlineHomeState extends State<OnlineHome> {
                               title: Text(
                                 '${person.data()['name'] ?? 'Member'}${person.id == widget.user.uid ? ' (you)' : ''}',
                               ),
-                              subtitle: Text(
-                                person.id == owner ? 'Owner' : 'Member',
-                              ),
-                              trailing:
-                                  owner == widget.user.uid && person.id != owner
-                                  ? PopupMenuButton<String>(
-                                      tooltip:
-                                          'Manage ${person.data()['name']}',
-                                      itemBuilder: (_) => const [
-                                        PopupMenuItem(
-                                          value: 'removeMember',
-                                          child: Text('Remove from space'),
-                                        ),
-                                        PopupMenuItem(
-                                          value: 'offerOwnership',
-                                          child: Text('Offer ownership'),
-                                        ),
-                                      ],
-                                      onSelected: (action) => _membershipAction(
-                                        action,
-                                        spaceId,
-                                        memberUid: person.id,
-                                        name:
-                                            person.data()['name'] as String? ??
-                                            'Member',
-                                      ),
+                              subtitle: Text(subtitleText),
+                              trailing: (isDependent && (owner == widget.user.uid || person.data()['managedByUid'] == widget.user.uid))
+                                  ? IconButton(
+                                      icon: const Icon(Icons.edit_outlined, size: 18),
+                                      tooltip: 'Edit family profile',
+                                      onPressed: () {
+                                        DependentProfileSheet.show(
+                                          context,
+                                          backend: widget.backend,
+                                          spaceId: spaceId,
+                                          memberId: person.id,
+                                          initialName: person.data()['name'] as String?,
+                                          initialRole: familyRole,
+                                          initialColor: person.data()['color'] as String?,
+                                          onSaved: () => setState(() {}),
+                                        );
+                                      },
                                     )
-                                  : null,
-                            ),
-                        if (pendingOwner == widget.user.uid)
+                                  : (owner == widget.user.uid && person.id != owner
+                                      ? PopupMenuButton<String>(
+                                          tooltip:
+                                              'Manage ${person.data()['name']}',
+                                          itemBuilder: (_) => const [
+                                            PopupMenuItem(
+                                              value: 'removeMember',
+                                              child: Text('Remove from space'),
+                                            ),
+                                            PopupMenuItem(
+                                              value: 'offerOwnership',
+                                              child: Text('Offer ownership'),
+                                            ),
+                                          ],
+                                          onSelected: (action) => _membershipAction(
+                                            action,
+                                            spaceId,
+                                            memberUid: person.id,
+                                            name:
+                                                person.data()['name'] as String? ??
+                                                'Member',
+                                          ),
+                                        )
+                                      : null),
+                            );
+                          }(),
+                        const SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: () {
+                            DependentProfileSheet.show(
+                              context,
+                              backend: widget.backend,
+                              spaceId: spaceId,
+                              onSaved: () => setState(() {}),
+                            );
+                          },
+                          child: const Text('Add family profile'),
+                        ),
+                        if (pendingOwner == widget.user.uid) ...[
+                          const SizedBox(height: 8),
                           FilledButton(
                             onPressed: () => _membershipAction(
                               'acceptOwnership',
@@ -1375,7 +1456,119 @@ class _OnlineHomeState extends State<OnlineHome> {
                             ),
                             child: const Text('Accept ownership'),
                           ),
+                        ],
                         if (owner == widget.user.uid) ...[
+                          const SizedBox(height: 12),
+                          SwitchListTile.adaptive(
+                            title: const Text(
+                              'Require approval to join',
+                              style: TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            subtitle: const Text(
+                              'Review requests before members join',
+                              style: TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 12,
+                              ),
+                            ),
+                            value: spaceSnapshot.data?.data()?['requireApproval'] == true,
+                            contentPadding: EdgeInsets.zero,
+                            activeThumbColor: const Color(0xFF244BFF),
+                            onChanged: (val) async {
+                              try {
+                                await widget.backend.setJoinApprovalPolicy(spaceId, val);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Could not update policy: $e'),
+                                      backgroundColor: const Color(0xFFD32F2F),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                            stream: widget.backend.pendingJoins(spaceId),
+                            builder: (context, pendingSnapshot) {
+                              final pendingDocs = pendingSnapshot.data?.docs ?? [];
+                              if (pendingDocs.isEmpty) return const SizedBox.shrink();
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Pending requests (${pendingDocs.length})',
+                                    style: Theme.of(context).textTheme.titleSmall,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  for (final req in pendingDocs)
+                                    Container(
+                                      margin: const EdgeInsets.only(bottom: 6),
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFEF3C7),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: const Color(0xFFFDE68A)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  req.data()['name'] as String? ?? 'Member',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'NunitoSans',
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  req.data()['email'] as String? ?? '',
+                                                  style: const TextStyle(
+                                                    fontFamily: 'NunitoSans',
+                                                    fontSize: 11,
+                                                    color: Color(0xFF596171),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => widget.backend.declineJoinRequest(spaceId, req.id),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: const Color(0xFFD32F2F),
+                                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                                            ),
+                                            child: const Text('Decline'),
+                                          ),
+                                          FilledButton(
+                                            onPressed: () => widget.backend.approveJoinRequest(
+                                              spaceId,
+                                              req.id,
+                                              req.data()['name'] as String? ?? 'Member',
+                                            ),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: const Color(0xFF244BFF),
+                                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                                            ),
+                                            child: const Text('Approve'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 8),
                           OutlinedButton(
                             onPressed: () => _invite(spaceId),
                             child: const Text('Invite members'),

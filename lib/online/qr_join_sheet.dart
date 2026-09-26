@@ -84,10 +84,43 @@ class _QrJoinSheetState extends State<QrJoinSheet>
     });
 
     try {
+      final inviteSnap = await widget.backend.firestore.collection('invites').doc(clean).get();
+      final spaceId = inviteSnap.data()?['spaceId'] as String?;
+      if (spaceId != null) {
+        final spaceDoc = await widget.backend.firestore.collection('spaces').doc(spaceId).get();
+        final requireApproval = spaceDoc.data()?['requireApproval'] == true;
+        if (requireApproval) {
+          await widget.backend.requestJoinSpace(spaceId);
+          if (mounted) {
+            setState(() => _busy = false);
+            showDialog<void>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Request Sent'),
+                content: const Text(
+                  'This space requires approval. The space owner will review your request.',
+                  style: TextStyle(fontFamily: 'NunitoSans'),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            return;
+          }
+        }
+      }
+
       final res = await widget.backend.call('joinSpace', {'token': clean});
-      final spaceId = res['spaceId'] as String;
+      final resSpaceId = res['spaceId'] as String;
       if (mounted) {
-        widget.onJoined(spaceId);
+        widget.onJoined(resSpaceId);
         Navigator.of(context).pop();
       }
     } catch (e) {

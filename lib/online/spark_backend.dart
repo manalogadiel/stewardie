@@ -519,11 +519,120 @@ class SparkBackend {
         if (v.containsKey('requestedUid')) {
           updates['requestedUid'] = v['requestedUid'];
         }
+        if (v.containsKey('subtasks')) {
+          updates['subtasks'] = v['subtasks'];
+        }
+        if (v.containsKey('helpNeeded')) {
+          updates['helpNeeded'] = v['helpNeeded'];
+        }
+        if (v.containsKey('activity')) {
+          updates['activity'] = v['activity'];
+        }
         await space(id!).collection('tasks').doc(taskId).update(updates);
         return {'ok': true};
       case 'deleteTask':
         final taskId = v['taskId'] as String;
         await space(id!).collection('tasks').doc(taskId).delete();
+        return {'ok': true};
+      case 'setSubtasks':
+        final taskId = v['taskId'] as String;
+        await space(id!).collection('tasks').doc(taskId).update({
+          'subtasks': v['subtasks'],
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return {'ok': true};
+      case 'requestHelp':
+        final sId = id!;
+        final taskId = v['taskId'] as String;
+        final taskDoc = await space(sId).collection('tasks').doc(taskId).get();
+        final currentActivity = List<Map<String, dynamic>>.from(
+          taskDoc.data()?['activity'] as List? ?? [],
+        );
+        currentActivity.insert(0, {
+          'action': 'help_requested',
+          'uid': uid,
+          'name': user.displayName ?? 'Member',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+        await space(sId).collection('tasks').doc(taskId).update({
+          'helpNeeded': true,
+          'activity': currentActivity,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return {'ok': true};
+      case 'takeOverTask':
+        final sId = id!;
+        final taskId = v['taskId'] as String;
+        final taskDoc = await space(sId).collection('tasks').doc(taskId).get();
+        final currentActivity = List<Map<String, dynamic>>.from(
+          taskDoc.data()?['activity'] as List? ?? [],
+        );
+        currentActivity.insert(0, {
+          'action': 'taken_over',
+          'uid': uid,
+          'name': user.displayName ?? 'Member',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+        await space(sId).collection('tasks').doc(taskId).update({
+          'ownerUid': uid,
+          'requestedUid': null,
+          'helpNeeded': false,
+          'activity': currentActivity,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return {'ok': true};
+      case 'createDependentProfile':
+        final sId = id!;
+        final depId = 'dep_${DateTime.now().millisecondsSinceEpoch}';
+        await space(sId).collection('members').doc(depId).set({
+          'uid': depId,
+          'name': (v['name'] as String).trim(),
+          'familyRole': v['familyRole'] ?? 'Child',
+          'color': v['color'] ?? 'sky',
+          'isDependent': true,
+          'managedByUid': uid,
+          'status': 'active',
+          'joinedAt': FieldValue.serverTimestamp(),
+        });
+        return {'memberId': depId};
+      case 'deleteDependentProfile':
+        final sId = id!;
+        final memberId = v['memberId'] as String;
+        await space(sId).collection('members').doc(memberId).delete();
+        return {'ok': true};
+      case 'setJoinApprovalPolicy':
+        final sId = id!;
+        final requireApproval = v['requireApproval'] == true;
+        await space(sId).update({'requireApproval': requireApproval});
+        return {'ok': true};
+      case 'requestJoinSpace':
+        final sId = id!;
+        await space(sId).collection('pendingJoins').doc(uid).set({
+          'uid': uid,
+          'name': user.displayName ?? 'Member',
+          'email': user.email ?? '',
+          'requestedAt': FieldValue.serverTimestamp(),
+        });
+        return {'ok': true};
+      case 'approveJoinRequest':
+        final sId = id!;
+        final targetUid = v['targetUid'] as String;
+        final targetName = v['targetName'] as String? ?? 'Member';
+        final batch = db.batch();
+        batch.set(space(sId).collection('members').doc(targetUid), {
+          'uid': targetUid,
+          'name': targetName,
+          'role': 'member',
+          'status': 'active',
+          'joinedAt': FieldValue.serverTimestamp(),
+        });
+        batch.delete(space(sId).collection('pendingJoins').doc(targetUid));
+        await batch.commit();
+        return {'ok': true};
+      case 'declineJoinRequest':
+        final sId = id!;
+        final targetUid = v['targetUid'] as String;
+        await space(sId).collection('pendingJoins').doc(targetUid).delete();
         return {'ok': true};
       case 'createRoutine':
         final ref = space(id!).collection('routines').doc();

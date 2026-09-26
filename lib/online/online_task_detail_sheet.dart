@@ -59,12 +59,16 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   late final TextEditingController _titleController;
   late final TextEditingController _noteController;
   late final TextEditingController _destinationController;
+  late final TextEditingController _newSubtaskController;
   final FocusNode _titleFocus = FocusNode();
   final FocusNode _noteFocus = FocusNode();
   final FocusNode _destinationFocus = FocusNode();
 
   String? _selectedAssignee;
   bool _busy = false;
+  bool _helpNeeded = false;
+  late List<Map<String, dynamic>> _subtasks;
+  late List<Map<String, dynamic>> _activity;
 
   String get _taskId => widget.task['id'] as String? ?? widget.task['taskId'] as String;
 
@@ -74,7 +78,15 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     _titleController = TextEditingController(text: widget.task['title'] as String? ?? '');
     _noteController = TextEditingController(text: widget.task['note'] as String? ?? '');
     _destinationController = TextEditingController(text: widget.task['destination'] as String? ?? '');
+    _newSubtaskController = TextEditingController();
     _selectedAssignee = widget.task['requestedUid'] as String? ?? widget.task['ownerUid'] as String?;
+    _helpNeeded = widget.task['helpNeeded'] == true || widget.task['status'] == 'needsHelp';
+    _subtasks = List<Map<String, dynamic>>.from(
+      (widget.task['subtasks'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+    );
+    _activity = List<Map<String, dynamic>>.from(
+      (widget.task['activity'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+    );
 
     _titleFocus.addListener(_onFocusChanged);
     _noteFocus.addListener(_onFocusChanged);
@@ -107,6 +119,94 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     } catch (_) {}
   }
 
+  Future<void> _toggleSubtask(int index) async {
+    setState(() {
+      _subtasks[index]['done'] = !(_subtasks[index]['done'] == true);
+    });
+    try {
+      await widget.backend.setSubtasks(widget.spaceId, _taskId, _subtasks);
+      widget.onChanged();
+    } catch (_) {}
+  }
+
+  Future<void> _addSubtask() async {
+    final text = _newSubtaskController.text.trim();
+    if (text.isEmpty) return;
+    _newSubtaskController.clear();
+    setState(() {
+      _subtasks.add({
+        'id': 'sub_${DateTime.now().millisecondsSinceEpoch}',
+        'title': text,
+        'done': false,
+      });
+    });
+    try {
+      await widget.backend.setSubtasks(widget.spaceId, _taskId, _subtasks);
+      widget.onChanged();
+    } catch (_) {}
+  }
+
+  Future<void> _removeSubtask(int index) async {
+    setState(() {
+      _subtasks.removeAt(index);
+    });
+    try {
+      await widget.backend.setSubtasks(widget.spaceId, _taskId, _subtasks);
+      widget.onChanged();
+    } catch (_) {}
+  }
+
+  Future<void> _requestHelp() async {
+    setState(() => _busy = true);
+    try {
+      await widget.backend.requestHelp(widget.spaceId, _taskId);
+      setState(() {
+        _helpNeeded = true;
+        _activity.insert(0, {
+          'action': 'help_requested',
+          'uid': widget.backend.auth.currentUser?.uid,
+          'name': widget.backend.auth.currentUser?.displayName ?? 'Member',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+        _busy = false;
+      });
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not request help: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _takeOverTask() async {
+    setState(() => _busy = true);
+    try {
+      await widget.backend.takeOverTask(widget.spaceId, _taskId);
+      setState(() {
+        _helpNeeded = false;
+        _selectedAssignee = widget.backend.auth.currentUser?.uid;
+        _activity.insert(0, {
+          'action': 'taken_over',
+          'uid': widget.backend.auth.currentUser?.uid,
+          'name': widget.backend.auth.currentUser?.displayName ?? 'Member',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        });
+        _busy = false;
+      });
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not take over task: $e')),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _autoSave();
@@ -116,6 +216,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     _titleController.dispose();
     _noteController.dispose();
     _destinationController.dispose();
+    _newSubtaskController.dispose();
     super.dispose();
   }
 
@@ -397,12 +498,241 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                   ],
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Checklist',
+                    style: TextStyle(
+                      fontFamily: 'NunitoSans',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF202633),
+                    ),
+                  ),
+                  if (_subtasks.isNotEmpty)
+                    Text(
+                      '${_subtasks.where((s) => s['done'] == true).length}/${_subtasks.length}',
+                      style: const TextStyle(
+                        fontFamily: 'NunitoSans',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8E95A5),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_subtasks.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'No checklist items yet',
+                    style: TextStyle(
+                      fontFamily: 'NunitoSans',
+                      fontSize: 13,
+                      color: const Color(0xFF8E95A5).withValues(alpha: 0.8),
+                    ),
+                  ),
+                )
+              else
+                ..._subtasks.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final item = entry.value;
+                  final isDone = item['done'] == true;
+                  final title = item['title'] as String? ?? '';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        InkWell(
+                          onTap: () => _toggleSubtask(index),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: isDone ? const Color(0xFF244BFF) : const Color(0xFFFFFEFB),
+                                borderRadius: BorderRadius.circular(7),
+                                border: Border.all(
+                                  color: isDone ? const Color(0xFF244BFF) : const Color(0xFFD4D0C8),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: isDone
+                                  ? const Icon(Icons.check, size: 15, color: Colors.white)
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontFamily: 'NunitoSans',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isDone ? const Color(0xFF8E95A5) : const Color(0xFF202633),
+                              decoration: isDone ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 16, color: Color(0xFF8E95A5)),
+                          tooltip: 'Remove',
+                          onPressed: () => _removeSubtask(index),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newSubtaskController,
+                      style: const TextStyle(
+                        fontFamily: 'NunitoSans',
+                        fontSize: 14,
+                        color: Color(0xFF202633),
+                      ),
+                      onSubmitted: (_) => _addSubtask(),
+                      decoration: InputDecoration(
+                        hintText: 'Add an item...',
+                        hintStyle: const TextStyle(color: Color(0xFF8E95A5)),
+                        filled: true,
+                        fillColor: const Color(0xFFFFFEFB),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF244BFF)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 44,
+                    child: TextButton(
+                      onPressed: _addSubtask,
+                      style: TextButton.styleFrom(
+                        backgroundColor: const Color(0xFFE8EEFF),
+                        foregroundColor: const Color(0xFF244BFF),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text(
+                        'Add',
+                        style: TextStyle(
+                          fontFamily: 'NunitoSans',
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              if (_activity.isNotEmpty) ...[
+                const Text(
+                  'Activity',
+                  style: TextStyle(
+                    fontFamily: 'NunitoSans',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF596171),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFEFB),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE5E2DA)),
+                  ),
+                  child: Column(
+                    children: _activity.map((act) {
+                      final action = act['action'] as String? ?? '';
+                      final name = act['name'] as String? ?? 'Member';
+                      final text = switch (action) {
+                        'help_requested' => '$name asked for help',
+                        'taken_over' => '$name took over',
+                        'completed' => '$name marked done',
+                        _ => '$name updated task',
+                      };
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              text,
+                              style: const TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF202633),
+                              ),
+                            ),
+                            const Text(
+                              'Just now',
+                              style: TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 11,
+                                color: Color(0xFF8E95A5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
               if (_busy)
                 const Center(child: CircularProgressIndicator())
               else ...[
                 if (status != 'completed') ...[
-                  if (!isOwner)
+                  if (_helpNeeded && !isOwner) ...[
+                    SizedBox(
+                      height: 50,
+                      child: FilledButton(
+                        onPressed: _takeOverTask,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFAE33),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: const Text(
+                          'Take over task',
+                          style: TextStyle(
+                            fontFamily: 'NunitoSans',
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF202633),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  if (!isOwner && !_helpNeeded)
                     SizedBox(
                       height: 50,
                       child: FilledButton(
@@ -423,7 +753,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                         ),
                       ),
                     ),
-                  if (isOwner)
+                  if (isOwner) ...[
                     SizedBox(
                       height: 50,
                       child: FilledButton(
@@ -444,6 +774,32 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                         ),
                       ),
                     ),
+                    if (!_helpNeeded) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 44,
+                        child: OutlinedButton(
+                          onPressed: _requestHelp,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFD97706),
+                            side: const BorderSide(color: Color(0xFFFDE68A)),
+                            backgroundColor: const Color(0xFFFEF3C7),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Need help',
+                            style: TextStyle(
+                              fontFamily: 'NunitoSans',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                   const SizedBox(height: 12),
                 ],
                 Center(

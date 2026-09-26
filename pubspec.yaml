@@ -25,6 +25,9 @@ dependencies:
   sembast_web: ^2.4.6
   web: ^1.1.1
   purchases_flutter: ^10.13.1
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^13.0.2
 
 dev_dependencies:
   flutter_test:

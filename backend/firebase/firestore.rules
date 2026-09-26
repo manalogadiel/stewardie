@@ -105,6 +105,7 @@ service cloud.firestore {
       }
       allow update: if joining() || removing() || taskCount()
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeInviteToken']))
+        || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requireApproval']))
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && request.resource.data.pendingOwnerUid in resource.data.memberUids)
         || (member(id) && resource.data.get('pendingOwnerUid', null) == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid','pendingOwnerUid'])
@@ -114,24 +115,32 @@ service cloud.firestore {
       allow delete: if owner(id);
       match /members/{uid} {
         allow read: if member(id);
-        allow create, update: if self(uid) && (!exists(/databases/$(database)/documents/spaces/$(id)/members/$(uid)) || resource.data.status == 'removed')
+        allow create, update: if (self(uid) && (!exists(/databases/$(database)/documents/spaces/$(id)/members/$(uid)) || resource.data.status == 'removed')
           && uid in afterSpace(id).memberUids && request.resource.data.uid == uid
           && request.resource.data.status == 'active' && shortText(request.resource.data.name, 60)
           && request.resource.data.joinedAt == request.time
-          && request.resource.data.keys().hasOnly(['uid','name','role','status','joinedAt','joinToken'])
+          && request.resource.data.keys().hasOnly(['uid','name','role','familyRole','status','joinedAt','joinToken'])
           && ((afterSpace(id).ownerUid == uid && request.resource.data.role == 'owner')
-            || (request.resource.data.role == 'member' && inviteValid(request.resource.data.joinToken, id)));
+            || (request.resource.data.role == 'member' && inviteValid(request.resource.data.joinToken, id))))
+          || (member(id) && request.resource.data.get('isDependent', false) == true);
         allow update: if verified() && resource.data.status == 'active'
           && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'removed'
             && !(uid in afterSpace(id).memberUids) && (self(uid) || owner(id)))
           || (member(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
             && request.resource.data.role == (afterSpace(id).ownerUid == uid ? 'owner' : 'member')
-            && afterSpace(id).ownerUid != sp(id).ownerUid));
+            && afterSpace(id).ownerUid != sp(id).ownerUid)
+          || (member(id) && resource.data.get('isDependent', false) == true));
+        allow delete: if member(id) && (resource.data.get('isDependent', false) == true || owner(id));
+      }
+      match /pendingJoins/{joinUid} {
+        allow read: if member(id) || self(joinUid);
+        allow create: if verified() && self(joinUid);
+        allow delete: if member(id) || self(joinUid);
       }
       match /tasks/{task} {
         allow read: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)) || resource.data.status != 'completed' || plus() || resource.data.completedAt >= request.time.date() - duration.value(3, 'd'));
         allow delete: if member(id);
-        allow create: if member(id) && request.resource.data.keys().hasOnly(['title','note','destination','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt'])
+        allow create: if member(id) && request.resource.data.keys().hasOnly(['title','note','destination','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
           && shortText(request.resource.data.title, 120) && request.resource.data.creatorUid == request.auth.uid
           && request.resource.data.ownerUid == null && request.resource.data.offeredUid == null && request.resource.data.completedAt == null
           && request.resource.data.version == 1 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
@@ -160,11 +169,11 @@ service cloud.firestore {
               || (a.offeredUid == removed && b.offeredUid == null && b.status == a.status && b.ownerUid == a.ownerUid && b.requestedUid == a.requestedUid));
         }
         function contentEdit() {
-          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','requestedUid','updatedAt'])
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','requestedUid','subtasks','helpNeeded','handoffToUid','activity','updatedAt'])
             && request.resource.data.updatedAt == request.time
             && shortText(request.resource.data.title, 120);
         }
-        allow update: if member(id) && (contentEdit() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt'])
+        allow update: if member(id) && (contentEdit() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
           && request.resource.data.version == resource.data.version + 1 && request.resource.data.updatedAt == request.time && (transition() || released())));
         match /operations/{op} {
           allow read: if member(id) && op.matches(request.auth.uid + '_.*');
@@ -177,9 +186,12 @@ service cloud.firestore {
       match /routines/{routine} {
         allow read, create, update, delete: if member(id);
       }
-      match /moments/{moment}/reactions/{reactionUid} {
-        allow read: if member(id);
-        allow create, update, delete: if member(id) && self(reactionUid);
+      match /moments/{moment} {
+        allow read, create, update, delete: if member(id);
+        match /reactions/{reactionUid} {
+          allow read: if member(id);
+          allow create, update, delete: if member(id) && self(reactionUid);
+        }
       }
       match /locationSessions/{sessionUid} {
         allow read: if member(id);
