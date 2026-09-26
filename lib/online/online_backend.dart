@@ -180,4 +180,48 @@ class OnlineBackend {
       .doc(spaceId)
       .collection('plans')
       .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> routines(String spaceId) =>
+      firestore
+          .collection('spaces')
+          .doc(spaceId)
+          .collection('routines')
+          .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> locationSessions(String spaceId) =>
+      firestore
+          .collection('spaces')
+          .doc(spaceId)
+          .collection('locationSessions')
+          .snapshots();
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> reactions(
+    String spaceId,
+    String momentId,
+  ) =>
+      firestore
+          .collection('spaces')
+          .doc(spaceId)
+          .collection('moments')
+          .doc(momentId)
+          .collection('reactions')
+          .snapshots();
+
+  Future<void> updateProfileName(String newName) async {
+    final user = auth.currentUser;
+    if (user != null) {
+      await user.updateDisplayName(newName.trim());
+    }
+  }
+
+  Future<void> deleteAccount() async {
+    final user = auth.currentUser;
+    if (user != null) {
+      final uid = user.uid;
+      try {
+        await firestore.collection('accounts').doc(uid).delete();
+      } catch (_) {}
+      await user.delete();
+    }
+  }
 }

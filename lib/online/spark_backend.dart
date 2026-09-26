@@ -478,6 +478,112 @@ class SparkBackend {
           });
         });
         return {'ok': true};
+      case 'deleteSpace':
+        final spaceRef = space(id!);
+        await db.runTransaction((tx) async {
+          final spaceSnap = await tx.get(spaceRef);
+          if (!spaceSnap.exists) return;
+          final sData = spaceSnap.data()!;
+          if (sData['ownerUid'] != uid) {
+            throw StateError('Only the space owner can delete this space.');
+          }
+          final memberUids = List<String>.from(
+            (sData['memberUids'] as Iterable?) ?? [uid],
+          );
+          for (final mUid in memberUids) {
+            final accRef = db.doc('accounts/$mUid');
+            tx.update(accRef, {
+              'spaceIds': FieldValue.arrayRemove([id]),
+              'ownedSpaceIds': FieldValue.arrayRemove([id]),
+              'changedSpaceId': id,
+            });
+            tx.delete(accRef.collection('spaceRefs').doc(id));
+          }
+          tx.delete(spaceRef);
+        });
+        return {'ok': true};
+      case 'updateTask':
+        final taskId = v['taskId'] as String;
+        final updates = <String, dynamic>{
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (v.containsKey('title')) {
+          updates['title'] = (v['title'] as String).trim();
+        }
+        if (v.containsKey('note')) {
+          updates['note'] = (v['note'] as String).trim();
+        }
+        if (v.containsKey('destination')) {
+          updates['destination'] = (v['destination'] as String).trim();
+        }
+        if (v.containsKey('requestedUid')) {
+          updates['requestedUid'] = v['requestedUid'];
+        }
+        await space(id!).collection('tasks').doc(taskId).update(updates);
+        return {'ok': true};
+      case 'deleteTask':
+        final taskId = v['taskId'] as String;
+        await space(id!).collection('tasks').doc(taskId).delete();
+        return {'ok': true};
+      case 'createRoutine':
+        final ref = space(id!).collection('routines').doc();
+        await ref.set({
+          'id': ref.id,
+          'title': (v['title'] as String).trim(),
+          'cadence': v['cadence'] ?? 'daily',
+          'assignedUid': v['assignedUid'],
+          'creatorUid': uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        return {'routineId': ref.id};
+      case 'deleteRoutine':
+        final routineId = v['routineId'] as String;
+        await space(id!).collection('routines').doc(routineId).delete();
+        return {'ok': true};
+      case 'toggleReaction':
+        final momentId = v['momentId'] as String;
+        final reactionType = v['reactionType'] as String;
+        final reactionRef = space(id!)
+            .collection('moments')
+            .doc(momentId)
+            .collection('reactions')
+            .doc(uid);
+        final snap = await reactionRef.get();
+        if (snap.exists && snap.data()?['type'] == reactionType) {
+          await reactionRef.delete();
+          return {'active': false};
+        } else {
+          await reactionRef.set({
+            'uid': uid,
+            'type': reactionType,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          return {'active': true};
+        }
+      case 'startLocationSession':
+        final durationMinutes = (v['durationMinutes'] as int?) ?? 15;
+        final expiresAt = DateTime.now().toUtc().add(
+          Duration(minutes: durationMinutes),
+        );
+        await space(id!).collection('locationSessions').doc(uid).set({
+          'uid': uid,
+          'name': user.displayName ?? 'Member',
+          'lat': (v['lat'] as num).toDouble(),
+          'lng': (v['lng'] as num).toDouble(),
+          'startedAt': FieldValue.serverTimestamp(),
+          'expiresAt': Timestamp.fromDate(expiresAt),
+        });
+        return {'ok': true};
+      case 'updateLocation':
+        await space(id!).collection('locationSessions').doc(uid).update({
+          'lat': (v['lat'] as num).toDouble(),
+          'lng': (v['lng'] as num).toDouble(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return {'ok': true};
+      case 'stopLocationSession':
+        await space(id!).collection('locationSessions').doc(uid).delete();
+        return {'ok': true};
       default:
         throw StateError('This action is not available.');
     }

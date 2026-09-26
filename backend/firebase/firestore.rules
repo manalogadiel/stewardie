@@ -111,6 +111,7 @@ service cloud.firestore {
           && request.resource.data.ownerUid == request.auth.uid && request.resource.data.pendingOwnerUid == null
           && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.ownedSpaceIds
           && !(id in getAfter(/databases/$(database)/documents/accounts/$(resource.data.ownerUid)).data.ownedSpaceIds));
+      allow delete: if owner(id);
       match /members/{uid} {
         allow read: if member(id);
         allow create, update: if self(uid) && (!exists(/databases/$(database)/documents/spaces/$(id)/members/$(uid)) || resource.data.status == 'removed')
@@ -129,7 +130,8 @@ service cloud.firestore {
       }
       match /tasks/{task} {
         allow read: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)) || resource.data.status != 'completed' || plus() || resource.data.completedAt >= request.time.date() - duration.value(3, 'd'));
-        allow create: if member(id) && request.resource.data.keys().hasOnly(['title','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt'])
+        allow delete: if member(id);
+        allow create: if member(id) && request.resource.data.keys().hasOnly(['title','note','destination','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt'])
           && shortText(request.resource.data.title, 120) && request.resource.data.creatorUid == request.auth.uid
           && request.resource.data.ownerUid == null && request.resource.data.offeredUid == null && request.resource.data.completedAt == null
           && request.resource.data.version == 1 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
@@ -157,8 +159,13 @@ service cloud.firestore {
             && (((a.ownerUid == removed || a.requestedUid == removed) && b.status == 'unclaimed' && b.ownerUid == null && b.requestedUid == null && b.offeredUid == null)
               || (a.offeredUid == removed && b.offeredUid == null && b.status == a.status && b.ownerUid == a.ownerUid && b.requestedUid == a.requestedUid));
         }
-        allow update: if member(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt'])
-          && request.resource.data.version == resource.data.version + 1 && request.resource.data.updatedAt == request.time && (transition() || released());
+        function contentEdit() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','requestedUid','updatedAt'])
+            && request.resource.data.updatedAt == request.time
+            && shortText(request.resource.data.title, 120);
+        }
+        allow update: if member(id) && (contentEdit() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt'])
+          && request.resource.data.version == resource.data.version + 1 && request.resource.data.updatedAt == request.time && (transition() || released())));
         match /operations/{op} {
           allow read: if member(id) && op.matches(request.auth.uid + '_.*');
           allow create: if member(id) && request.resource.data.keys().hasOnly(['actorUid','version','action','appliedAt'])
@@ -166,6 +173,17 @@ service cloud.firestore {
             && request.resource.data.version == getAfter(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)).data.version
             && request.resource.data.version == get(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)).data.version + 1;
         }
+      }
+      match /routines/{routine} {
+        allow read, create, update, delete: if member(id);
+      }
+      match /moments/{moment}/reactions/{reactionUid} {
+        allow read: if member(id);
+        allow create, update, delete: if member(id) && self(reactionUid);
+      }
+      match /locationSessions/{sessionUid} {
+        allow read: if member(id);
+        allow create, update, delete: if member(id) && self(sessionUid);
       }
       match /checkIns/{uid} {
         allow read: if member(id);

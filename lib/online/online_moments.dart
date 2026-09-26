@@ -1,10 +1,12 @@
 import 'dart:math' as math;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sembast/sembast.dart';
 
+import 'online_backend.dart';
 import '../core/clay.dart';
 import '../core/theme.dart';
 import '../features/media/camera_screen.dart';
@@ -82,12 +84,14 @@ class OnlineMomentsScreen extends StatefulWidget {
     required this.personUid,
     required this.members,
     required this.onPersonSelected,
+    this.backend,
   });
   final OnlineMomentsStore store;
   final String spaceId, spaceName, myUid;
   final String? personUid;
   final Map<String, Map<String, dynamic>> members;
   final ValueChanged<String?> onPersonSelected;
+  final OnlineBackend? backend;
 
   @override
   State<OnlineMomentsScreen> createState() => _OnlineMomentsScreenState();
@@ -306,6 +310,14 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
                 'You · ${MaterialLocalizations.of(context).formatMediumDate(photo.publishedAt!.toLocal())}',
               ),
               const Text('Saved on this device'),
+              const SizedBox(height: 8),
+              if (widget.backend != null)
+                _ReactionPills(
+                  backend: widget.backend,
+                  spaceId: widget.spaceId,
+                  momentId: photo.id,
+                  myUid: widget.myUid,
+                ),
               TextButton(
                 onPressed: () => _remove(photo),
                 child: const Text('Remove photo'),
@@ -481,4 +493,113 @@ class _OnlineMomentComposerState extends State<_OnlineMomentComposer> {
       ),
     ),
   );
+}
+
+class _ReactionPills extends StatefulWidget {
+  const _ReactionPills({
+    required this.backend,
+    required this.spaceId,
+    required this.momentId,
+    required this.myUid,
+  });
+
+  final OnlineBackend? backend;
+  final String spaceId;
+  final String momentId;
+  final String myUid;
+
+  @override
+  State<_ReactionPills> createState() => _ReactionPillsState();
+}
+
+class _ReactionPillsState extends State<_ReactionPills> {
+  Future<void> _toggle(String type) async {
+    if (widget.backend == null) return;
+    try {
+      await widget.backend!.call('toggleReaction', {
+        'spaceId': widget.spaceId,
+        'momentId': widget.momentId,
+        'reactionType': type,
+      });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.backend == null) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: widget.backend!.reactions(widget.spaceId, widget.momentId),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        int hearts = 0;
+        int prays = 0;
+        bool myHeart = false;
+        bool myPray = false;
+
+        for (final doc in docs) {
+          final data = doc.data();
+          final type = data['type'] as String?;
+          final uid = data['uid'] as String?;
+          if (type == 'heart') {
+            hearts++;
+            if (uid == widget.myUid) myHeart = true;
+          } else if (type == 'pray') {
+            prays++;
+            if (uid == widget.myUid) myPray = true;
+          }
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _pill(
+                label: '❤️ ${hearts > 0 ? hearts : ''}',
+                selected: myHeart,
+                onTap: () => _toggle('heart'),
+              ),
+              const SizedBox(width: 8),
+              _pill(
+                label: '🙏 ${prays > 0 ? prays : ''}',
+                selected: myPray,
+                onTap: () => _toggle('pray'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _pill({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFE8EEFF) : const Color(0xFFFFFEFB),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? const Color(0xFF244BFF) : const Color(0xFFE5E2DA),
+          ),
+        ),
+        child: Text(
+          label.trim(),
+          style: TextStyle(
+            fontFamily: 'NunitoSans',
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            color: selected ? const Color(0xFF244BFF) : const Color(0xFF202633),
+          ),
+        ),
+      ),
+    );
+  }
 }

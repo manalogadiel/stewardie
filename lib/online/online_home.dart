@@ -1,16 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../app.dart' show GlassDock;
 import '../core/clay.dart';
 import '../core/invite_links.dart';
 import '../core/theme.dart';
 import '../core/top_controls.dart';
+import 'account_settings_sheet.dart';
+import 'live_location_pill.dart';
+import 'live_location_service.dart';
 import 'online_backend.dart';
 import 'online_moments.dart';
+import 'online_task_detail_sheet.dart';
 import 'online_today_extras.dart';
+import 'qr_invite_sheet.dart';
+import 'qr_join_sheet.dart';
+import 'routines_sheet.dart';
+import 'space_deletion_sheet.dart';
+import 'space_map_sheet.dart';
+import 'task_completion_prompt_sheet.dart';
 import '../features/subscription/revenuecat_service.dart';
 import '../features/subscription/soft_pop_paywall.dart';
 
@@ -48,9 +57,12 @@ class _OnlineHomeState extends State<OnlineHome> {
   String? _moreCursor;
   bool _loadingMore = false;
 
+  final _checkedRoutinesSpaces = <String>{};
+
   @override
   void initState() {
     super.initState();
+    LiveLocationService.instance.init(widget.backend);
     RevenueCatService.instance.addListener(_onRevenueCatUpdate);
   }
 
@@ -69,6 +81,89 @@ class _OnlineHomeState extends State<OnlineHome> {
     _historyFuture = null;
     _moreDone.clear();
     _moreCursor = null;
+  }
+
+  Future<void> _generateRoutinesForToday(String spaceId) async {
+    if (_checkedRoutinesSpaces.contains(spaceId)) return;
+    _checkedRoutinesSpaces.add(spaceId);
+
+    try {
+      final routinesSnap = await widget.backend.firestore
+          .collection('spaces')
+          .doc(spaceId)
+          .collection('routines')
+          .get();
+
+      final now = DateTime.now();
+      final dateKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final isWeekday = now.weekday >= 1 && now.weekday <= 5;
+
+      for (final doc in routinesSnap.docs) {
+        final data = doc.data();
+        final cadence = data['cadence'] as String? ?? 'daily';
+        bool applies = false;
+        if (cadence == 'daily') applies = true;
+        if (cadence == 'weekdays' && isWeekday) applies = true;
+        if (cadence == 'weekly' && now.weekday == 1) applies = true;
+
+        if (applies) {
+          final taskId = 'routine_${doc.id}_$dateKey';
+          final taskRef = widget.backend.firestore
+              .collection('spaces')
+              .doc(spaceId)
+              .collection('tasks')
+              .doc(taskId);
+
+          final taskSnap = await taskRef.get();
+          if (!taskSnap.exists) {
+            await widget.backend.call('createTask', {
+              'spaceId': spaceId,
+              'operationId': taskId,
+              'title': data['title'] ?? 'Routine',
+              'requestedUid': data['assignedUid'],
+            });
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _openTaskDetail(
+    String spaceId,
+    String taskId,
+    Map<String, dynamic> task,
+    Map<String, Map<String, dynamic>> members,
+  ) async {
+    final store = await _momentStore;
+    if (!mounted) return;
+    OnlineTaskDetailSheet.show(
+      context,
+      backend: widget.backend,
+      spaceId: spaceId,
+      task: {...task, 'id': taskId},
+      members: members.entries.map((e) => {'uid': e.key, ...e.value}).toList(),
+      momentStore: store,
+      onChanged: () => setState(() => _invalidateHistory()),
+    );
+  }
+
+  Future<void> _openCompletionPrompt(
+    String spaceId,
+    String taskId,
+    String taskTitle,
+  ) async {
+    final store = await _momentStore;
+    if (!mounted) return;
+    TaskCompletionPromptSheet.show(
+      context,
+      backend: widget.backend,
+      spaceId: spaceId,
+      taskId: taskId,
+      taskTitle: taskTitle,
+      momentStore: store,
+      onCompleted: () => setState(() => _invalidateHistory()),
+    );
   }
 
   void _switchSpace(String? id) => setState(() {
@@ -263,10 +358,16 @@ class _OnlineHomeState extends State<OnlineHome> {
                         heightFactor: 1,
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 360),
-                          child: GlassDock(
-                            index: _destination,
-                            onSelected: (index) =>
-                                setState(() => _destination = index),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const LiveLocationPill(),
+                              GlassDock(
+                                index: _destination,
+                                onSelected: (index) =>
+                                    setState(() => _destination = index),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -392,6 +493,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                             .data()['name']
                         as String? ??
                     'Your space';
+                _generateRoutinesForToday(spaceId);
                 return _todayPage(
                   summary: [
                     const SizedBox(height: 16),
@@ -774,51 +876,64 @@ class _OnlineHomeState extends State<OnlineHome> {
     };
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: ClayPanel(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              task['title'] as String? ?? 'Task',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            Text(label),
-            if (action != null ||
-                (status == 'requested' && requested == widget.user.uid) ||
-                (status == 'accepted' && owner == widget.user.uid)) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  if (action != null)
-                    FilledButton.tonal(
-                      onPressed: _busyTasks.contains(taskId)
-                          ? null
-                          : () => _act(spaceId, taskId, action.$1),
-                      child: Text(
-                        _busyTasks.contains(taskId) ? 'Saving…' : action.$2,
-                      ),
-                    ),
-                  if (status == 'requested' && requested == widget.user.uid)
-                    TextButton(
-                      onPressed: _busyTasks.contains(taskId)
-                          ? null
-                          : () => _act(spaceId, taskId, 'decline'),
-                      child: const Text('Decline'),
-                    ),
-                  if (status == 'accepted' && owner == widget.user.uid)
-                    TextButton(
-                      onPressed: _busyTasks.contains(taskId)
-                          ? null
-                          : () => _act(spaceId, taskId, 'needHelp'),
-                      child: const Text('Need help'),
-                    ),
-                ],
+      child: GestureDetector(
+        onTap: () => _openTaskDetail(spaceId, taskId, task, members),
+        child: ClayPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                task['title'] as String? ?? 'Task',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
+              const SizedBox(height: 4),
+              Text(label),
+              if (action != null ||
+                  (status == 'requested' && requested == widget.user.uid) ||
+                  (status == 'accepted' && owner == widget.user.uid)) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (action != null)
+                      FilledButton.tonal(
+                        onPressed: _busyTasks.contains(taskId)
+                            ? null
+                            : () {
+                                if (action.$1 == 'complete') {
+                                  _openCompletionPrompt(
+                                    spaceId,
+                                    taskId,
+                                    task['title'] as String? ?? 'Task',
+                                  );
+                                } else {
+                                  _act(spaceId, taskId, action.$1);
+                                }
+                              },
+                        child: Text(
+                          _busyTasks.contains(taskId) ? 'Saving…' : action.$2,
+                        ),
+                      ),
+                    if (status == 'requested' && requested == widget.user.uid)
+                      TextButton(
+                        onPressed: _busyTasks.contains(taskId)
+                            ? null
+                            : () => _act(spaceId, taskId, 'decline'),
+                        child: const Text('Decline'),
+                      ),
+                    if (status == 'accepted' && owner == widget.user.uid)
+                      TextButton(
+                        onPressed: _busyTasks.contains(taskId)
+                            ? null
+                            : () => _act(spaceId, taskId, 'needHelp'),
+                        child: const Text('Need help'),
+                      ),
+                  ],
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -853,6 +968,7 @@ class _OnlineHomeState extends State<OnlineHome> {
           stream: widget.backend.members(spaceId),
           builder: (context, peopleSnapshot) => OnlineMomentsScreen(
             store: librarySnapshot.data!,
+            backend: widget.backend,
             spaceId: spaceId,
             spaceName: space?.data()['name'] as String? ?? 'Your space',
             myUid: widget.user.uid,
@@ -1161,20 +1277,18 @@ class _OnlineHomeState extends State<OnlineHome> {
                           ),
                         ),
                       ],
-                      TextButton.icon(
-                        icon: const Icon(Icons.logout_rounded),
-                        label: const Text('Sign out'),
-                        onPressed: () async {
-                          if (!await _confirm(
-                            'Sign out?',
-                            'Sign out of ${widget.user.email}? Your saved photos stay on this device.',
-                            'Sign out',
-                          )) {
-                            return;
-                          }
-                          await RevenueCatService.instance.logOut();
-                          await widget.backend.auth.signOut();
+                      TextButton(
+                        onPressed: () {
+                          AccountSettingsSheet.show(
+                            context,
+                            backend: widget.backend,
+                            tier: plus ? 'Plus' : 'Basic',
+                            onSignedOut: () {
+                              RevenueCatService.instance.logOut();
+                            },
+                          );
                         },
+                        child: const Text('Account settings'),
                       ),
                     ],
                   ),
@@ -1262,16 +1376,67 @@ class _OnlineHomeState extends State<OnlineHome> {
                             child: const Text('Accept ownership'),
                           ),
                         if (owner == widget.user.uid) ...[
-                          OutlinedButton.icon(
+                          OutlinedButton(
                             onPressed: () => _invite(spaceId),
-                            icon: const Icon(Icons.ios_share_rounded),
-                            label: const Text('Invite someone'),
+                            child: const Text('Invite members'),
                           ),
-                          const Text(
-                            'To leave, offer ownership to another member first.',
-                            style: TextStyle(color: SoftPop.secondary),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () {
+                              final memberList = (members.data?.docs ?? [])
+                                  .map((d) => {'uid': d.id, ...d.data()})
+                                  .toList();
+                              RoutinesSheet.show(
+                                context,
+                                backend: widget.backend,
+                                spaceId: spaceId,
+                                members: memberList,
+                              );
+                            },
+                            child: const Text('Routines'),
                           ),
-                        ] else
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: () {
+                              SpaceMapSheet.show(
+                                context,
+                                backend: widget.backend,
+                                spaceId: spaceId,
+                              );
+                            },
+                            child: const Text('Space map'),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () {
+                              SpaceDeletionSheet.show(
+                                context,
+                                backend: widget.backend,
+                                spaceId: spaceId,
+                                spaceName: spaceName,
+                                onDeleted: () {
+                                  _switchSpace(null);
+                                  setState(() => _destination = 0);
+                                },
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFD32F2F),
+                            ),
+                            child: const Text('Delete space'),
+                          ),
+                        ] else ...[
+                          OutlinedButton(
+                            onPressed: () {
+                              SpaceMapSheet.show(
+                                context,
+                                backend: widget.backend,
+                                spaceId: spaceId,
+                              );
+                            },
+                            child: const Text('Space map'),
+                          ),
+                          const SizedBox(height: 8),
                           TextButton(
                             onPressed: () => _membershipAction(
                               'leaveSpace',
@@ -1280,6 +1445,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                             ),
                             child: const Text('Leave space'),
                           ),
+                        ],
                       ],
                     ),
                   ),
@@ -1436,24 +1602,15 @@ class _OnlineHomeState extends State<OnlineHome> {
   }
 
   Future<void> _joinSpace() async {
-    final code = await showDialog<String>(
-      context: context,
-      builder: (_) => _JoinSpaceDialog(backend: widget.backend),
-    );
-    if (code == null) return;
-    try {
-      await widget.backend.auth.currentUser?.reload();
-      await widget.user.getIdToken(true);
-      final result = await widget.backend.call('redeemInvite', {'token': code});
-      if (mounted) {
-        final newSpaceId = result['spaceId'] as String;
+    QrJoinSheet.show(
+      context,
+      backend: widget.backend,
+      onJoined: (newSpaceId) {
         _switchSpace(newSpaceId);
         setState(() => _destination = 0);
         widget.onSpaceSelected?.call(newSpaceId);
-      }
-    } catch (error) {
-      _message(_error(error));
-    }
+      },
+    );
   }
 
   Future<void> _invite(String spaceId) async {
@@ -1461,122 +1618,15 @@ class _OnlineHomeState extends State<OnlineHome> {
       final result = await widget.backend.call('createInvite', {
         'spaceId': spaceId,
       });
-      var currentCode = result['token'] as String;
-      var isRegenerating = false;
+      final currentCode = result['token'] as String;
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialog) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: const Text('Invite someone'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Share this code or link with someone you trust. It can be used once and expires in 7 days.',
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: SoftPop.surface,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: SelectableText(
-                        currentCode,
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 4.0,
-                          color: SoftPop.ink,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: isRegenerating
-                          ? null
-                          : () async {
-                              final confirmed = await showDialog<bool>(
-                                context: dialogContext,
-                                builder: (confirmCtx) => AlertDialog(
-                                  title: const Text('Generate new code?'),
-                                  content: const Text(
-                                    'This will revoke the previous invitation code. Anyone with the old code will no longer be able to join.',
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(confirmCtx, false),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    FilledButton(
-                                      onPressed: () =>
-                                          Navigator.pop(confirmCtx, true),
-                                      child: const Text('Get new code'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                              if (confirmed != true || !mounted) return;
-                              setDialogState(() => isRegenerating = true);
-                              try {
-                                final res = await widget.backend.call(
-                                  'createInvite',
-                                  {'spaceId': spaceId, 'forceNew': true},
-                                );
-                                setDialogState(() {
-                                  currentCode = res['token'] as String;
-                                  isRegenerating = false;
-                                });
-                                _message('New invite code ready.');
-                              } catch (e) {
-                                setDialogState(() => isRegenerating = false);
-                                _message(_error(e));
-                              }
-                            },
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('Get new code'),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialog),
-                  child: const Text('Close'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final link = InviteLinks.buildUrl(currentCode);
-                    await Clipboard.setData(ClipboardData(text: link));
-                    if (dialog.mounted) Navigator.pop(dialog);
-                    _message('Invite link copied.');
-                  },
-                  icon: const Icon(Icons.link_rounded),
-                  label: const Text('Copy link'),
-                ),
-                FilledButton.icon(
-                  onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: currentCode));
-                    if (dialog.mounted) Navigator.pop(dialog);
-                    _message('Code copied.');
-                  },
-                  icon: const Icon(Icons.copy_rounded),
-                  label: const Text('Copy code'),
-                ),
-              ],
-            );
-          },
-        ),
+      QrInviteSheet.show(
+        context,
+        backend: widget.backend,
+        spaceId: spaceId,
+        spaceName: 'Space Invite',
+        inviteToken: currentCode,
+        onRegenerated: (_) {},
       );
     } catch (error) {
       _message(_error(error));
