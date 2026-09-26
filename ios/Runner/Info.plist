@@ -8,6 +8,10 @@
     <string>Choose a photo to share in your space.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Save a selected moment to your photos.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Share your live location with members in your space.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Share your live location with members in your space.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
