@@ -10,6 +10,9 @@ import 'online_backend.dart';
 DateTime? firebaseDate(Object? value) {
   if (value is Timestamp) return value.toDate();
   if (value is String) return DateTime.tryParse(value);
+  if (value is num) {
+    return DateTime.fromMillisecondsSinceEpoch(value.toInt(), isUtc: true);
+  }
   if (value is Map) {
     final seconds = value['_seconds'] ?? value['seconds'];
     if (seconds is num) {
@@ -476,6 +479,9 @@ class FirebaseCalendarRepository extends CalendarDataSource {
   }) async {
     if (actorId != timeline.currentUserId) {
       throw StateError('Use your own account.');
+    }
+    if (id == null && dateOnly(start).isBefore(dateOnly(DateTime.now()))) {
+      throw ArgumentError('Plans cannot be created in the past.');
     }
     final planId =
         id ?? timeline.backend.firestore.collection('planIds').doc().id;

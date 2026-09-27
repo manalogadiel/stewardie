@@ -280,6 +280,36 @@ class _RoutinesSheetState extends State<RoutinesSheet> {
                     ),
                 ],
               ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                initialValue: _assignedUid,
+                decoration: InputDecoration(
+                  labelText: 'Assign to (optional)',
+                  filled: true,
+                  fillColor: const Color(0xFFFFFEFB),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                  ),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Anyone in space'),
+                  ),
+                  for (final m in widget.members)
+                    DropdownMenuItem<String?>(
+                      value: m['uid'] as String?,
+                      child: Text(m['name'] as String? ?? 'Member'),
+                    ),
+                ],
+                onChanged: (val) => setState(() => _assignedUid = val),
+              ),
               const SizedBox(height: 20),
               if (_busy)
                 const Center(child: CircularProgressIndicator())

@@ -117,7 +117,7 @@ class _QrJoinSheetState extends State<QrJoinSheet>
         }
       }
 
-      final res = await widget.backend.call('joinSpace', {'token': clean});
+      final res = await widget.backend.call('redeemInvite', {'token': clean});
       final resSpaceId = res['spaceId'] as String;
       if (mounted) {
         widget.onJoined(resSpaceId);
@@ -281,21 +281,36 @@ class _QrJoinSheetState extends State<QrJoinSheet>
                   // Tab 2: Camera Scanner View
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
-                    child: _cameraController != null && _cameraController!.value.isInitialized
-                        ? CameraPreview(_cameraController!)
-                        : Container(
-                            color: const Color(0xFF202633),
-                            child: const Center(
-                              child: Text(
-                                'Align QR code in frame',
-                                style: TextStyle(
-                                  fontFamily: 'NunitoSans',
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (_cameraController != null && _cameraController!.value.isInitialized)
+                          CameraPreview(_cameraController!)
+                        else
+                          Container(color: const Color(0xFF202633)),
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Container(
+                            margin: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Center the QR code in view, or type the code in the "Enter code" tab',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'NunitoSans',
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
