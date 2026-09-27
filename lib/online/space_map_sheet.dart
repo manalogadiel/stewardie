@@ -1,7 +1,9 @@
 import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'external_launcher.dart';
@@ -32,10 +34,7 @@ class SpaceMapSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => SpaceMapSheet(
-        backend: backend,
-        spaceId: spaceId,
-      ),
+      builder: (_) => SpaceMapSheet(backend: backend, spaceId: spaceId),
     );
   }
 
@@ -55,7 +54,35 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   @override
   void initState() {
     super.initState();
+    final cached = LiveLocationService.instance.currentPosition.value;
+    if (cached != null) {
+      final pos = LatLng(cached.latitude, cached.longitude);
+      _lastKnownCenter = pos;
+      _currentUserLatLng = pos;
+    }
+    LiveLocationService.instance.currentPosition.addListener(
+      _onPositionChanged,
+    );
     _initUserLocation();
+  }
+
+  void _onPositionChanged() {
+    final pos = LiveLocationService.instance.currentPosition.value;
+    if (pos != null && mounted) {
+      setState(() {
+        final latLng = LatLng(pos.latitude, pos.longitude);
+        _currentUserLatLng = latLng;
+        _lastKnownCenter = latLng;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    LiveLocationService.instance.currentPosition.removeListener(
+      _onPositionChanged,
+    );
+    super.dispose();
   }
 
   Future<void> _initUserLocation() async {
@@ -64,9 +91,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
       final userLatLng = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _lastKnownCenter = userLatLng;
+        _currentUserLatLng = userLatLng;
       });
       try {
-        _mapController.move(userLatLng, 14.5);
+        _mapController.move(userLatLng, 15.0);
       } catch (_) {}
     }
   }
@@ -75,6 +103,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
     final pos = await LiveLocationService.instance.determinePosition();
     if (pos != null && mounted) {
       final userLatLng = LatLng(pos.latitude, pos.longitude);
+      setState(() {
+        _lastKnownCenter = userLatLng;
+        _currentUserLatLng = userLatLng;
+      });
       _mapController.move(userLatLng, 15.0);
     }
   }
@@ -124,11 +156,15 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                           setState(() => _showRadarView = !_showRadarView);
                         },
                         icon: Icon(
-                          _showRadarView ? Icons.map_outlined : Icons.radar_rounded,
+                          _showRadarView
+                              ? Icons.map_outlined
+                              : Icons.radar_rounded,
                           color: const Color(0xFF244BFF),
                           size: 22,
                         ),
-                        tooltip: _showRadarView ? 'Switch to Map' : 'Switch to Radar',
+                        tooltip: _showRadarView
+                            ? 'Switch to Map'
+                            : 'Switch to Radar',
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
@@ -155,7 +191,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
               StreamBuilder<List<Map<String, dynamic>>>(
                 stream: widget.backend.locationSessions(widget.spaceId),
                 builder: (context, snapshot) {
-                  final sessions = snapshot.data ?? const <Map<String, dynamic>>[];
+                  final sessions =
+                      snapshot.data ?? const <Map<String, dynamic>>[];
 
                   if (_showRadarView) {
                     return Center(
@@ -164,8 +201,30 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                         height: 260,
                         child: GestureDetector(
                           onTapUp: (details) {
-                            if (sessions.isNotEmpty) {
-                              setState(() => _selectedMember = sessions.first);
+                            if (sessions.isEmpty) return;
+                            const boxSize = 260.0;
+                            const center = Offset(boxSize / 2, boxSize / 2);
+                            final maxRadius = boxSize / 2 - 12;
+                            final dist = maxRadius * 0.65;
+                            Map<String, dynamic>? closest;
+                            double minDistance = double.infinity;
+                            for (var i = 0; i < sessions.length; i++) {
+                              final angle =
+                                  (i * (2 * pi / max(1, sessions.length))) -
+                                  (pi / 2);
+                              final pinPos = Offset(
+                                center.dx + cos(angle) * dist,
+                                center.dy + sin(angle) * dist,
+                              );
+                              final d =
+                                  (details.localPosition - pinPos).distance;
+                              if (d < minDistance && d < 28) {
+                                minDistance = d;
+                                closest = sessions[i];
+                              }
+                            }
+                            if (closest != null) {
+                              setState(() => _selectedMember = closest);
                             }
                           },
                           child: CustomPaint(
@@ -176,86 +235,80 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                     );
                   }
 
+                  final myUid = widget.backend.auth.currentUser?.uid;
+                  final myUser = widget.backend.auth.currentUser;
+                  final myRawName = myUser?.displayName?.isNotEmpty == true
+                      ? myUser!.displayName!
+                      : (myUser?.email?.split('@').first ?? 'You');
+                  final myInitial = myRawName.isNotEmpty
+                      ? myRawName[0].toUpperCase()
+                      : 'Y';
+
                   // Build markers for all active sessions
                   final markers = <Marker>[];
+                  bool userHasSessionMarker = false;
+
                   for (final s in sessions) {
                     final lat = (s['lat'] as num?)?.toDouble();
                     final lng = (s['lng'] as num?)?.toDouble();
                     if (lat == null || lng == null) continue;
 
-                    final name = s['name'] as String? ?? 'Member';
-                    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'M';
+                    final isMe = s['uid'] == myUid;
+                    if (isMe) userHasSessionMarker = true;
+
+                    final name = isMe
+                        ? 'You'
+                        : (s['name'] as String? ?? 'Member');
+                    final initial = isMe
+                        ? myInitial
+                        : (name.isNotEmpty ? name[0].toUpperCase() : 'M');
                     final isSelected = _selectedMember?['uid'] == s['uid'];
 
                     markers.add(
                       Marker(
                         point: LatLng(lat, lng),
                         width: 56,
-                        height: 60,
+                        height: 62,
                         child: GestureDetector(
                           onTap: () {
                             setState(() => _selectedMember = s);
                           },
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFF244BFF)
-                                      : const Color(0xFFFFFEFB),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xFF244BFF),
-                                    width: 2.5,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.15),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    initial,
-                                    style: TextStyle(
-                                      fontFamily: 'NunitoSans',
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 16,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : const Color(0xFF202633),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                margin: const EdgeInsets.only(top: 2),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 1.5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF202633),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  name.length > 7 ? '${name.substring(0, 7)}..' : name,
-                                  style: const TextStyle(
-                                    fontFamily: 'NunitoSans',
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          child: _buildPin(
+                            initial: initial,
+                            label: isMe ? 'You' : name,
+                            isSelected: isSelected,
+                            isMe: isMe,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  // Always show user's current GPS pin if not already in active Firestore sessions
+                  final userPoint = _currentUserLatLng ?? _lastKnownCenter;
+                  if (!userHasSessionMarker) {
+                    final isSelected = _selectedMember?['uid'] == myUid;
+                    markers.add(
+                      Marker(
+                        point: userPoint,
+                        width: 56,
+                        height: 62,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedMember = {
+                                'uid': myUid,
+                                'name': '$myRawName (You)',
+                                'lat': userPoint.latitude,
+                                'lng': userPoint.longitude,
+                              };
+                            });
+                          },
+                          child: _buildPin(
+                            initial: myInitial,
+                            label: 'You',
+                            isSelected: isSelected,
+                            isMe: true,
                           ),
                         ),
                       ),
@@ -270,21 +323,27 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8E5DF),
                         borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: const Color(0xFFE5E2DA), width: 1.5),
+                        border: Border.all(
+                          color: const Color(0xFFE5E2DA),
+                          width: 1.5,
+                        ),
                       ),
                       child: Stack(
                         children: [
                           FlutterMap(
                             mapController: _mapController,
                             options: MapOptions(
-                              initialCenter: sessions.isNotEmpty &&
-                                      sessions.first['lat'] != null
+                              initialCenter:
+                                  sessions.isNotEmpty &&
+                                      sessions.first['lat'] != null &&
+                                      sessions.first['lng'] != null
                                   ? LatLng(
                                       (sessions.first['lat'] as num).toDouble(),
                                       (sessions.first['lng'] as num).toDouble(),
                                     )
                                   : _lastKnownCenter,
-                              initialZoom: sessions.isEmpty &&
+                              initialZoom:
+                                  sessions.isEmpty &&
                                       _lastKnownCenter == const LatLng(0, 0)
                                   ? 2.5
                                   : 14.0,
@@ -293,8 +352,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                             ),
                             children: [
                               TileLayer(
-                                urlTemplate:
-                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.stewardie.app',
                               ),
                               MarkerLayer(markers: markers),
@@ -331,7 +389,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
               if (_selectedMember != null) ...[
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFEFB),
                     borderRadius: BorderRadius.circular(16),
@@ -355,8 +416,11 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                           Text(
                             _selectedMember!['updatedAt'] is Timestamp &&
                                     DateTime.now().difference(
-                                      (_selectedMember!['updatedAt'] as Timestamp).toDate(),
-                                    ) > const Duration(minutes: 2)
+                                          (_selectedMember!['updatedAt']
+                                                  as Timestamp)
+                                              .toDate(),
+                                        ) >
+                                        const Duration(minutes: 2)
                                 ? 'Last update is stale'
                                 : 'Updated recently · location may be approximate',
                             style: const TextStyle(
@@ -369,8 +433,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                       ),
                       TextButton(
                         onPressed: () {
-                          final lat = (_selectedMember!['lat'] as num?)?.toDouble();
-                          final lng = (_selectedMember!['lng'] as num?)?.toDouble();
+                          final lat = (_selectedMember!['lat'] as num?)
+                              ?.toDouble();
+                          final lng = (_selectedMember!['lng'] as num?)
+                              ?.toDouble();
                           ExternalLauncher.openMapDirections(
                             context,
                             query: 'Member location',
@@ -420,7 +486,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                                 onPressed: () => locationService.stopSharing(),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFFD32F2F),
-                                  side: const BorderSide(color: Color(0xFFD32F2F)),
+                                  side: const BorderSide(
+                                    color: Color(0xFFD32F2F),
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
@@ -448,7 +516,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                           for (final d in [15, 30, 60])
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
                                 child: ChoiceChip(
                                   label: Center(
                                     child: Text(
@@ -477,7 +547,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   onSelected: (val) {
-                                    if (val) setState(() => _selectedDuration = d);
+                                    if (val)
+                                      setState(() => _selectedDuration = d);
                                   },
                                 ),
                               ),
@@ -489,37 +560,11 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                         width: double.infinity,
                         height: 52,
                         child: FilledButton(
-                          onPressed: _starting ? null : () async {
-                            final members = await widget.backend.members(widget.spaceId).first;
-                            if (!mounted) return;
-                            final names = members.docs
-                                .where((d) => d.data()['status'] == 'active')
-                                .map((d) => d.data()['name'] as String? ?? 'Member')
-                                .join(', ');
-                            final approved = await showDialog<bool>(
-                              context: context,
-                              builder: (dialog) => AlertDialog(
-                                title: const Text('Share live location?'),
-                                content: Text('Members in this space now: $names. They can see your latest position for up to $_selectedDuration minutes. Background updates may pause if your device stops the app.'),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
-                                  FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Share')),
-                                ],
-                              ),
+                          onPressed: () {
+                            locationService.startSharing(
+                              spaceId: widget.spaceId,
+                              durationMinutes: _selectedDuration,
                             );
-                            if (approved != true || !mounted) return;
-                            setState(() { _starting = true; _error = null; });
-                            try {
-                              await locationService.startSharing(
-                                spaceId: widget.spaceId,
-                                durationMinutes: _selectedDuration,
-                              );
-                            } catch (error) {
-                              if (mounted) setState(() => _error = error is StateError
-                                  ? error.message : 'Could not start sharing. Try again.');
-                            } finally {
-                              if (mounted) setState(() => _starting = false);
-                            }
                           },
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF244BFF),
@@ -539,7 +584,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                       ),
                       if (_error != null) ...[
                         const SizedBox(height: 8),
-                        Text(_error!, style: const TextStyle(color: Color(0xFFD32F2F))),
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Color(0xFFD32F2F)),
+                        ),
                       ],
                     ],
                   );
@@ -549,6 +597,83 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPin({
+    required String initial,
+    required String label,
+    required bool isSelected,
+    required bool isMe,
+  }) {
+    final bgColor = isMe
+        ? const Color(0xFF244BFF)
+        : (isSelected ? const Color(0xFF244BFF) : const Color(0xFFFFFEFB));
+    final textColor = (isMe || isSelected)
+        ? Colors.white
+        : const Color(0xFF202633);
+    final borderColor = (isMe || isSelected)
+        ? Colors.white
+        : const Color(0xFF244BFF);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: isMe
+                    ? const Color(0xFF244BFF).withValues(alpha: 0.45)
+                    : Colors.black.withValues(alpha: 0.15),
+                blurRadius: isMe ? 8 : 6,
+                spreadRadius: isMe ? 1.5 : 0,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              initial,
+              style: TextStyle(
+                fontFamily: 'NunitoSans',
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: textColor,
+              ),
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: isMe ? const Color(0xFF244BFF) : const Color(0xFF202633),
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Text(
+            label.length > 7 ? '${label.substring(0, 7)}..' : label,
+            style: const TextStyle(
+              fontFamily: 'NunitoSans',
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -587,8 +712,16 @@ class _ClayRadarPainter extends CustomPainter {
     final linePaint = Paint()
       ..color = const Color(0xFFD4D0C8)
       ..strokeWidth = 1;
-    canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), linePaint);
-    canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), linePaint);
+    canvas.drawLine(
+      Offset(center.dx, 0),
+      Offset(center.dx, size.height),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(0, center.dy),
+      Offset(size.width, center.dy),
+      linePaint,
+    );
 
     // Center home dot
     final centerPaint = Paint()..color = const Color(0xFF244BFF);
@@ -626,7 +759,10 @@ class _ClayRadarPainter extends CustomPainter {
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(pinPos.dx - tp.width / 2, pinPos.dy - tp.height / 2));
+      tp.paint(
+        canvas,
+        Offset(pinPos.dx - tp.width / 2, pinPos.dy - tp.height / 2),
+      );
     }
   }
 

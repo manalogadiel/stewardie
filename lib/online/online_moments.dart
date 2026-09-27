@@ -343,7 +343,7 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
               ),
               const Text('Saved on this device'),
               const SizedBox(height: 8),
-              if (widget.backend != null)
+              if (widget.backend != null && photo.cloud)
                 _ReactionPills(
                   backend: widget.backend,
                   spaceId: widget.spaceId,

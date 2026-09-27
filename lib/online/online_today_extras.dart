@@ -804,10 +804,20 @@ class _OnlineCalendarSheetState extends State<OnlineCalendarSheet> {
                   ),
                 ),
               const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => _edit(null),
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add a plan'),
+              Builder(
+                builder: (context) {
+                  final now = DateTime.now();
+                  final isPast = selected.isBefore(
+                    DateTime(now.year, now.month, now.day),
+                  );
+                  return FilledButton.icon(
+                    onPressed: isPast ? null : () => _edit(null),
+                    icon: const Icon(Icons.add_rounded),
+                    label: Text(
+                      isPast ? 'Plans closed for past days' : 'Add a plan',
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -975,7 +985,7 @@ class _PlanEditorState extends State<_PlanEditor> {
         'allDay': allDay,
         'startMillis': start.millisecondsSinceEpoch,
         'endMillis': end.millisecondsSinceEpoch,
-        'participants': participants.toList(),
+        'participants': participants.where((p) => p != widget.myUid).toList(),
       });
       if (mounted) Navigator.pop(context);
     } catch (_) {
@@ -1001,7 +1011,7 @@ class _PlanEditorState extends State<_PlanEditor> {
             const SizedBox(height: 12),
             TextField(
               controller: title,
-              maxLength: 120,
+              maxLength: 100,
               decoration: const InputDecoration(labelText: 'Plan name'),
             ),
             SwitchListTile(
@@ -1055,7 +1065,8 @@ class _PlanEditorState extends State<_PlanEditor> {
                 spacing: 8,
                 children: [
                   for (final entry in widget.members.entries)
-                    if (entry.key != widget.myUid)
+                    if (entry.key != widget.myUid &&
+                        entry.value['isDependent'] != true)
                       FilterChip(
                         label: Text(entry.value['name'] as String? ?? 'Member'),
                         selected: participants.contains(entry.key),

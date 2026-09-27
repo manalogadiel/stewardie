@@ -55,6 +55,27 @@ class LiveLocationService {
     required String spaceId,
     required int durationMinutes,
   }) async {
+    if (_backend == null) return;
+    var actualLat = lat;
+    var actualLng = lng;
+    if (actualLat == null || actualLng == null) {
+      final pos = await determinePosition();
+      if (pos != null) {
+        actualLat = pos.latitude;
+        actualLng = pos.longitude;
+      } else {
+        throw StateError(
+          'Unable to acquire GPS location. Please turn on device location services and grant permission.',
+        );
+      }
+    }
+
+    _activeSpaceId = spaceId;
+    _expiresAt = DateTime.now().toUtc().add(Duration(minutes: durationMinutes));
+    isSharing.value = true;
+    remainingMinutes.value = durationMinutes;
+
+    await _backend!.call('startLocationSession', {
     if (_backend == null) throw StateError('Location is unavailable.');
     if (![15, 30, 60].contains(durationMinutes)) {
       throw ArgumentError('Choose 15, 30, or 60 minutes.');

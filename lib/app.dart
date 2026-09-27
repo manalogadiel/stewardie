@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/backend_provider.dart';
 import 'core/demo_state.dart';
 import 'core/theme.dart';
 import 'features/spaces/space_screen.dart';
@@ -12,6 +13,7 @@ import 'features/moments/moments_screen.dart';
 import 'features/timeline/domain/models.dart';
 import 'features/timeline/presentation/task_detail.dart';
 import 'features/timeline/presentation/today_screen.dart';
+import 'online/space_map_sheet.dart';
 import 'online/live_location_pill.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -83,7 +85,34 @@ class AppShell extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   child: Row(
                     children: [
-                      const SizedBox(width: 48),
+                      Builder(
+                        builder: (context) {
+                          final backend = ref.watch(sharedBackendProvider);
+                          if (backend != null) {
+                            return SizedBox(
+                              width: 48,
+                              child: IconButton(
+                                tooltip: 'Space map',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: SoftPop.surface,
+                                  shape: const CircleBorder(),
+                                ),
+                                onPressed: () => SpaceMapSheet.show(
+                                  context,
+                                  backend: backend,
+                                  spaceId: space.id,
+                                ),
+                                icon: const Icon(
+                                  Icons.map_outlined,
+                                  color: SoftPop.ink,
+                                  size: 22,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox(width: 48);
+                        },
+                      ),
                       Expanded(
                         child: Center(
                           child: TextButton(

@@ -189,6 +189,14 @@ class SparkBackend {
           'task': (await ref.get(const GetOptions(source: Source.server)))
               .data(),
         };
+      case 'markTaskDone':
+        final opId = v['operationId'] as String? ?? db.collection('operationIds').doc().id;
+        return call('actOnTask', {
+          'spaceId': v['spaceId'] ?? id,
+          'taskId': v['taskId'],
+          'operationId': opId,
+          'action': 'complete',
+        });
       case 'listCompletedTasks':
         final accountDoc = (await db.doc('accounts/$uid').get()).data() ?? {};
         final isFounder = accountDoc['founderGrant'] == true ||
@@ -337,6 +345,7 @@ class SparkBackend {
           );
         }
         return data;
+      case 'joinSpace':
       case 'redeemInvite':
         final token = InviteLinks.sanitize(v['token'] as String);
         String? joined;
@@ -597,6 +606,16 @@ class SparkBackend {
           'joinedAt': FieldValue.serverTimestamp(),
         });
         return {'memberId': depId};
+      case 'updateDependentProfile':
+        final sId = id!;
+        final memberId = v['memberId'] as String;
+        await space(sId).collection('members').doc(memberId).update({
+          'name': (v['name'] as String).trim(),
+          'familyRole': v['familyRole'] ?? 'Child',
+          'color': v['color'] ?? 'sky',
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        return {'memberId': memberId};
       case 'deleteDependentProfile':
         final sId = id!;
         final memberId = v['memberId'] as String;

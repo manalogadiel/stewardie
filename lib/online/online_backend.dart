@@ -272,6 +272,21 @@ class OnlineBackend {
         'color': color,
       });
 
+  Future<void> updateDependentProfile(
+    String spaceId,
+    String memberId, {
+    required String name,
+    required String familyRole,
+    required String color,
+  }) =>
+      call('updateDependentProfile', {
+        'spaceId': spaceId,
+        'memberId': memberId,
+        'name': name,
+        'familyRole': familyRole,
+        'color': color,
+      });
+
   Future<void> deleteDependentProfile(String spaceId, String memberId) =>
       call('deleteDependentProfile', {
         'spaceId': spaceId,

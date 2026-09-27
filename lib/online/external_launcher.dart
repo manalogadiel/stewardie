@@ -22,10 +22,10 @@ class ExternalLauncher {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Map link copied',
+            'Directions link copied to clipboard. Open in browser or Map app.',
             style: TextStyle(fontFamily: 'NunitoSans'),
           ),
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 3),
         ),
       );
     }

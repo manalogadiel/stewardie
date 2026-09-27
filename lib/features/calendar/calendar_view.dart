@@ -390,15 +390,26 @@ class CalendarSheet extends ConsumerWidget {
                 ),
               ),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () =>
-                  showPlanEditor(context, space, state.selectedDay),
-              icon: const Icon(Icons.add_rounded),
-              label: Text(
-                person != null && person != space.currentUserId
-                    ? 'Add my plan'
-                    : 'Add plan',
-              ),
+            Builder(
+              builder: (context) {
+                final now = DateTime.now();
+                final isPast = dateOnly(state.selectedDay).isBefore(
+                  dateOnly(now),
+                );
+                return FilledButton.icon(
+                  onPressed: isPast
+                      ? null
+                      : () => showPlanEditor(context, space, state.selectedDay),
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(
+                    isPast
+                        ? 'Plans closed for past days'
+                        : (person != null && person != space.currentUserId
+                            ? 'Add my plan'
+                            : 'Add plan'),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -573,9 +584,16 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
     title = TextEditingController(text: p?.title);
     note = TextEditingController(text: p?.note);
     allDay = p?.allDay ?? false;
+    final today = dateOnly(DateTime.now());
+    final dayDate = dateOnly(widget.day);
+    final initialDay = p != null
+        ? p.localStart
+        : dayDate.isBefore(today)
+            ? today
+            : widget.day;
     start =
         p?.localStart ??
-        DateTime(widget.day.year, widget.day.month, widget.day.day, 10);
+        DateTime(initialDay.year, initialDay.month, initialDay.day, 10);
     end = p == null
         ? start.add(const Duration(hours: 1))
         : p.allDay
@@ -616,10 +634,11 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
         });
       }
     } else {
+      final today = dateOnly(DateTime.now());
       final result = await showDatePicker(
         context: context,
-        initialDate: current,
-        firstDate: DateTime(2000),
+        initialDate: current.isBefore(today) ? today : current,
+        firstDate: widget.existing == null ? today : DateTime(2000),
         lastDate: DateTime(2100),
       );
       if (result != null && mounted) {
@@ -768,6 +787,16 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                         ? null
                         : () async {
                             if (!form.currentState!.validate()) return;
+                            if (widget.existing == null &&
+                                dateOnly(start).isBefore(
+                                  dateOnly(DateTime.now()),
+                                )) {
+                              setState(
+                                () => error =
+                                    'Plans cannot be created in the past.',
+                              );
+                              return;
+                            }
                             setState(() {
                               saving = true;
                               error = null;

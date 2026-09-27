@@ -304,6 +304,9 @@ class CloudMediaLibrary extends MediaLibrary {
       'space': photo.spaceId,
       'id': photo.id,
     })).bodyBytes;
+    if (_fullCache.length >= 20) {
+      _fullCache.remove(_fullCache.keys.first);
+    }
     _fullCache[photo.id] = bytes;
     return bytes;
   }
