@@ -259,7 +259,15 @@ class SparkBackend {
         await space(id!).collection('checkIns').doc(uid).delete();
         return {'ok': true};
       case 'savePlan':
-        await space(id!).collection('plans').doc(v['planId'] as String).set({
+        final planRef = space(id!).collection('plans').doc(v['planId'] as String);
+        await db.runTransaction((tx) async {
+          final previous = (await tx.get(planRef)).data();
+          if (previous != null && previous['lastMutationId'] == v['operationId']) return;
+          if (previous != null && v['expectedRevision'] != null &&
+              (previous['revision'] as int? ?? 0) != v['expectedRevision']) {
+            throw StateError('This plan changed on another device. Review it before retrying.');
+          }
+          tx.set(planRef, {
           'ownerUid': uid,
           'title': v['title'],
           'note': v['note'] ?? '',
@@ -267,6 +275,9 @@ class SparkBackend {
           'startMillis': v['startMillis'],
           'endMillis': v['endMillis'],
           'participants': v['participants'] ?? [],
+          'reminder': v['source'] == 'google' ? 'none' : (v['reminder'] ?? 'none'),
+          'revision': (previous?['revision'] as int? ?? 0) + 1,
+          if (v['operationId'] != null) 'lastMutationId': v['operationId'],
           if (v['pin'] != null) 'pin': v['pin'],
           if (v['source'] == 'google') ...{
             'source': 'google',
@@ -275,13 +286,20 @@ class SparkBackend {
             'sourceUpdatedAt': v['sourceUpdatedAt'],
           },
           'updatedAt': FieldValue.serverTimestamp(),
+          });
         });
         return {'planId': v['planId']};
       case 'removePlan':
-        await space(id!)
-            .collection('plans')
-            .doc(v['planId'] as String)
-            .delete();
+        final planRef = space(id!).collection('plans').doc(v['planId'] as String);
+        await db.runTransaction((tx) async {
+          final previous = (await tx.get(planRef)).data();
+          if (previous == null) return;
+          if (v['expectedRevision'] != null &&
+              (previous['revision'] as int? ?? 0) != v['expectedRevision']) {
+            throw StateError('This plan changed on another device. Review it before retrying.');
+          }
+          tx.delete(planRef);
+        });
         return {'removed': true};
       case 'checkInPlanArrival':
         final planId = v['planId'] as String;
@@ -323,7 +341,7 @@ class SparkBackend {
         final random = Random.secure();
         const charset = InviteLinks.codeCharset;
         final token = List.generate(
-          6,
+          10,
           (_) => charset[random.nextInt(charset.length)],
         ).join();
 
@@ -338,6 +356,7 @@ class SparkBackend {
           ),
           'redeemedUid': null,
           'revoked': false,
+          'requireApproval': data['requireApproval'] == true,
         });
 
         try {
@@ -379,11 +398,19 @@ class SparkBackend {
             );
           }
           joined = data['spaceId'] as String;
+          final pending = space(joined!).collection('pendingJoins').doc(uid);
+          final pendingSnap = await tx.get(pending);
+          if (data['requireApproval'] == true &&
+              (pendingSnap.data()?['status'] != 'approved' ||
+               pendingSnap.data()?['token'] != token)) {
+            throw StateError('The owner has not approved this request yet.');
+          }
           final account = db.doc('accounts/$uid');
           final accountSnap = await tx.get(account);
           final old = accountSnap.data() ?? {};
           if (List.from(old['spaceIds'] ?? []).contains(joined)) return;
           tx.update(invite, {'redeemedUid': uid});
+          if (pendingSnap.exists) tx.delete(pending);
           tx.update(space(joined!), {
             'memberUids': FieldValue.arrayUnion([uid]),
             'memberCount': FieldValue.increment(1),
@@ -607,19 +634,7 @@ class SparkBackend {
         });
         return {'ok': true};
       case 'createDependentProfile':
-        final sId = id!;
-        final depId = 'dep_${DateTime.now().millisecondsSinceEpoch}';
-        await space(sId).collection('members').doc(depId).set({
-          'uid': depId,
-          'name': (v['name'] as String).trim(),
-          'familyRole': v['familyRole'] ?? 'Child',
-          'color': v['color'] ?? 'sky',
-          'isDependent': true,
-          'managedByUid': uid,
-          'status': 'active',
-          'joinedAt': FieldValue.serverTimestamp(),
-        });
-        return {'memberId': depId};
+        throw StateError('Dependent profiles are unavailable in the adult-only pilot.');
       case 'updateDependentProfile':
         final sId = id!;
         final memberId = v['memberId'] as String;
@@ -638,31 +653,40 @@ class SparkBackend {
       case 'setJoinApprovalPolicy':
         final sId = id!;
         final requireApproval = v['requireApproval'] == true;
-        await space(sId).update({'requireApproval': requireApproval});
+        final current = (await space(sId).get()).data()?['activeInviteToken'] as String?;
+        final batch = db.batch();
+        batch.update(space(sId), {'requireApproval': requireApproval});
+        if (current != null) {
+          batch.update(db.doc('invites/$current'), {'requireApproval': requireApproval});
+        }
+        await batch.commit();
         return {'ok': true};
       case 'requestJoinSpace':
         final sId = id!;
-        await space(sId).collection('pendingJoins').doc(uid).set({
+        final token = InviteLinks.sanitize(v['token'] as String);
+        final pendingRef = space(sId).collection('pendingJoins').doc(uid);
+        final prior = await pendingRef.get();
+        if (prior.data()?['status'] == 'approved' &&
+            prior.data()?['token'] == token) return {'approved': true};
+        if (prior.exists) {
+          if (prior.data()?['token'] == token) return {'approved': false};
+          await pendingRef.delete();
+        }
+        await pendingRef.set({
           'uid': uid,
           'name': user.displayName ?? 'Member',
           'email': user.email ?? '',
+          'token': token,
+          'status': 'pending',
           'requestedAt': FieldValue.serverTimestamp(),
         });
         return {'ok': true};
       case 'approveJoinRequest':
         final sId = id!;
         final targetUid = v['targetUid'] as String;
-        final targetName = v['targetName'] as String? ?? 'Member';
-        final batch = db.batch();
-        batch.set(space(sId).collection('members').doc(targetUid), {
-          'uid': targetUid,
-          'name': targetName,
-          'role': 'member',
-          'status': 'active',
-          'joinedAt': FieldValue.serverTimestamp(),
+        await space(sId).collection('pendingJoins').doc(targetUid).update({
+          'status': 'approved',
         });
-        batch.delete(space(sId).collection('pendingJoins').doc(targetUid));
-        await batch.commit();
         return {'ok': true};
       case 'declineJoinRequest':
         final sId = id!;

@@ -11,7 +11,7 @@ beforeEach(async()=>{
  await env.clearFirestore();
  await env.withSecurityRulesDisabled(async c=>{
   const d=c.firestore();
-  for(const uid of ['alice','bob']) await d.doc(`accounts/${uid}`).set({tier:uid==='alice'?'plus':'basic',spaceIds:['home'],ownedSpaceIds:uid==='alice'?['home']:[]});
+  for(const uid of ['alice','bob']) await d.doc(`accounts/${uid}`).set({tier:uid==='alice'?'plus':'basic',founderGrant:uid==='alice',spaceIds:['home'],ownedSpaceIds:uid==='alice'?['home']:[]});
   await d.doc('spaces/home').set({name:'Home',kind:'family',timeZone:'UTC',ownerUid:'alice',memberUids:['alice','bob'],memberCount:2,activeTaskCount:1});
   for(const uid of ['alice','bob']) {await d.doc(`spaces/home/members/${uid}`).set({uid,name:uid,role:uid==='alice'?'owner':'member',status:'active'});await d.doc(`accounts/${uid}/spaceRefs/home`).set({name:'Home'});}
   await d.doc('spaces/home/tasks/task').set({title:'Dishes',creatorUid:'alice',status:'requested',requestedUid:'bob',ownerUid:null,offeredUid:null,version:1,completedAt:null});
@@ -52,7 +52,7 @@ test('Spark moods persist with expiry; peers cannot overwrite them or plans',asy
  await assertSucceeds(db('alice').doc('spaces/home/checkIns/bob').get());
  await assertFails(db('alice').doc('spaces/home/checkIns/bob').set(mood));
  await assertFails(db('bob').doc('spaces/home/checkIns/bob').update({expiresAt:ClientTimestamp.fromMillis(Date.now()+7*86400000)}));
- const plan={ownerUid:'bob',title:'Walk',note:'',allDay:false,startMillis:1,endMillis:2,participants:['alice'],updatedAt:now()};
+ const plan={ownerUid:'bob',title:'Walk',note:'',allDay:false,startMillis:1,endMillis:2,participants:['alice'],revision:1,reminder:'none',updatedAt:now()};
  await assertSucceeds(db('bob').doc('spaces/home/plans/walk').set(plan));
  await assertFails(db('alice').doc('spaces/home/plans/walk').update({ownerUid:'alice'}));
  await assertFails(db('alice').doc('spaces/home/plans/walk').delete());
@@ -85,6 +85,11 @@ test('routine quotas and private activity are enforced',async()=>{
  });
  await assertSucceeds(d.doc('accounts/bob/activity/test').update({readAt:now()}));
  await assertFails(db('alice').doc('accounts/bob/activity/test').get());
+ const preferences={enabled:true,quietStart:1320,quietEnd:420,timeZone:'Asia/Manila',updatedAt:now()};
+ await assertSucceeds(d.doc('accounts/bob/notificationPrefs/global').set(preferences));
+ await assertSucceeds(d.doc('accounts/bob/notificationPrefs/home').set(preferences));
+ await assertFails(d.doc('accounts/bob/notificationPrefs/other').set(preferences));
+ await assertFails(db('alice').doc('accounts/bob/notificationPrefs/global').get());
 });
 test('Spark creation preserves Plus and enforces protected account lists',async()=>{
  const d=db('alice'), b=d.batch();
@@ -96,7 +101,7 @@ test('Spark creation preserves Plus and enforces protected account lists',async(
  await assertFails(d.doc('accounts/alice').update({ownedSpaceIds:[],spaceIds:[],changedSpaceId:'home'}));
 });
 test('Spark invitation redemption is atomic, one-use, and owner issued',async()=>{
- const token='a'.repeat(32), invite={spaceId:'home',spaceName:'Home',kind:'family',creatorUid:'alice',createdAt:now(),expiresAt:ClientTimestamp.fromMillis(Date.now()+86400000),redeemedUid:null,revoked:false};
+ const token='a'.repeat(32), invite={spaceId:'home',spaceName:'Home',kind:'family',creatorUid:'alice',createdAt:now(),expiresAt:ClientTimestamp.fromMillis(Date.now()+86400000),redeemedUid:null,revoked:false,requireApproval:false};
  await assertFails(db('bob').doc(`invites/${token}`).set({...invite,creatorUid:'bob'}));
  await assertSucceeds(db('alice').doc(`invites/${token}`).set(invite));
  const d=db('newcomer'),b=d.batch();
@@ -118,6 +123,21 @@ test('Spark removal releases tasks and revokes access; a member cannot remove pe
  await assertSucceeds(b.commit());
  await assertFails(db('bob').doc('spaces/home').get());
  await assertFails(db('bob').doc('spaces/home/tasks/task').get());
+});
+
+test('blocking stops new direct requests and reports stay private',async()=>{
+ const blocked={blockedUid:'alice',createdAt:now()};
+ await assertSucceeds(db('bob').doc('accounts/bob/blocks/alice').set(blocked));
+ await assertFails(db('alice').doc('accounts/bob/blocks/alice').get());
+ const d=db('alice'),b=d.batch();
+ b.set(d.doc('spaces/home/tasks/blocked'),{title:'Help',creatorUid:'alice',requestedUid:'bob',ownerUid:null,offeredUid:null,status:'requested',scheduledLocalDate:'2026-09-28',version:1,completedAt:null,createdAt:now(),updatedAt:now()});
+ b.update(d.doc('spaces/home'),{activeTaskCount:2,changedTaskId:'blocked'});
+ await assertFails(b.commit());
+ const report={reporterUid:'bob',spaceId:'home',kind:'member',contentId:'alice',targetUid:'alice',reason:'harassment',status:'open',createdAt:now()};
+ await assertSucceeds(db('bob').doc('safetyReports/example').set(report));
+ await assertFails(db('bob').doc('safetyReports/example').get());
+ const founder=env.authenticatedContext('alice',{email_verified:true,email:'gadielmanalo19@gmail.com'}).firestore();
+ await assertSucceeds(founder.doc('safetyReports/example').get());
 });
 
 test('Spark ownership requires consent and preserves account ownership quotas',async()=>{

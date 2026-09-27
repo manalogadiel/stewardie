@@ -239,13 +239,76 @@ async function activityForTask(
   });
 }
 
+async function activityForPlan(spaceId: string, space: Fields, plan: Doc, now: Date): Promise<void> {
+  const p = fields(plan);
+  const reminder = String(p.reminder ?? 'none');
+  if (reminder === 'none' || p.source === 'google') return;
+  const start = Number(p.startMillis);
+  const end = Number(p.endMillis);
+  const revision = Number(p.revision ?? 0);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+  const zone = String(space.timeZone ?? 'UTC');
+  let due = false;
+  if (p.allDay === true) {
+    if (reminder !== 'morningOf' && reminder !== 'morningBefore') return;
+    const date = new Date(start + (reminder === 'morningBefore' ? -86400000 : 0))
+      .toISOString().substring(0, 10);
+    const today = local(now, zone);
+    due = today.date === date && today.minute >= 540;
+  } else {
+    const offsets: Record<string, number> = { atStart: 0, tenMinutes: 600000,
+      oneHour: 3600000, oneDay: 86400000 };
+    const offset = offsets[reminder];
+    if (offset == null) return;
+    due = now.getTime() >= start - offset && now.getTime() < start + 300000;
+  }
+  if (!due) return;
+  const members = new Set(space.memberUids as string[] ?? []);
+  const recipients = new Set([String(p.ownerUid ?? ''), ...((p.participants as string[]) ?? [])]);
+  const id = plan.name.split('/').pop()!;
+  for (const uid of recipients) {
+    if (!members.has(uid)) continue;
+    await create(`accounts/${uid}/activity/plan_${spaceId}_${id}_${revision}_${start}_${reminder}`, {
+      spaceId, planId: id, planRevision: revision,
+      planStartMillis: start, planReminder: reminder,
+      kind: 'plan', title: 'Plan coming up', body: 'Open your space calendar.',
+      createdAt: now, readAt: null, pushState: 'pending', pushId: crypto.randomUUID(),
+    });
+  }
+}
+
+async function cancelStalePlanActivity(uid: string, item: Doc): Promise<boolean> {
+  const data = fields(item);
+  if (data.kind !== 'plan' || data.pushState === 'cancelled') return false;
+  const spaceId = String(data.spaceId ?? '');
+  const space = await get(`spaces/${spaceId}`);
+  const memberUids = space ? fields(space).memberUids as string[] ?? [] : [];
+  const plan = memberUids.includes(uid) ? await get(`spaces/${spaceId}/plans/${data.planId}`) : null;
+  const p = plan ? fields(plan) : {};
+  const recipients = [p.ownerUid, ...((p.participants as string[]) ?? [])];
+  const invalid = !plan || !recipients.includes(uid) || p.source === 'google' ||
+    Number(p.revision ?? 0) !== Number(data.planRevision) ||
+    Number(p.startMillis) !== Number(data.planStartMillis) || p.reminder !== data.planReminder;
+  if (invalid) {
+    await update(docPath(item), { pushState: 'cancelled', pushLeaseUntil: null }, item.updateTime!);
+  }
+  return invalid;
+}
+
 async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
   const data = fields(item);
   if (data.pushState !== 'pending') return;
   if (Date.parse(String(data.pushLeaseUntil ?? '')) > now.getTime()) return;
+  const path = docPath(item);
+  const cancel = async () => {
+    await update(path, { pushState: 'cancelled', pushLeaseUntil: null }, item.updateTime!);
+  };
   const spaceId = String(data.spaceId ?? '');
   const space = await get(`spaces/${spaceId}`);
-  if (!space || !(fields(space).memberUids as string[] ?? []).includes(uid)) return;
+  if (!space || !(fields(space).memberUids as string[] ?? []).includes(uid)) {
+    await cancel();
+    return;
+  }
   if (data.taskId) {
     const task = await get(`spaces/${spaceId}/tasks/${data.taskId}`);
     const t: Fields = task ? fields(task) : {};
@@ -256,19 +319,38 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
       t.status !== 'requested' && !t.offeredUid;
     if (!task || t.status === 'completed' || invalidDue || invalidAction ||
         Number(t.version) !== Number(data.taskVersion)) {
-      await update(docPath(item), { pushState: 'cancelled' }, item.updateTime!);
+      await cancel();
+      return;
+    }
+  }
+  if (data.planId) {
+    const plan = await get(`spaces/${spaceId}/plans/${data.planId}`);
+    const p: Fields = plan ? fields(plan) : {};
+    const recipients = [p.ownerUid, ...((p.participants as string[]) ?? [])];
+    if (!plan || !recipients.includes(uid) || Number(p.startMillis) !== Number(data.planStartMillis) ||
+        p.reminder !== data.planReminder || p.source === 'google' ||
+        Number(p.revision ?? 0) !== Number(data.planRevision) ||
+        (p.allDay !== true && now.getTime() >= Number(p.endMillis))) {
+      await cancel();
       return;
     }
   }
   const global = fields((await get(`accounts/${uid}/notificationPrefs/global`)) ?? { name: '' });
   const perSpace = fields((await get(`accounts/${uid}/notificationPrefs/${spaceId}`)) ?? { name: '' });
-  if (global.enabled !== true || perSpace.enabled === false) return;
+  if (global.enabled !== true || perSpace.enabled === false) {
+    // Notification preferences only mute push, not the in-app activity inbox.
+    await update(path, { pushState: 'muted', pushLeaseUntil: null }, item.updateTime!);
+    return;
+  }
   const zone = String(global.timeZone ?? 'UTC');
   if (quiet(local(now, zone).minute, Number(global.quietStart ?? 1320), Number(global.quietEnd ?? 420))) return;
   const appId = Deno.env.get('ONESIGNAL_APP_ID');
   const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
-  if (!appId || !apiKey) return; // Inbox remains useful without OneSignal.
-  const path = docPath(item);
+  if (!appId || !apiKey) {
+    // Never send a backlog of old alerts when push is configured later.
+    await update(path, { pushState: 'unavailable', pushLeaseUntil: null }, item.updateTime!);
+    return;
+  }
   if (!await update(path, {
     pushLeaseUntil: new Date(now.getTime() + 120000),
   }, item.updateTime!)) return;
@@ -322,6 +404,9 @@ async function run(): Promise<{ spaces: number; errors: number }> {
       for (const task of await list(`spaces/${id}/tasks`)) {
         await activityForTask(id, s, task, today.date, now, today.minute >= 540);
       }
+      for (const plan of await list(`spaces/${id}/plans`)) {
+        await activityForPlan(id, s, plan, now);
+      }
     } catch (error) {
       console.error('Space work failed', space.name, error);
       errors++;
@@ -333,6 +418,7 @@ async function run(): Promise<{ spaces: number; errors: number }> {
     const uid = account.name.split('/').pop()!;
     try {
       for (const item of await list(`accounts/${uid}/activity`)) {
+        if (await cancelStalePlanActivity(uid, item)) continue;
         await deliverPush(uid, item, now);
       }
     } catch (error) {

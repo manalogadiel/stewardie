@@ -70,11 +70,80 @@ service cloud.firestore {
           && request.resource.data.kind == afterSpace(id).kind && request.resource.data.joinedAt == request.time;
         allow delete: if verified() && !(uid in afterSpace(id).memberUids) && (self(uid) || owner(id));
       }
+      match /notificationPrefs/{scope} {
+        allow read: if self(uid);
+        allow create, update: if self(uid)
+          && request.resource.data.keys().hasOnly(['enabled','quietStart','quietEnd','timeZone','updatedAt'])
+          && request.resource.data.enabled is bool
+          && request.resource.data.quietStart is int
+          && request.resource.data.quietStart >= 0 && request.resource.data.quietStart < 1440
+          && request.resource.data.quietEnd is int
+          && request.resource.data.quietEnd >= 0 && request.resource.data.quietEnd < 1440
+          && request.resource.data.timeZone is string
+          && request.resource.data.timeZone.size() <= 64
+          && request.resource.data.updatedAt == request.time
+          && (scope == 'global' || scope in get(/databases/$(database)/documents/accounts/$(uid)).data.spaceIds);
+      }
+      match /activity/{item} {
+        allow read: if self(uid);
+        allow update: if self(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+          && request.resource.data.readAt == request.time;
+      }
+      match /blocks/{blockedUid} {
+        allow read, delete: if self(uid);
+        allow create: if self(uid) && blockedUid != uid
+          && request.resource.data.keys().hasOnly(['blockedUid','createdAt'])
+          && request.resource.data.blockedUid == blockedUid
+          && request.resource.data.createdAt == request.time;
+      }
+      match /hidden/{item} {
+        allow read, delete: if self(uid);
+        allow create: if self(uid)
+          && request.resource.data.keys().hasOnly(['spaceId','kind','contentId','createdAt'])
+          && request.resource.data.spaceId is string
+          && request.resource.data.kind in ['moment','task','plan']
+          && shortText(request.resource.data.contentId, 160)
+          && request.resource.data.createdAt == request.time;
+      }
+    }
+    match /safetyReports/{report} {
+      allow create: if verified() && member(request.resource.data.spaceId)
+        && request.resource.data.keys().hasOnly(['reporterUid','spaceId','kind','contentId','targetUid','reason','createdAt','status'])
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.kind in ['member','moment','task','plan']
+        && shortText(request.resource.data.contentId, 160)
+        && request.resource.data.targetUid is string
+        && request.resource.data.reason in ['harassment','unsafe','spam','other']
+        && request.resource.data.status == 'open'
+        && request.resource.data.createdAt == request.time;
+      allow read: if verified() && request.auth.token.email == 'gadielmanalo19@gmail.com';
+      allow update: if verified() && request.auth.token.email == 'gadielmanalo19@gmail.com'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedAt'])
+        && request.resource.data.status in ['reviewing','closed']
+        && request.resource.data.reviewedAt == request.time;
+    }
+    match /deletionRequests/{uid} {
+      allow create: if self(uid)
+        && request.resource.data.keys().hasOnly(['uid','email','createdAt','status'])
+        && request.resource.data.uid == uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.status == 'pending';
+      allow read: if self(uid) || (verified() && request.auth.token.email == 'gadielmanalo19@gmail.com');
+      allow update: if verified() && request.auth.token.email == 'gadielmanalo19@gmail.com'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','resolvedAt'])
+        && request.resource.data.status in ['processing','complete']
+        && request.resource.data.resolvedAt == request.time;
     }
     function inviteValid(token, id) {
       let d = get(/databases/$(database)/documents/invites/$(token)).data;
       return d.spaceId == id && d.revoked == false && d.redeemedUid == null && d.expiresAt > request.time
-        && getAfter(/databases/$(database)/documents/invites/$(token)).data.redeemedUid == request.auth.uid;
+        && getAfter(/databases/$(database)/documents/invites/$(token)).data.redeemedUid == request.auth.uid
+        && (!sp(id).get('requireApproval', false)
+          || (exists(/databases/$(database)/documents/spaces/$(id)/pendingJoins/$(request.auth.uid))
+            && get(/databases/$(database)/documents/spaces/$(id)/pendingJoins/$(request.auth.uid)).data.status == 'approved'
+            && get(/databases/$(database)/documents/spaces/$(id)/pendingJoins/$(request.auth.uid)).data.token == token));
     }
     match /spaces/{id} {
       allow read: if member(id);
@@ -140,7 +209,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['uid','name','role','familyRole','status','joinedAt','joinToken'])
           && ((afterSpace(id).ownerUid == uid && request.resource.data.role == 'owner')
             || (request.resource.data.role == 'member' && inviteValid(request.resource.data.joinToken, id))))
-          || (member(id) && request.resource.data.get('isDependent', false) == true);
+          ;
         allow update: if verified() && resource.data.status == 'active'
           && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'removed'
             && !(uid in afterSpace(id).memberUids) && (self(uid) || owner(id)))
@@ -152,7 +221,16 @@ service cloud.firestore {
       }
       match /pendingJoins/{joinUid} {
         allow read: if member(id) || self(joinUid);
-        allow create: if verified() && self(joinUid);
+        allow create: if verified() && self(joinUid) && sp(id).get('requireApproval', false)
+          && request.resource.data.keys().hasOnly(['uid','name','email','token','status','requestedAt'])
+          && request.resource.data.uid == joinUid && request.resource.data.status == 'pending'
+          && request.resource.data.requestedAt == request.time
+          && get(/databases/$(database)/documents/invites/$(request.resource.data.token)).data.spaceId == id
+          && get(/databases/$(database)/documents/invites/$(request.resource.data.token)).data.revoked == false
+          && get(/databases/$(database)/documents/invites/$(request.resource.data.token)).data.expiresAt > request.time;
+        allow update: if owner(id) && resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'approved';
         allow delete: if member(id) || self(joinUid);
       }
       match /tasks/{task} {
@@ -164,7 +242,8 @@ service cloud.firestore {
           && request.resource.data.ownerUid == null && request.resource.data.offeredUid == null && request.resource.data.completedAt == null
           && request.resource.data.version == 1 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && ((request.resource.data.requestedUid == null && request.resource.data.status == 'unclaimed')
-            || (request.resource.data.requestedUid in sp(id).memberUids && request.resource.data.status == 'requested'))
+            || (request.resource.data.requestedUid in sp(id).memberUids && request.resource.data.status == 'requested'
+              && !exists(/databases/$(database)/documents/accounts/$(request.resource.data.requestedUid)/blocks/$(request.auth.uid))))
           && afterSpace(id).activeTaskCount == sp(id).activeTaskCount + 1 && afterSpace(id).changedTaskId == task;
         function transition() {
           let a = resource.data;
@@ -221,8 +300,8 @@ service cloud.firestore {
           && (request.resource.data.assignedUid == null || request.resource.data.assignedUid in sp(id).memberUids)
           && request.resource.data.creatorUid == request.auth.uid
           && request.resource.data.createdAt == request.time
-          && afterSpace(id).routineCount <= 5
-          && afterSpace(id).routineCount == sp(id).get('routineCount', 0) + 1
+          && afterSpace(id).get('routineCount', 0) <= 5
+          && afterSpace(id).get('routineCount', 0) == sp(id).get('routineCount', 0) + 1
           && afterSpace(id).changedRoutineId == routine;
         allow delete: if member(id)
           && (resource.data.creatorUid == request.auth.uid || owner(id))
@@ -262,26 +341,6 @@ service cloud.firestore {
           && request.resource.data.updatedAt == request.time;
         allow delete: if self(sessionUid);
       }
-      match /notificationPrefs/{scope} {
-        allow read: if self(uid);
-        allow create, update: if self(uid)
-          && request.resource.data.keys().hasOnly(['enabled','quietStart','quietEnd','timeZone','updatedAt'])
-          && request.resource.data.enabled is bool
-          && request.resource.data.quietStart is int
-          && request.resource.data.quietStart >= 0 && request.resource.data.quietStart < 1440
-          && request.resource.data.quietEnd is int
-          && request.resource.data.quietEnd >= 0 && request.resource.data.quietEnd < 1440
-          && request.resource.data.timeZone is string
-          && request.resource.data.timeZone.size() <= 64
-          && request.resource.data.updatedAt == request.time
-          && (scope == 'global' || scope in get(/databases/$(database)/documents/accounts/$(uid)).data.spaceIds);
-      }
-      match /activity/{item} {
-        allow read: if self(uid);
-        allow update: if self(uid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
-          && request.resource.data.readAt == request.time;
-      }
       match /checkIns/{uid} {
         allow read: if member(id);
         allow delete: if member(id) && self(uid);
@@ -306,7 +365,13 @@ service cloud.firestore {
         allow read: if member(id);
         allow delete: if member(id) && resource.data.ownerUid == request.auth.uid;
         allow create, update: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/plans/$(plan)) || resource.data.ownerUid == request.auth.uid)
-          && request.resource.data.keys().hasOnly(['ownerUid','title','note','allDay','startMillis','endMillis','participants','pin','source','sourceCalendarId','sourceEventId','sourceUpdatedAt','updatedAt'])
+          && request.resource.data.keys().hasOnly(['ownerUid','title','note','allDay','startMillis','endMillis','participants','pin','source','sourceCalendarId','sourceEventId','sourceUpdatedAt','reminder','revision','lastMutationId','updatedAt'])
+          && request.resource.data.revision == (resource == null ? 1 : resource.data.get('revision', 0) + 1)
+          && (!('lastMutationId' in request.resource.data) || shortText(request.resource.data.lastMutationId, 100))
+          && request.resource.data.get('reminder', 'none') in ['none','atStart','tenMinutes','oneHour','oneDay','morningOf','morningBefore']
+          && (request.resource.data.allDay == true
+            ? request.resource.data.get('reminder', 'none') in ['none','morningOf','morningBefore']
+            : request.resource.data.get('reminder', 'none') in ['none','atStart','tenMinutes','oneHour','oneDay'])
           && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
           && (!('source' in request.resource.data)
               || (request.resource.data.source == 'google'
@@ -332,12 +397,15 @@ service cloud.firestore {
     match /invites/{token} {
       allow get: if verified() && ((resource.data.expiresAt > request.time && resource.data.revoked == false) || owner(resource.data.spaceId));
       allow create: if verified() && token.matches('[A-Za-z0-9_-]{6,32}') && owner(request.resource.data.spaceId)
-        && request.resource.data.keys().hasOnly(['spaceId','spaceName','kind','creatorUid','createdAt','expiresAt','redeemedUid','revoked'])
+        && request.resource.data.keys().hasOnly(['spaceId','spaceName','kind','creatorUid','createdAt','expiresAt','redeemedUid','revoked','requireApproval'])
+        && request.resource.data.requireApproval == sp(request.resource.data.spaceId).get('requireApproval', false)
         && request.resource.data.spaceName == sp(request.resource.data.spaceId).name && request.resource.data.kind == sp(request.resource.data.spaceId).kind
         && request.resource.data.creatorUid == request.auth.uid && request.resource.data.createdAt == request.time
         && request.resource.data.expiresAt > request.time && request.resource.data.expiresAt <= request.time + duration.value(7, 'd')
         && request.resource.data.redeemedUid == null && request.resource.data.revoked == false;
       allow update: if verified() && ((owner(resource.data.spaceId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked']) && request.resource.data.revoked == true)
+        || (owner(resource.data.spaceId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requireApproval'])
+          && request.resource.data.requireApproval == afterSpace(resource.data.spaceId).get('requireApproval', false))
         || (resource.data.revoked == false && resource.data.expiresAt > request.time && resource.data.redeemedUid == null
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redeemedUid']) && request.resource.data.redeemedUid == request.auth.uid
           && !(request.auth.uid in sp(resource.data.spaceId).memberUids) && request.auth.uid in afterSpace(resource.data.spaceId).memberUids));

@@ -1,5 +1,5 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../core/invite_links.dart';
 import 'online_backend.dart';
@@ -42,7 +42,6 @@ class _QrJoinSheetState extends State<QrJoinSheet>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final TextEditingController _codeController = TextEditingController();
-  CameraController? _cameraController;
   bool _busy = false;
   String? _error;
 
@@ -50,31 +49,24 @@ class _QrJoinSheetState extends State<QrJoinSheet>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (_tabController.index == 1 && _cameraController == null) {
-        _initCamera();
-      }
-    });
+    _tabController.addListener(() { if (mounted) setState(() {}); });
   }
 
-  Future<void> _initCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
-      _cameraController = CameraController(
-        cameras.first,
-        ResolutionPreset.medium,
-        enableAudio: false,
-      );
-      await _cameraController!.initialize();
-      if (mounted) setState(() {});
-    } catch (_) {}
+  void _onDetect(BarcodeCapture capture) {
+    if (_busy) return;
+    for (final barcode in capture.barcodes) {
+      final token = InviteLinks.codeFromScan(barcode.rawValue ?? '');
+      if (token != null) {
+        _joinWithToken(token);
+        return;
+      }
+    }
   }
 
   Future<void> _joinWithToken(String rawToken) async {
     final clean = InviteLinks.sanitize(rawToken);
-    if (clean.isEmpty) {
-      setState(() => _error = 'Enter a valid 6-letter code');
+    if (!InviteLinks.isValidCode(clean)) {
+      setState(() => _error = 'Enter a valid invite code');
       return;
     }
 
@@ -84,21 +76,34 @@ class _QrJoinSheetState extends State<QrJoinSheet>
     });
 
     try {
-      final inviteSnap = await widget.backend.firestore.collection('invites').doc(clean).get();
-      final spaceId = inviteSnap.data()?['spaceId'] as String?;
-      if (spaceId != null) {
-        final spaceDoc = await widget.backend.firestore.collection('spaces').doc(spaceId).get();
-        final requireApproval = spaceDoc.data()?['requireApproval'] == true;
-        if (requireApproval) {
-          await widget.backend.requestJoinSpace(spaceId);
-          if (mounted) {
+      final invite = await widget.backend.call('previewInvite', {'token': clean});
+      final spaceId = invite['spaceId'] as String;
+      if (!mounted) return;
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Join space?'),
+          content: Text('You were invited to join ${invite['spaceName'] ?? 'this space'}.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue')),
+          ],
+        ),
+      );
+      if (approved != true || !mounted) {
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
+      if (invite['requireApproval'] == true) {
+          final approvedRequest = await widget.backend.requestJoinSpace(spaceId, clean);
+          if (!approvedRequest && mounted) {
             setState(() => _busy = false);
             showDialog<void>(
               context: context,
               builder: (ctx) => AlertDialog(
                 title: const Text('Request Sent'),
                 content: const Text(
-                  'This space requires approval. The space owner will review your request.',
+                  'The owner will review your request. Enter this code again after approval to join.',
                   style: TextStyle(fontFamily: 'NunitoSans'),
                 ),
                 actions: [
@@ -114,7 +119,6 @@ class _QrJoinSheetState extends State<QrJoinSheet>
             );
             return;
           }
-        }
       }
 
       final res = await widget.backend.call('redeemInvite', {'token': clean});
@@ -135,7 +139,6 @@ class _QrJoinSheetState extends State<QrJoinSheet>
 
   @override
   void dispose() {
-    _cameraController?.dispose();
     _tabController.dispose();
     _codeController.dispose();
     super.dispose();
@@ -278,16 +281,25 @@ class _QrJoinSheetState extends State<QrJoinSheet>
                         ),
                     ],
                   ),
-                  // Tab 2: Camera Scanner View
+                  // Tab 2: scan only while this tab is visible.
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (_cameraController != null && _cameraController!.value.isInitialized)
-                          CameraPreview(_cameraController!)
-                        else
-                          Container(color: const Color(0xFF202633)),
+                        if (_tabController.index == 1)
+                          MobileScanner(
+                            onDetect: _onDetect,
+                            errorBuilder: (context, error) => Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: Text('Camera unavailable. Enter the code instead.',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Colors.white)),
+                              ),
+                            ),
+                          )
+                        else Container(color: const Color(0xFF202633)),
                         Align(
                           alignment: Alignment.bottomCenter,
                           child: Container(

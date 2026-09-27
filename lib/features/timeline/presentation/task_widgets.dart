@@ -3,28 +3,41 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/demo_state.dart';
+import '../../../core/sync_state.dart';
 import '../../../core/place_pin.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets.dart';
+import '../../../online/firebase_repository.dart';
 import '../domain/models.dart';
 import 'task_detail.dart';
 
-class TaskCard extends StatelessWidget {
+class TaskCard extends ConsumerWidget {
   const TaskCard({super.key, required this.task, required this.space});
   final Task task;
   final Space space;
   @override
-  Widget build(BuildContext context) => Material(
+  Widget build(BuildContext context, WidgetRef ref) => Material(
     color: SoftPop.surface,
     borderRadius: BorderRadius.circular(20),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
-      onTap: () => context.push('/task/${task.id}'),
+      onTap: task.syncState == SyncState.synced ? () => context.push('/task/${task.id}') : null,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (task.syncState != SyncState.synced)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(task.syncState == SyncState.pending ? 'Pending sync' : 'Needs retry',
+                  style: Theme.of(context).textTheme.labelMedium),
+              ),
+            if (task.syncState == SyncState.failed && ref.read(repositoryProvider) is FirebaseTimelineRepository)
+              Wrap(spacing: 8, children: [
+                TextButton(onPressed: () => (ref.read(repositoryProvider) as FirebaseTimelineRepository).outbox.flush(retryFailed: true), child: const Text('Retry sync')),
+                TextButton(onPressed: () => (ref.read(repositoryProvider) as FirebaseTimelineRepository).outbox.acknowledged(task.id), child: const Text('Discard draft')),
+              ]),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -86,8 +99,8 @@ class TaskCard extends StatelessWidget {
                   ],
                 ),
               ),
-            if ((task.ownerId == space.currentUserId && !task.isDone) ||
-                task.requestedId == space.currentUserId) ...[
+            if (task.syncState == SyncState.synced && ((task.ownerId == space.currentUserId && !task.isDone) ||
+                task.requestedId == space.currentUserId)) ...[
               const SizedBox(height: 16),
               TaskActions(task: task, compact: true),
             ],

@@ -2,9 +2,24 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/place_pin.dart';
+import '../../core/sync_state.dart';
 
 import '../../core/demo_state.dart';
 import '../timeline/domain/models.dart';
+
+enum PlanReminder { none, atStart, tenMinutes, oneHour, oneDay, morningOf, morningBefore }
+
+extension PlanReminderLabel on PlanReminder {
+  String get label => switch (this) {
+    PlanReminder.none => 'Off',
+    PlanReminder.atStart => 'At start',
+    PlanReminder.tenMinutes => '10 minutes before',
+    PlanReminder.oneHour => '1 hour before',
+    PlanReminder.oneDay => '1 day before',
+    PlanReminder.morningOf => '9 a.m. that day',
+    PlanReminder.morningBefore => '9 a.m. the day before',
+  };
+}
 
 class CalendarPlan {
   const CalendarPlan({
@@ -21,6 +36,10 @@ class CalendarPlan {
     this.googleCalendarId,
     this.googleEventId,
     this.googleUpdatedAt,
+    this.reminder = PlanReminder.none,
+    this.syncState = SyncState.synced,
+    this.revision = 0,
+    this.pendingRemoval = false,
   });
   final String id, spaceId, ownerId, title, note;
   // Timed instants are UTC. All-day values are floating local dates, end exclusive.
@@ -29,6 +48,10 @@ class CalendarPlan {
   final List<String> participants;
   final PlacePin? pin;
   final String? googleCalendarId, googleEventId, googleUpdatedAt;
+  final PlanReminder reminder;
+  final SyncState syncState;
+  final int revision;
+  final bool pendingRemoval;
   bool get isImported => googleCalendarId != null && googleEventId != null;
   DateTime get localStart => allDay ? start : start.toLocal();
   DateTime get localEnd => allDay ? end : end.toLocal();
@@ -55,6 +78,7 @@ abstract class CalendarDataSource {
     String note = '',
     List<String> participants = const [],
     PlacePin? pin,
+    PlanReminder reminder = PlanReminder.none,
   });
   FutureOr<void> remove(String id, String actorId);
 }
@@ -126,6 +150,7 @@ class CalendarRepository extends CalendarDataSource {
     String note = '',
     List<String> participants = const [],
     PlacePin? pin,
+    PlanReminder reminder = PlanReminder.none,
   }) {
     final space = spaces.firstWhere((space) => space.id == spaceId);
     if (!space.members.any((m) => m.id == actorId)) {
@@ -162,6 +187,7 @@ class CalendarRepository extends CalendarDataSource {
       note: note.trim(),
       participants: participants.toSet().toList(),
       pin: pin,
+      reminder: reminder,
     );
     _plans.removeWhere((p) => p.id == id);
     _plans.add(plan);

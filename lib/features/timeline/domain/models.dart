@@ -1,4 +1,5 @@
 import '../../../core/place_pin.dart';
+import '../../../core/sync_state.dart';
 
 enum Responsibility { unclaimed, requested, accepted, needsHelp, completed }
 
@@ -63,6 +64,7 @@ class Task {
     this.activity = const [],
     this.completedAt,
     this.completedLocalDay,
+    this.syncState = SyncState.synced,
   });
   final String id, spaceId, title, creatorId, notes;
   final DateTime day;
@@ -74,6 +76,7 @@ class Task {
   final List<String> participants, activity;
   final DateTime? completedAt;
   final DateTime? completedLocalDay;
+  final SyncState syncState;
   bool get isEvent => participants.isNotEmpty;
   bool get isDone => status == Responsibility.completed;
   bool matchesPerson(String? id) =>

@@ -1,0 +1,26 @@
+# Android pilot completion: implementation and gates
+
+The local Flutter implementation retains Today / Moments / Space and the Soft Pop assets. This record distinguishes code from deployed services and device verification. Public registration remains invite-based inside spaces. Basic remains usable for unfinished tasks and completion; the founder Plus grant remains personal. No paid tier, OneSignal Growth, or public store release was enabled.
+
+## Implemented locally
+
+- Invite QR images use `qr_flutter`; Stewardie's scan tab uses `mobile_scanner`. The QR encodes a 10-character secure code, not an unverified app link. Existing six-character codes remain accepted until their normal expiry. The scanner previews the space and asks before joining; the code tab remains available if camera permission is denied. Approval-required invites create a pending request and only redeem after owner approval. Refresh revokes the previous invite.
+- Calendar plans offer Off by default. Timed choices are at start, 10 minutes, one hour, and one day before; all-day choices are 9 a.m. on the day or previous day in the space time zone. The five-minute worker creates deterministic in-app items for the author and current participants. It uses plan revisions and cancels stale items after edits, removal, or membership changes. Google imports remain Off. OneSignal is optional and is not configured.
+- Task creation and a member's own calendar save/remove actions enter a Sembast outbox scoped to the signed-in UID and space. Pending and failed changes are labeled in the UI; failed changes can be retried or discarded. Plan writes compare revisions before replacing server data. Acceptance, completion, invitations, and membership still await server confirmation. A server-confirmed membership removal discards that space's drafts.
+- Members can report another member, moment, task, or plan. Reporting a moment can hide it for the reporter without deleting shared task records. Account blocks prevent new direct task requests from blocked members across spaces. The verified founder email has a private report and deletion-request review queue. New dependent-profile creation is disabled for the adult-only pilot; existing profiles are retained for cleanup.
+- Account Settings now submits a tracked deletion request instead of deleting Firebase Auth while silently leaving Firestore and Supabase data. `hosting/deletion-request.html` provides an external, password-authenticated request path. It is **not live** until Firebase Hosting is deployed. A request is not proof of deletion; the operator must remove associated data in Firebase and Supabase, verify the result, then close the request. Do not publish while this procedure is untested.
+
+## Checks performed
+
+- Dart analyzer on the changed UI and online files: no compile errors; a few existing style infos remain.
+- Firestore emulator rules suite: 11 passed, including unauthorized access, invitation, plan ownership, direct-request block, and private report access.
+- No Android build, physical-device test, Supabase worker invocation, two-account live run, or QR scan with an independent scanner was performed in this change. The scheduled worker and new rules in this checkout are not deployed by this record.
+
+## Rollout sequence
+
+1. Review the rule and worker diff, then deploy `firebase deploy --only firestore --project stewardie` and `supabase functions deploy scheduled-work --project-ref ulexhxfxatzlobabitpr --no-verify-jwt` in the already configured free-plan projects. Confirm the existing Vault/Cron job still returns HTTP 200 with `errors: 0`. Do not place worker secrets in source or Flutter.
+2. On two authorized Android accounts and a nonmember, check QR scan and code entry, expired/revoked code, approval and duplicate redemption, camera denial, plan reminders, quiet hours, repeated worker runs, offline task/plan edits, reconnection, conflict, sign-out/account switch, and revoked membership. Test near a daylight-saving transition in a suitable space time zone. Test photos, pins, camera orientation, and location under lock/background/network loss on physical devices.
+3. Establish a support/moderation process with a named operator, response targets, evidence retention policy, and an account deletion runbook that covers Firebase Auth, Firestore, Supabase `media_items`, and private Storage objects. Verify deletion using a disposable real account and two spaces before making the external page public. Deploy only the static Hosting content after review, then verify its URL from another device.
+4. Choose the final Android application ID and publisher identity, replace debug release signing, create the Play developer account, choose an operating budget, prepare privacy/terms and English listing, complete Data safety/content rating, and run internal then closed testing. A newly created personal Play account may need 12 testers for 14 days before production. Build a signed AAB only after these gates pass. iOS, public paid Plus, OneSignal, and Google Calendar OAuth remain later integrations.
+
+The operator queue currently tracks work; it does not automate Firebase/Supabase deletion or moderation decisions. That gap, the unverified external page, and device tests block public release.

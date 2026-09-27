@@ -347,9 +347,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                     );
                   }
 
-                  // Always show user's current GPS pin if not already in active Firestore sessions
-                  final userPoint = _currentUserLatLng ?? _lastKnownCenter;
-                  if (!userHasSessionMarker) {
+                  // Only show a personal pin after a real GPS fix. The map's
+                  // neutral (0, 0) center is never a reported location.
+                  final userPoint = _currentUserLatLng;
+                  if (!userHasSessionMarker && userPoint != null) {
                     final isSelected = _selectedMember?['uid'] == myUid;
                     markers.add(
                       Marker(
@@ -378,7 +379,6 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                     );
                   }
 
-                  // Also show user's current GPS pin if available
                   return ClipRRect(
                     borderRadius: BorderRadius.circular(22),
                     child: Container(
@@ -408,7 +408,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                               initialZoom:
                                   sessions.isEmpty &&
                                       _lastKnownCenter == const LatLng(0, 0)
-                                  ? 2.5
+                                  ? 3.0
                                   : 14.0,
                               minZoom: 3.0,
                               maxZoom: 18.0,
@@ -477,13 +477,15 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                             ),
                           ),
                           Text(
-                            _selectedMember!['updatedAt'] is Timestamp &&
-                                    DateTime.now().difference(
-                                          (_selectedMember!['updatedAt']
-                                                  as Timestamp)
-                                              .toDate(),
-                                        ) >
-                                        const Duration(minutes: 2)
+                            _selectedMember!['updatedAt'] == null
+                                ? 'Current device location · not shared'
+                                : _selectedMember!['updatedAt'] is Timestamp &&
+                                      DateTime.now().difference(
+                                            (_selectedMember!['updatedAt']
+                                                    as Timestamp)
+                                                .toDate(),
+                                          ) >
+                                          const Duration(minutes: 2)
                                 ? 'Last update is stale'
                                 : 'Updated recently · location may be approximate',
                             style: const TextStyle(

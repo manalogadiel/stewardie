@@ -7,6 +7,21 @@ class InviteLinks {
   /// Unambiguous uppercase character set for 6-letter invite codes
   /// (excludes easily confused letters like I and O).
   static const String codeCharset = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  static final RegExp _validCode = RegExp(r'^[A-HJ-NP-Z]{6}$|^[A-HJ-NP-Z]{10}$');
+
+  static bool isValidCode(String value) => _validCode.hasMatch(sanitize(value));
+
+  /// Only a Stewardie link or a bare code is accepted from a camera scan.
+  static String? codeFromScan(String value) {
+    final raw = value.trim();
+    if (raw.contains('://')) {
+      final uri = Uri.tryParse(raw);
+      if (uri == null || uri.scheme != 'https' ||
+          uri.host != 'stewardie.web.app') return null;
+    }
+    final code = sanitize(raw);
+    return isValidCode(code) ? code : null;
+  }
 
   /// Sanitizes raw user input into a clean, uppercase invite token.
   ///

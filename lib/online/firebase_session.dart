@@ -18,6 +18,7 @@ import '../features/media/media_library.dart';
 import '../features/media/camera_screen.dart';
 import '../features/media/picker_recovery.dart';
 import 'firebase_repository.dart';
+import 'edit_outbox.dart';
 import 'cloud_media_library.dart';
 import 'online_app.dart';
 import 'online_backend.dart';
@@ -88,9 +89,11 @@ class _SignedInApp extends StatefulWidget {
 }
 
 class _SignedInAppState extends State<_SignedInApp> {
+  late final outbox = EditOutbox(widget.database, widget.backend, widget.user.uid);
   late final timeline = FirebaseTimelineRepository(
     widget.backend,
     widget.user.uid,
+    outbox,
   );
   late final calendar = FirebaseCalendarRepository(timeline);
   late final Future<MediaLibrary> library = _loadLibrary();
@@ -103,6 +106,7 @@ class _SignedInAppState extends State<_SignedInApp> {
     LiveLocationService.instance.init(widget.backend);
     unawaited(LiveLocationService.instance.restore());
     PushService.instance.init(widget.user.uid);
+    unawaited(outbox.start());
     timeline.start();
     unawaited(() async {
       if (timeline.spaces.isEmpty) {
@@ -161,6 +165,19 @@ class _SignedInAppState extends State<_SignedInApp> {
         if (shouldJoin == true && context.mounted) {
           await widget.backend.auth.currentUser?.reload();
           await widget.user.getIdToken(true);
+          if (preview['requireApproval'] == true) {
+            final approved = await widget.backend.requestJoinSpace(
+              preview['spaceId'] as String, token,
+            );
+            if (!approved) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Request sent. Open the invite again after approval.'),
+                ));
+              }
+              return;
+            }
+          }
           final result =
               await widget.backend.call('redeemInvite', {'token': token});
           final joinedSpaceId = result['spaceId'] as String?;
@@ -214,6 +231,7 @@ class _SignedInAppState extends State<_SignedInApp> {
     unawaited(LiveLocationService.instance.stopSharing());
     PushService.instance.logOut();
     unawaited(timeline.dispose());
+    outbox.close();
     _loadedLibrary?.dispose();
     super.dispose();
   }

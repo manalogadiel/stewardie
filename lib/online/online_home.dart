@@ -9,7 +9,7 @@ import '../core/theme.dart';
 import '../core/top_controls.dart';
 import 'account_settings_sheet.dart';
 import 'activity_inbox_sheet.dart';
-import 'dependent_profile_sheet.dart';
+import 'safety_sheet.dart';
 import 'live_location_pill.dart';
 import 'live_location_service.dart';
 import 'online_backend.dart';
@@ -1367,38 +1367,26 @@ class _OnlineHomeState extends State<OnlineHome> {
                                 '${person.data()['name'] ?? 'Member'}${person.id == widget.user.uid ? ' (you)' : ''}',
                               ),
                               subtitle: Text(subtitleText),
-                              trailing: (isDependent && (owner == widget.user.uid || person.data()['managedByUid'] == widget.user.uid))
-                                  ? IconButton(
-                                      icon: const Icon(Icons.edit_outlined, size: 18),
-                                      tooltip: 'Edit family profile',
-                                      onPressed: () {
-                                        DependentProfileSheet.show(
-                                          context,
-                                          backend: widget.backend,
-                                          spaceId: spaceId,
-                                          memberId: person.id,
-                                          initialName: person.data()['name'] as String?,
-                                          initialRole: familyRole,
-                                          initialColor: person.data()['color'] as String?,
-                                          onSaved: () => setState(() {}),
-                                        );
-                                      },
-                                    )
-                                  : (owner == widget.user.uid && person.id != owner
+                              trailing: person.id != widget.user.uid
                                       ? PopupMenuButton<String>(
                                           tooltip:
                                               'Manage ${person.data()['name']}',
-                                          itemBuilder: (_) => const [
-                                            PopupMenuItem(
+                                          itemBuilder: (_) => [
+                                            if (owner == widget.user.uid) const PopupMenuItem(
                                               value: 'removeMember',
                                               child: Text('Remove from space'),
                                             ),
-                                            PopupMenuItem(
+                                            if (owner == widget.user.uid) const PopupMenuItem(
                                               value: 'offerOwnership',
                                               child: Text('Offer ownership'),
                                             ),
+                                            const PopupMenuItem(value: 'safety', child: Text('Report or block')),
                                           ],
-                                          onSelected: (action) => _membershipAction(
+                                          onSelected: (action) => action == 'safety'
+                                            ? SafetySheet.member(context, widget.backend,
+                                                spaceId: spaceId, memberUid: person.id,
+                                                memberName: person.data()['name'] as String? ?? 'Member')
+                                            : _membershipAction(
                                             action,
                                             spaceId,
                                             memberUid: person.id,
@@ -1407,21 +1395,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                                                 'Member',
                                           ),
                                         )
-                                      : null),
+                                      : null,
                             );
                           }(),
-                        const SizedBox(height: 8),
-                        OutlinedButton(
-                          onPressed: () {
-                            DependentProfileSheet.show(
-                              context,
-                              backend: widget.backend,
-                              spaceId: spaceId,
-                              onSaved: () => setState(() {}),
-                            );
-                          },
-                          child: const Text('Add family profile'),
-                        ),
                         if (pendingOwner == widget.user.uid) ...[
                           const SizedBox(height: 8),
                           FilledButton(
@@ -1472,7 +1448,8 @@ class _OnlineHomeState extends State<OnlineHome> {
                           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                             stream: widget.backend.pendingJoins(spaceId),
                             builder: (context, pendingSnapshot) {
-                              final pendingDocs = pendingSnapshot.data?.docs ?? [];
+                              final pendingDocs = (pendingSnapshot.data?.docs ?? [])
+                                  .where((doc) => doc.data()['status'] == 'pending').toList();
                               if (pendingDocs.isEmpty) return const SizedBox.shrink();
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,

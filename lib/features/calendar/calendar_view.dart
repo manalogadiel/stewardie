@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/clay.dart';
 import '../../core/backend_provider.dart';
 import '../../core/place_pin.dart';
+import '../../core/sync_state.dart';
+import '../../online/firebase_repository.dart';
+import '../../online/safety_sheet.dart';
 import '../../online/external_launcher.dart';
 import '../../core/demo_state.dart';
 import '../../core/people_filter.dart';
@@ -464,7 +467,10 @@ Future<void> showPlanDetails(
   WidgetRef ref,
   Space space,
   CalendarPlan plan,
-) => showDialog<void>(
+) {
+  final backend = ref.read(sharedBackendProvider);
+  final repository = ref.read(repositoryProvider);
+  return showDialog<void>(
   context: context,
   builder: (dialogContext) => AlertDialog(
     title: Text(plan.title),
@@ -474,6 +480,15 @@ Future<void> showPlanDetails(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('${personName(space, plan.ownerId)} · ${space.name}'),
+          if (plan.ownerId != space.currentUserId && backend != null)
+            TextButton.icon(onPressed: () => SafetySheet.report(dialogContext, backend,
+              spaceId: plan.spaceId, kind: 'plan', contentId: plan.id,
+              targetUid: plan.ownerId), icon: const Icon(Icons.flag_outlined),
+              label: const Text('Report plan')),
+          if (plan.syncState != SyncState.synced)
+            Text(plan.syncState == SyncState.pending
+              ? (plan.pendingRemoval ? 'Removal pending' : 'Pending sync')
+              : 'Needs retry'),
           if (plan.isImported)
             const Text('Shared from Google Calendar · read-only here'),
           const SizedBox(height: 12),
@@ -497,7 +512,7 @@ Future<void> showPlanDetails(
               icon: const Icon(Icons.directions_outlined),
               label: const Text('Get directions'),
             ),
-            if (ref.read(sharedBackendProvider) case final backend?)
+            if (plan.syncState == SyncState.synced && backend != null)
               StreamBuilder(
                 stream: backend.firestore
                     .doc(
@@ -545,7 +560,18 @@ Future<void> showPlanDetails(
       ),
     ),
     actions: [
-      if (plan.ownerId == space.currentUserId && !plan.isImported)
+      if (plan.syncState == SyncState.failed && repository is FirebaseTimelineRepository)
+        TextButton(onPressed: () {
+          repository.outbox.acknowledged(repository.outbox.items.firstWhere((i) =>
+            (i['kind'] == 'planSave' || i['kind'] == 'planRemove') && i['spaceId'] == plan.spaceId && (i['payload'] as Map)['planId'] == plan.id)['id'] as String);
+          Navigator.pop(dialogContext);
+        }, child: const Text('Discard local change')),
+      if (plan.syncState == SyncState.failed && repository is FirebaseTimelineRepository)
+        TextButton(onPressed: () {
+          repository.outbox.flush(retryFailed: true);
+          Navigator.pop(dialogContext);
+        }, child: const Text('Retry sync')),
+      if (plan.syncState == SyncState.synced && plan.ownerId == space.currentUserId && !plan.isImported)
         TextButton(
           onPressed: () {
             Navigator.pop(dialogContext);
@@ -553,7 +579,7 @@ Future<void> showPlanDetails(
           },
           child: const Text('Edit plan'),
         ),
-      if (plan.ownerId == space.currentUserId)
+      if (plan.syncState == SyncState.synced && plan.ownerId == space.currentUserId)
         TextButton(
           onPressed: () async {
             final confirmed = await showDialog<bool>(
@@ -601,7 +627,8 @@ Future<void> showPlanDetails(
       ),
     ],
   ),
-);
+  );
+}
 
 Future<void> showPlanEditor(
   BuildContext context,
@@ -635,6 +662,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
   late final TextEditingController title, note;
   late DateTime start, end;
   late bool allDay;
+  late PlanReminder reminder;
   late Set<String> participants;
   PlacePin? pin;
   String? error;
@@ -646,6 +674,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
     title = TextEditingController(text: p?.title);
     note = TextEditingController(text: p?.note);
     allDay = p?.allDay ?? false;
+    reminder = p?.reminder ?? PlanReminder.none;
     final today = dateOnly(DateTime.now());
     final dayDate = dateOnly(widget.day);
     final initialDay = p != null
@@ -761,7 +790,10 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('All day'),
                     value: allDay,
-                    onChanged: (v) => setState(() => allDay = v),
+                    onChanged: (v) => setState(() {
+                      allDay = v;
+                      reminder = PlanReminder.none;
+                    }),
                   ),
                   for (final begin in [true, false]) ...[
                     Text(
@@ -789,6 +821,18 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                     Text(
                       'Times shown in ${DateTime.now().timeZoneName} (this device).',
                     ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<PlanReminder>(
+                    value: reminder,
+                    decoration: const InputDecoration(labelText: 'Reminder'),
+                    items: (allDay
+                            ? const [PlanReminder.none, PlanReminder.morningOf, PlanReminder.morningBefore]
+                            : const [PlanReminder.none, PlanReminder.atStart, PlanReminder.tenMinutes,
+                                PlanReminder.oneHour, PlanReminder.oneDay])
+                        .map((option) => DropdownMenuItem(value: option, child: Text(option.label)))
+                        .toList(),
+                    onChanged: (option) => setState(() => reminder = option ?? PlanReminder.none),
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Who’s joining? (optional)',
@@ -888,6 +932,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                                     note: note.text,
                                     participants: participants.toList(),
                                     pin: pin,
+                                    reminder: reminder,
                                   );
                               if (!context.mounted) return;
                               ref.read(calendarProvider.notifier).refresh();

@@ -9,6 +9,7 @@ import '../../../core/widgets.dart';
 import '../../media/photo_composer.dart';
 import '../../media/photo_viewer.dart';
 import '../../../online/external_launcher.dart';
+import '../../../online/safety_sheet.dart';
 import '../domain/models.dart';
 
 class TaskDetail extends ConsumerWidget {
@@ -201,6 +202,14 @@ class TaskDetail extends ConsumerWidget {
                 TaskPhotos(task),
                 const SizedBox(height: 24),
                 TaskActions(task: task),
+                if (task.creatorId != space.currentUserId && ref.read(sharedBackendProvider) != null)
+                  TextButton.icon(
+                    onPressed: () => SafetySheet.report(context, ref.read(sharedBackendProvider)!,
+                      spaceId: task.spaceId, kind: 'task', contentId: task.id,
+                      targetUid: task.creatorId),
+                    icon: const Icon(Icons.flag_outlined),
+                    label: const Text('Report task'),
+                  ),
                 if (task.isDone) ...[
                   const SizedBox(height: 12),
                   const Text('One less thing to think about. Nicely done.'),

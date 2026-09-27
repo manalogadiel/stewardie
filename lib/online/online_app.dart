@@ -78,6 +78,7 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
   }
 
   bool _register = false;
+  bool _adultConfirmed = false;
   bool _resetPassword = false;
   bool _busy = false;
   String? _error;
@@ -94,6 +95,10 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
+    if (_register && !_adultConfirmed) {
+      setState(() => _error = 'Stewardie accounts are for adults. Confirm you are at least 18.');
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
@@ -278,6 +283,16 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
                                   : 'Enter your password'
                             : null,
                       ),
+                    if (!_resetPassword && widget.database != null)
+                      if (_register)
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text('I am at least 18 years old'),
+                          value: _adultConfirmed,
+                          onChanged: _busy ? null : (value) =>
+                            setState(() => _adultConfirmed = value ?? false),
+                        ),
                     if (!_resetPassword && widget.database != null)
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,

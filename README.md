@@ -33,4 +33,6 @@ The Spark trial uses UTC boundaries for mood expiry and Basic Done-history acces
 
 See [cloud setup](docs/live-firebase-setup.md), [implementation record](docs/spark-polish-verification.md), and [backend instructions](backend/firebase/README.md). Earlier verification documents describe historical slices, not the current runtime. Store release still requires the launch gates in the product, subscription, and technical plans.
 
+The Android pilot features for QR invites, calendar reminders, offline edits, and safety controls are staged locally. See [implementation status, rollout, and release gates](docs/pilot-completion-verification.md). The new rules, worker, and deletion-request page are not automatically deployed by `flutter run`.
+
 The next location, calendar-import, and reminder slice is staged in code. It needs the rules/media migration and the scheduled Supabase function deployed before its server routines and inbox activity run; OneSignal and Google OAuth remain optional and unconfigured. Follow [the rollout steps and device checks](docs/location-calendar-reminders-setup.md). Do not treat native background location, push, or Google access as verified by a Flutter build alone.

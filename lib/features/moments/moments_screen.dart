@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,8 @@ import '../../core/demo_state.dart';
 import '../../core/people_filter.dart';
 import '../../core/theme.dart';
 import '../../online/external_launcher.dart';
+import '../../online/safety_sheet.dart';
+import '../../core/backend_provider.dart';
 import '../../core/top_controls.dart';
 import '../../core/widgets.dart';
 import '../media/media_library.dart';
@@ -29,9 +32,18 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
   String scope = '';
   Timer? _refreshTimer;
   String? _cloudSpace;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _hiddenSub;
+  Set<String> _hidden = {};
   @override
   void initState() {
     super.initState();
+    final backend = ref.read(sharedBackendProvider);
+    if (backend != null && backend.auth.currentUser != null) {
+      _hiddenSub = backend.firestore.collection('accounts')
+        .doc(backend.auth.currentUser!.uid).collection('hidden').snapshots().listen((snapshot) {
+          if (mounted) setState(() => _hidden = snapshot.docs.map((d) => d.id).toSet());
+        });
+    }
     _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted &&
           WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused &&
@@ -58,6 +70,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _hiddenSub?.cancel();
     pages.dispose();
     super.dispose();
   }
@@ -74,6 +87,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
             .where(
               (p) =>
                   p.spaceId == space.id &&
+                  !_hidden.contains('${space.id}_moment_${p.id}') &&
                   p.publishedAt != null &&
                   (state.personId == null || p.uploaderId == state.personId),
             )
@@ -277,6 +291,14 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
             TextButton(
               onPressed: () => removePhoto(context, ref, photo),
               child: const Text('Remove photo'),
+            ),
+          if (photo.uploaderId != repo.currentUserId && ref.read(sharedBackendProvider) != null)
+            TextButton.icon(
+              onPressed: () => SafetySheet.report(context, ref.read(sharedBackendProvider)!,
+                spaceId: space.id, kind: 'moment', contentId: photo.id,
+                targetUid: photo.uploaderId),
+              icon: const Icon(Icons.flag_outlined),
+              label: const Text('Report or hide moment'),
             ),
         ],
       ],

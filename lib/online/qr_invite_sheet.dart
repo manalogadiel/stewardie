@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'online_backend.dart';
-import 'qr_code_painter.dart';
 
-/// Modal bottom sheet displaying space invitation QR code and 6-letter token.
+/// Modal bottom sheet displaying a scannable space invitation.
 class QrInviteSheet extends StatefulWidget {
   const QrInviteSheet({
     super.key,
@@ -60,13 +60,12 @@ class _QrInviteSheetState extends State<QrInviteSheet> {
     _currentToken = widget.inviteToken;
   }
 
-  String get _inviteUrl => 'https://stewardie.web.app/#/join?token=$_currentToken';
-
   Future<void> _regenerateToken() async {
     setState(() => _busy = true);
     try {
       final res = await widget.backend.call('createInvite', {
         'spaceId': widget.spaceId,
+        'forceNew': true,
       });
       final newToken = res['token'] as String;
       setState(() {
@@ -135,7 +134,7 @@ class _QrInviteSheetState extends State<QrInviteSheet> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Invite members with QR code or token',
+              'Scan in Stewardie or enter the code',
               style: TextStyle(
                 fontFamily: 'NunitoSans',
                 fontSize: 14,
@@ -147,8 +146,13 @@ class _QrInviteSheetState extends State<QrInviteSheet> {
               child: SizedBox(
                 width: 200,
                 height: 200,
-                child: CustomPaint(
-                  painter: SoftPopQrCodePainter(data: _inviteUrl),
+                child: QrImageView(
+                  data: _currentToken,
+                  version: QrVersions.auto,
+                  backgroundColor: const Color(0xFFFFFEFB),
+                  eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Color(0xFF202633)),
+                  dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Color(0xFF202633)),
+                  errorCorrectionLevel: QrErrorCorrectLevel.M,
                 ),
               ),
             ),
@@ -162,7 +166,9 @@ class _QrInviteSheetState extends State<QrInviteSheet> {
                   border: Border.all(color: const Color(0xFFE5E2DA)),
                 ),
                 child: Text(
-                  _currentToken,
+                  _currentToken.length == 10
+                      ? '${_currentToken.substring(0, 5)} ${_currentToken.substring(5)}'
+                      : _currentToken,
                   style: const TextStyle(
                     fontFamily: 'NunitoSans',
                     fontSize: 26,
@@ -174,10 +180,9 @@ class _QrInviteSheetState extends State<QrInviteSheet> {
               ),
             ),
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
                     onPressed: () => _copy(_currentToken, 'Invite code'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF202633),
@@ -190,23 +195,6 @@ class _QrInviteSheetState extends State<QrInviteSheet> {
                       style: TextStyle(fontFamily: 'NunitoSans', fontWeight: FontWeight.w700),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => _copy(_inviteUrl, 'Invite link'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF244BFF),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: const Text(
-                      'Copy link',
-                      style: TextStyle(fontFamily: 'NunitoSans', fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 8),
             Center(

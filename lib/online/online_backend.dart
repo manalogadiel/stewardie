@@ -299,8 +299,8 @@ class OnlineBackend {
         'requireApproval': requireApproval,
       });
 
-  Future<void> requestJoinSpace(String spaceId) =>
-      call('requestJoinSpace', {'spaceId': spaceId});
+  Future<bool> requestJoinSpace(String spaceId, String token) async =>
+      (await call('requestJoinSpace', {'spaceId': spaceId, 'token': token}))['approved'] == true;
 
   Future<void> approveJoinRequest(
     String spaceId,
@@ -326,14 +326,16 @@ class OnlineBackend {
     }
   }
 
-  Future<void> deleteAccount() async {
+  Future<void> requestAccountDeletion() async {
     final user = auth.currentUser;
-    if (user != null) {
-      final uid = user.uid;
-      try {
-        await firestore.collection('accounts').doc(uid).delete();
-      } catch (_) {}
-      await user.delete();
-    }
+    if (user == null) throw StateError('Sign in to request deletion.');
+    final request = firestore.collection('deletionRequests').doc(user.uid);
+    if ((await request.get()).exists) return;
+    await request.set({
+      'uid': user.uid,
+      'email': user.email,
+      'createdAt': FieldValue.serverTimestamp(),
+      'status': 'pending',
+    });
   }
 }

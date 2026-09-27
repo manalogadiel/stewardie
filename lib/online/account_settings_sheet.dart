@@ -4,6 +4,7 @@ import 'online_backend.dart';
 import 'live_location_service.dart';
 import 'push_service.dart';
 import 'notification_settings_sheet.dart';
+import 'operator_review_sheet.dart';
 
 /// Modal bottom sheet for user profile settings, tier info, sign out, and deletion.
 class AccountSettingsSheet extends StatefulWidget {
@@ -114,7 +115,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Type DELETE to confirm permanent account deletion. All your data will be permanently removed.',
+                'Type DELETE to request permanent account and shared-media deletion. Your request will be reviewed; your account stays accessible until cleanup is confirmed.',
                 style: TextStyle(fontFamily: 'NunitoSans', fontSize: 14),
               ),
               const SizedBox(height: 16),
@@ -153,10 +154,13 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
 
     setState(() => _busy = true);
     try {
-      await widget.backend.deleteAccount();
+      await widget.backend.requestAccountDeletion();
       if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop();
-        widget.onSignedOut();
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Deletion request received. Your account remains active until cleanup is complete.'),
+        ));
       }
     } catch (e) {
       if (mounted) {
@@ -332,6 +336,11 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                       label: const Text('Reminder settings'),
                     ),
                     const SizedBox(height: 12),
+                  ],
+                  if (email.toLowerCase() == 'gadielmanalo19@gmail.com') ...[
+                    TextButton.icon(onPressed: () => OperatorReviewSheet.show(context, widget.backend),
+                      icon: const Icon(Icons.shield_outlined), label: const Text('Private review queue')),
+                    const SizedBox(height: 8),
                   ],
                   SizedBox(
                     height: 50,
