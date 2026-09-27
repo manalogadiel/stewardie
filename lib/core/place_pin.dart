@@ -1,0 +1,195 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+
+import 'theme.dart';
+
+/// A fixed, explicitly shared place. It never represents a live session.
+class PlacePin {
+  const PlacePin({
+    required this.lat,
+    required this.lng,
+    required this.label,
+    this.note = '',
+    this.source = 'manual',
+    this.accuracy,
+    this.locatedAt,
+  });
+  final double lat, lng;
+  final String label, note, source;
+  final double? accuracy;
+  final DateTime? locatedAt;
+
+  Map<String, dynamic> toMap() => {
+    'lat': lat,
+    'lng': lng,
+    'label': label.trim(),
+    'note': note.trim(),
+    'source': source,
+    if (accuracy != null) 'accuracy': accuracy,
+    if (locatedAt != null) 'locatedAt': locatedAt!.toUtc().toIso8601String(),
+  };
+
+  static PlacePin? fromMap(Object? raw) {
+    if (raw is! Map) return null;
+    final lat = raw['lat'], lng = raw['lng'];
+    if (lat is! num || lng is! num) return null;
+    return PlacePin(
+      lat: lat.toDouble(),
+      lng: lng.toDouble(),
+      label: raw['label'] as String? ?? 'Pinned place',
+      note: raw['note'] as String? ?? '',
+      source: raw['source'] as String? ?? 'manual',
+      accuracy: (raw['accuracy'] as num?)?.toDouble(),
+      locatedAt: DateTime.tryParse(raw['locatedAt'] as String? ?? ''),
+    );
+  }
+}
+
+Future<PlacePin?> showPlacePicker(
+  BuildContext context, {
+  PlacePin? initial,
+}) => showModalBottomSheet<PlacePin>(
+  context: context,
+  useRootNavigator: true,
+  useSafeArea: true,
+  isScrollControlled: true,
+  builder: (_) => _PlacePicker(initial: initial),
+);
+
+class _PlacePicker extends StatefulWidget {
+  const _PlacePicker({this.initial});
+  final PlacePin? initial;
+  @override
+  State<_PlacePicker> createState() => _PlacePickerState();
+}
+
+class _PlacePickerState extends State<_PlacePicker> {
+  final controller = MapController();
+  late final label = TextEditingController(text: widget.initial?.label);
+  late final note = TextEditingController(text: widget.initial?.note);
+  LatLng? point;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initial != null) {
+      point = LatLng(widget.initial!.lat, widget.initial!.lng);
+    }
+  }
+
+  @override
+  void dispose() {
+    label.dispose();
+    note.dispose();
+    super.dispose();
+  }
+
+  Future<void> useCurrent() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw StateError('Location permission is off. Tap the map instead.');
+      }
+      final fix = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => point = LatLng(fix.latitude, fix.longitude));
+      controller.move(point!, 15);
+    } catch (_) {
+      if (mounted) setState(() => error = 'Could not find your location. Tap the map instead.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = point;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * .77,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Choose a place', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            const Text('Tap the map to place a fixed pin. This will be visible to your space.'),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: FlutterMap(
+                  mapController: controller,
+                  options: MapOptions(
+                    initialCenter: p ?? const LatLng(0, 0),
+                    initialZoom: p == null ? 2 : 14,
+                    onTap: (_, position) => setState(() => point = position),
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'dev.stewardie.app',
+                    ),
+                    if (p != null)
+                      MarkerLayer(markers: [
+                        Marker(
+                          point: p,
+                          width: 48,
+                          height: 48,
+                          child: const Icon(Icons.place_rounded, color: SoftPop.blue, size: 42),
+                        ),
+                      ]),
+                  ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: useCurrent,
+                icon: const Icon(Icons.my_location_rounded),
+                label: const Text('Center on me'),
+              ),
+            ),
+            TextField(
+              controller: label,
+              maxLength: 80,
+              decoration: const InputDecoration(labelText: 'Place name'),
+            ),
+            TextField(
+              controller: note,
+              maxLength: 180,
+              decoration: const InputDecoration(labelText: 'Location note (optional)'),
+            ),
+            if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
+            FilledButton(
+              onPressed: p == null ? null : () {
+                if (label.text.trim().isEmpty) {
+                  setState(() => error = 'Name this place.');
+                  return;
+                }
+                Navigator.pop(context, PlacePin(
+                  lat: p.latitude,
+                  lng: p.longitude,
+                  label: label.text.trim(),
+                  note: note.text.trim(),
+                ));
+              },
+              child: const Text('Use this place'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

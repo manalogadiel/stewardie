@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/demo_state.dart';
+import '../../../core/backend_provider.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets.dart';
 import '../../media/photo_composer.dart';
 import '../../media/photo_viewer.dart';
+import '../../../online/external_launcher.dart';
 import '../domain/models.dart';
 
 class TaskDetail extends ConsumerWidget {
@@ -141,6 +143,56 @@ class TaskDetail extends ConsumerWidget {
                             ],
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (task.pin != null) ...[
+                  const SizedBox(height: 12),
+                  Paper(
+                    color: SoftPop.warm,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(task.pin!.label, style: Theme.of(context).textTheme.titleMedium),
+                        if (task.pin!.note.isNotEmpty) Text(task.pin!.note),
+                        const Text('Fixed destination · visible to this space'),
+                        TextButton.icon(
+                          onPressed: () => ExternalLauncher.openMapDirections(
+                            context,
+                            query: task.pin!.label,
+                            lat: task.pin!.lat,
+                            lng: task.pin!.lng,
+                          ),
+                          icon: const Icon(Icons.directions_outlined),
+                          label: const Text('Get directions'),
+                        ),
+                        if (ref.watch(sharedBackendProvider) case final backend?)
+                          StreamBuilder(
+                            stream: backend.firestore
+                                .doc('spaces/${task.spaceId}/tasks/${task.id}/arrivals/${backend.auth.currentUser!.uid}')
+                                .snapshots(),
+                            builder: (context, snapshot) => OutlinedButton.icon(
+                              onPressed: snapshot.data?.exists == true ? null : () async {
+                                try {
+                                  await backend.call('checkInArrival', {
+                                    'spaceId': task.spaceId,
+                                    'taskId': task.id,
+                                  });
+                                } catch (_) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Could not check in. Try again.')),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.check_circle_outline),
+                              label: Text(snapshot.data?.exists == true
+                                  ? 'You reported arriving'
+                                  : "I'm here · member-reported"),
+                            ),
+                          ),
                       ],
                     ),
                   ),

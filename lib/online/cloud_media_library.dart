@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:sembast/sembast.dart';
 
 import '../features/media/media_library.dart';
+import '../core/place_pin.dart';
 import '../features/timeline/domain/models.dart';
 import 'firebase_repository.dart';
 
@@ -139,6 +140,7 @@ class CloudMediaLibrary extends MediaLibrary {
           : DateTime.parse(row['published_at']),
       cloud: true,
       framing: framing,
+      pin: PlacePin.fromMap(row['pin']),
       photo: PhotoDraft(
         existing?.photo.bytes ?? thumb,
         thumb,
@@ -208,8 +210,9 @@ class CloudMediaLibrary extends MediaLibrary {
     String actor,
     String caption, {
     String? taskId,
+    PlacePin? pin,
   }) async {
-    final saved = await super.add(photo, space, actor, caption, taskId: taskId);
+    final saved = await super.add(photo, space, actor, caption, taskId: taskId, pin: pin);
     await share(saved);
     return saved;
   }
@@ -248,6 +251,8 @@ class CloudMediaLibrary extends MediaLibrary {
           'caption': photo.caption,
           if (photo.taskId != null) 'task': photo.taskId!,
           'framing': jsonEncode(photo.framing.toMap()),
+          'photoSource': photo.photo.source,
+          if (photo.pin != null) 'pin': jsonEncode(photo.pin!.toMap()),
         });
         request.files.add(
           http.MultipartFile.fromBytes(

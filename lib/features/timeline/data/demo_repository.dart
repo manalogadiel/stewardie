@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/place_pin.dart';
 
 import '../domain/models.dart';
 import '../../subscription/revenuecat_service.dart';
@@ -21,6 +22,7 @@ abstract class TimelineRepository {
     bool assignToMe, {
     String? requestedUid,
     String? operationId,
+    PlacePin? pin,
   });
   CheckIn? checkIn(String spaceId, String memberId);
   FutureOr<void> shareCheckIn(
@@ -299,6 +301,7 @@ class DemoRepository extends TimelineRepository {
     bool assignToMe, {
     String? requestedUid,
     String? operationId,
+    PlacePin? pin,
   }) async {
     if (title.trim().isEmpty) {
       throw const DemoException('Give your task a name.');
@@ -309,6 +312,8 @@ class DemoRepository extends TimelineRepository {
       title: title.trim(),
       day: dateOnly(day),
       requestedId: requestedUid ?? (assignToMe ? currentUserId : null),
+      place: pin?.label,
+      pin: pin,
       status: assignToMe || requestedUid != null
           ? Responsibility.requested
           : Responsibility.unclaimed,

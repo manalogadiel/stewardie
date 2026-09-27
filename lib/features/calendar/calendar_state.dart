@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/place_pin.dart';
 
 import '../../core/demo_state.dart';
 import '../timeline/domain/models.dart';
@@ -16,12 +17,14 @@ class CalendarPlan {
     this.allDay = false,
     this.note = '',
     this.participants = const [],
+    this.pin,
   });
   final String id, spaceId, ownerId, title, note;
   // Timed instants are UTC. All-day values are floating local dates, end exclusive.
   final DateTime start, end;
   final bool allDay;
   final List<String> participants;
+  final PlacePin? pin;
   DateTime get localStart => allDay ? start : start.toLocal();
   DateTime get localEnd => allDay ? end : end.toLocal();
   bool matches(String? person) =>
@@ -46,6 +49,7 @@ abstract class CalendarDataSource {
     required bool allDay,
     String note = '',
     List<String> participants = const [],
+    PlacePin? pin,
   });
   FutureOr<void> remove(String id, String actorId);
 }
@@ -116,6 +120,7 @@ class CalendarRepository extends CalendarDataSource {
     required bool allDay,
     String note = '',
     List<String> participants = const [],
+    PlacePin? pin,
   }) {
     final space = spaces.firstWhere((space) => space.id == spaceId);
     if (!space.members.any((m) => m.id == actorId)) {
@@ -151,6 +156,7 @@ class CalendarRepository extends CalendarDataSource {
       allDay: allDay,
       note: note.trim(),
       participants: participants.toSet().toList(),
+      pin: pin,
     );
     _plans.removeWhere((p) => p.id == id);
     _plans.add(plan);

@@ -21,6 +21,7 @@ import 'cloud_media_library.dart';
 import 'online_app.dart';
 import 'online_backend.dart';
 import 'online_home.dart';
+import 'live_location_service.dart';
 
 class FirebaseSessionApp extends StatefulWidget {
   const FirebaseSessionApp({
@@ -97,6 +98,7 @@ class _SignedInAppState extends State<_SignedInApp> {
   @override
   void initState() {
     super.initState();
+    LiveLocationService.instance.init(widget.backend);
     timeline.start();
     unawaited(RevenueCatService.instance.init(userId: widget.user.uid));
   }
@@ -191,6 +193,7 @@ class _SignedInAppState extends State<_SignedInApp> {
 
   @override
   void dispose() {
+    unawaited(LiveLocationService.instance.stopSharing());
     unawaited(timeline.dispose());
     _loadedLibrary?.dispose();
     super.dispose();

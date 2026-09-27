@@ -188,12 +188,40 @@ class OnlineBackend {
           .collection('routines')
           .snapshots();
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> locationSessions(String spaceId) =>
-      firestore
-          .collection('spaces')
-          .doc(spaceId)
-          .collection('locationSessions')
-          .snapshots();
+  /// Fetch individual sessions so Firestore can enforce each recipient and
+  /// expiry. A collection listener cannot satisfy those per-document rules.
+  Stream<List<Map<String, dynamic>>> locationSessions(String spaceId) async* {
+    while (true) {
+      try {
+        final space = await firestore
+            .doc('spaces/$spaceId')
+            .get(const GetOptions(source: Source.server));
+        final ids = List<String>.from(
+          space.data()?['memberUids'] as List? ?? const [],
+        );
+        final docs = await Future.wait(ids.map((uid) async {
+          try {
+            return await firestore
+                .doc('spaces/$spaceId/locationSessions/$uid')
+                .get(const GetOptions(source: Source.server));
+          } catch (_) {
+            return null;
+          }
+        }));
+        final now = DateTime.now().toUtc();
+        yield [
+          for (final doc in docs)
+            if (doc?.data() case final data?)
+              if (data['expiresAt'] is Timestamp &&
+                  (data['expiresAt'] as Timestamp).toDate().isAfter(now))
+                data,
+        ];
+      } catch (_) {
+        yield const [];
+      }
+      await Future<void>.delayed(const Duration(seconds: 15));
+    }
+  }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> reactions(
     String spaceId,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/demo_state.dart';
+import '../../../core/place_pin.dart';
 import '../../../core/theme.dart';
 import '../../../core/widgets.dart';
 import '../domain/models.dart';
@@ -117,6 +118,7 @@ class _AddTaskState extends ConsumerState<_AddTask> {
   final title = TextEditingController();
   final form = GlobalKey<FormState>();
   String? requestedUid;
+  PlacePin? pin;
   late final String operationId =
       'task-${DateTime.now().microsecondsSinceEpoch}';
   @override
@@ -194,6 +196,20 @@ class _AddTaskState extends ConsumerState<_AddTask> {
               ),
               const SizedBox(height: 8),
               const Text('A request stays pending until they accept.'),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: saving ? null : () async {
+                  final selected = await showPlacePicker(context, initial: pin);
+                  if (selected != null && mounted) setState(() => pin = selected);
+                },
+                icon: const Icon(Icons.place_outlined),
+                label: Text(pin?.label ?? 'Add destination (optional)'),
+              ),
+              if (pin != null)
+                TextButton(
+                  onPressed: () => setState(() => pin = null),
+                  child: const Text('Remove destination'),
+                ),
               const SizedBox(height: 16),
               if (error != null) Text(error!),
               FilledButton(
@@ -217,6 +233,7 @@ class _AddTaskState extends ConsumerState<_AddTask> {
                                 false,
                                 requestedUid: requestedUid,
                                 operationId: operationId,
+                                pin: pin,
                               );
                           if (!context.mounted) return;
                           ref.read(demoProvider.notifier).refresh();

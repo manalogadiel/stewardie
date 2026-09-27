@@ -1,3 +1,5 @@
+import '../../../core/place_pin.dart';
+
 enum Responsibility { unclaimed, requested, accepted, needsHelp, completed }
 
 enum TaskAction {
@@ -56,6 +58,7 @@ class Task {
     this.status = Responsibility.unclaimed,
     this.notes = '',
     this.place,
+    this.pin,
     this.participants = const [],
     this.activity = const [],
     this.completedAt,
@@ -66,6 +69,7 @@ class Task {
   final int? hour;
   final int minute;
   final String? ownerId, requestedId, offeredId, place;
+  final PlacePin? pin;
   final Responsibility status;
   final List<String> participants, activity;
   final DateTime? completedAt;
@@ -95,6 +99,7 @@ class Task {
     creatorId: creatorId,
     notes: notes,
     place: place,
+    pin: pin,
     participants: participants,
     status: status,
     ownerId: ownerId,

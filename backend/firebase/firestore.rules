@@ -16,6 +16,14 @@ service cloud.firestore {
     }
     function plus() { return isTierPlus(get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data); }
     function shortText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
+    function validPin(pin) {
+      return pin is map
+        && pin.keys().hasOnly(['lat','lng','label','note','source'])
+        && pin.lat is number && pin.lat >= -90 && pin.lat <= 90
+        && pin.lng is number && pin.lng >= -180 && pin.lng <= 180
+        && shortText(pin.label, 80) && pin.note is string && pin.note.size() <= 180
+        && pin.source == 'manual';
+    }
     function accountShape(d) {
       return d.spaceIds is list && d.ownedSpaceIds is list
         && d.spaceIds.toSet().size() == d.spaceIds.size()
@@ -140,7 +148,8 @@ service cloud.firestore {
       match /tasks/{task} {
         allow read: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)) || resource.data.status != 'completed' || plus() || resource.data.completedAt >= request.time.date() - duration.value(3, 'd'));
         allow delete: if member(id);
-        allow create: if member(id) && request.resource.data.keys().hasOnly(['title','note','destination','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
+        allow create: if member(id) && request.resource.data.keys().hasOnly(['title','note','destination','pin','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
+          && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
           && shortText(request.resource.data.title, 120) && request.resource.data.creatorUid == request.auth.uid
           && request.resource.data.ownerUid == null && request.resource.data.offeredUid == null && request.resource.data.completedAt == null
           && request.resource.data.version == 1 && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
@@ -169,7 +178,8 @@ service cloud.firestore {
               || (a.offeredUid == removed && b.offeredUid == null && b.status == a.status && b.ownerUid == a.ownerUid && b.requestedUid == a.requestedUid));
         }
         function contentEdit() {
-          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','requestedUid','subtasks','helpNeeded','handoffToUid','activity','updatedAt'])
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','pin','requestedUid','subtasks','helpNeeded','handoffToUid','activity','updatedAt'])
+            && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
             && request.resource.data.updatedAt == request.time
             && shortText(request.resource.data.title, 120);
         }
@@ -181,6 +191,14 @@ service cloud.firestore {
             && request.resource.data.actorUid == request.auth.uid && request.resource.data.appliedAt == request.time
             && request.resource.data.version == getAfter(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)).data.version
             && request.resource.data.version == get(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)).data.version + 1;
+        }
+        match /arrivals/{arrivalUid} {
+          allow read: if member(id);
+          allow create, update: if member(id) && self(arrivalUid)
+            && request.resource.data.keys().hasOnly(['uid','checkedInAt'])
+            && request.resource.data.uid == arrivalUid
+            && request.resource.data.checkedInAt == request.time;
+          allow delete: if member(id) && self(arrivalUid);
         }
       }
       match /routines/{routine} {
@@ -194,8 +212,29 @@ service cloud.firestore {
         }
       }
       match /locationSessions/{sessionUid} {
-        allow read: if member(id);
-        allow create, update, delete: if member(id) && self(sessionUid);
+        allow get: if member(id) && request.auth.uid in resource.data.recipientUids
+          && resource.data.expiresAt > request.time;
+        allow list: if false;
+        allow create: if member(id) && self(sessionUid)
+          && request.resource.data.keys().hasOnly(['uid','name','lat','lng','accuracy','recipientUids','durationMinutes','startedAt','updatedAt','expiresAt'])
+          && request.resource.data.uid == sessionUid
+          && request.resource.data.name is string && request.resource.data.name.size() <= 60
+          && request.resource.data.lat is number && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+          && request.resource.data.lng is number && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
+          && request.resource.data.accuracy is number && request.resource.data.accuracy >= 0 && request.resource.data.accuracy <= 10000
+          && request.resource.data.recipientUids == sp(id).memberUids
+          && request.resource.data.durationMinutes in [15,30,60]
+          && request.resource.data.startedAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.expiresAt > request.time
+          && request.resource.data.expiresAt <= request.time + duration.value(request.resource.data.durationMinutes, 'm');
+        allow update: if member(id) && self(sessionUid)
+          && resource.data.expiresAt > request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lat','lng','accuracy','updatedAt'])
+          && request.resource.data.lat is number && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+          && request.resource.data.lng is number && request.resource.data.lng >= -180 && request.resource.data.lng <= 180
+          && request.resource.data.accuracy is number && request.resource.data.accuracy >= 0 && request.resource.data.accuracy <= 10000
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if self(sessionUid);
       }
       match /checkIns/{uid} {
         allow read: if member(id);
@@ -221,7 +260,8 @@ service cloud.firestore {
         allow read: if member(id);
         allow delete: if member(id) && resource.data.ownerUid == request.auth.uid;
         allow create, update: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/plans/$(plan)) || resource.data.ownerUid == request.auth.uid)
-          && request.resource.data.keys().hasOnly(['ownerUid','title','note','allDay','startMillis','endMillis','participants','updatedAt'])
+          && request.resource.data.keys().hasOnly(['ownerUid','title','note','allDay','startMillis','endMillis','participants','pin','updatedAt'])
+          && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
           && request.resource.data.ownerUid == request.auth.uid && shortText(request.resource.data.title, 100)
           && request.resource.data.note is string && request.resource.data.note.size() <= 500 && request.resource.data.allDay is bool
           && request.resource.data.startMillis is int && request.resource.data.endMillis is int && request.resource.data.endMillis > request.resource.data.startMillis

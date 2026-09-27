@@ -11,7 +11,11 @@
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Share your live location with members in your space.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Share your live location with members in your space.</string>
+    <string>Keep your time-limited location sharing active for chosen space members when Stewardie is in the background.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>location</string>
+    </array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

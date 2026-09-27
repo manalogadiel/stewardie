@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'online_backend.dart';
+import 'live_location_service.dart';
 
 /// Modal bottom sheet for user profile settings, tier info, sign out, and deletion.
 class AccountSettingsSheet extends StatefulWidget {
@@ -69,6 +70,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
   }
 
   Future<void> _signOut() async {
+    await LiveLocationService.instance.stopSharing();
     Navigator.of(context).pop();
     await widget.backend.auth.signOut();
     widget.onSignedOut();

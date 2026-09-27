@@ -97,6 +97,7 @@ class SparkBackend {
           }
           tx.set(ref, {
             'title': (v['title'] as String).trim(),
+            if (v['pin'] != null) 'pin': v['pin'],
             'creatorUid': uid,
             'requestedUid': v['requestedUid'],
             'ownerUid': null,
@@ -258,6 +259,7 @@ class SparkBackend {
           'startMillis': v['startMillis'],
           'endMillis': v['endMillis'],
           'participants': v['participants'] ?? [],
+          if (v['pin'] != null) 'pin': v['pin'],
           'updatedAt': FieldValue.serverTimestamp(),
         });
         return {'planId': v['planId']};
@@ -671,27 +673,52 @@ class SparkBackend {
         }
       case 'startLocationSession':
         final durationMinutes = (v['durationMinutes'] as int?) ?? 15;
+        if (![15, 30, 60].contains(durationMinutes)) {
+          throw ArgumentError('Choose a sharing duration.');
+        }
+        final spaceSnap = await space(id!).get();
+        final recipients = List<String>.from(
+          spaceSnap.data()?['memberUids'] as List? ?? const [],
+        );
+        if (!recipients.contains(uid)) {
+          throw StateError('You are no longer in this space.');
+        }
         final expiresAt = DateTime.now().toUtc().add(
           Duration(minutes: durationMinutes),
         );
-        await space(id!).collection('locationSessions').doc(uid).set({
+        final session = space(id).collection('locationSessions').doc(uid);
+        await session.delete();
+        await session.set({
           'uid': uid,
           'name': user.displayName ?? 'Member',
           'lat': (v['lat'] as num).toDouble(),
           'lng': (v['lng'] as num).toDouble(),
+          'accuracy': (v['accuracy'] as num).toDouble(),
+          'recipientUids': recipients,
+          'durationMinutes': durationMinutes,
           'startedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
           'expiresAt': Timestamp.fromDate(expiresAt),
         });
-        return {'ok': true};
+        return {'ok': true, 'expiresAt': expiresAt.toIso8601String()};
       case 'updateLocation':
         await space(id!).collection('locationSessions').doc(uid).update({
           'lat': (v['lat'] as num).toDouble(),
           'lng': (v['lng'] as num).toDouble(),
+          'accuracy': (v['accuracy'] as num).toDouble(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
         return {'ok': true};
       case 'stopLocationSession':
         await space(id!).collection('locationSessions').doc(uid).delete();
+        return {'ok': true};
+      case 'checkInArrival':
+        final taskId = v['taskId'] as String;
+        await space(id!).collection('tasks').doc(taskId)
+            .collection('arrivals').doc(uid).set({
+          'uid': uid,
+          'checkedInAt': FieldValue.serverTimestamp(),
+        });
         return {'ok': true};
       default:
         throw StateError('This action is not available.');

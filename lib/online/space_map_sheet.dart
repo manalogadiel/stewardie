@@ -48,7 +48,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   int _selectedDuration = 15; // 15, 30, 60
   Map<String, dynamic>? _selectedMember;
   bool _showRadarView = false;
-  LatLng _lastKnownCenter = const LatLng(37.7749, -122.4194);
+  LatLng _lastKnownCenter = const LatLng(0, 0);
+  bool _starting = false;
+  String? _error;
 
   @override
   void initState() {
@@ -150,11 +152,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
               ),
               const SizedBox(height: 16),
               // Map or Radar View
-              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              StreamBuilder<List<Map<String, dynamic>>>(
                 stream: widget.backend.locationSessions(widget.spaceId),
                 builder: (context, snapshot) {
-                  final docs = snapshot.data?.docs ?? [];
-                  final sessions = docs.map((d) => d.data()).toList();
+                  final sessions = snapshot.data ?? const <Map<String, dynamic>>[];
 
                   if (_showRadarView) {
                     return Center(
@@ -283,7 +284,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                                       (sessions.first['lng'] as num).toDouble(),
                                     )
                                   : _lastKnownCenter,
-                              initialZoom: 14.0,
+                              initialZoom: sessions.isEmpty &&
+                                      _lastKnownCenter == const LatLng(0, 0)
+                                  ? 2.5
+                                  : 14.0,
                               minZoom: 3.0,
                               maxZoom: 18.0,
                             ),
@@ -348,12 +352,17 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                               color: Color(0xFF202633),
                             ),
                           ),
-                          const Text(
-                            'Active now',
-                            style: TextStyle(
+                          Text(
+                            _selectedMember!['updatedAt'] is Timestamp &&
+                                    DateTime.now().difference(
+                                      (_selectedMember!['updatedAt'] as Timestamp).toDate(),
+                                    ) > const Duration(minutes: 2)
+                                ? 'Last update is stale'
+                                : 'Updated recently · location may be approximate',
+                            style: const TextStyle(
                               fontFamily: 'NunitoSans',
                               fontSize: 12,
-                              color: Color(0xFF244BFF),
+                              color: Color(0xFF596171),
                             ),
                           ),
                         ],
@@ -480,11 +489,37 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                         width: double.infinity,
                         height: 52,
                         child: FilledButton(
-                          onPressed: () {
-                            locationService.startSharing(
-                              spaceId: widget.spaceId,
-                              durationMinutes: _selectedDuration,
+                          onPressed: _starting ? null : () async {
+                            final members = await widget.backend.members(widget.spaceId).first;
+                            if (!mounted) return;
+                            final names = members.docs
+                                .where((d) => d.data()['status'] == 'active')
+                                .map((d) => d.data()['name'] as String? ?? 'Member')
+                                .join(', ');
+                            final approved = await showDialog<bool>(
+                              context: context,
+                              builder: (dialog) => AlertDialog(
+                                title: const Text('Share live location?'),
+                                content: Text('Members in this space now: $names. They can see your latest position for up to $_selectedDuration minutes. Background updates may pause if your device stops the app.'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+                                  FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Share')),
+                                ],
+                              ),
                             );
+                            if (approved != true || !mounted) return;
+                            setState(() { _starting = true; _error = null; });
+                            try {
+                              await locationService.startSharing(
+                                spaceId: widget.spaceId,
+                                durationMinutes: _selectedDuration,
+                              );
+                            } catch (error) {
+                              if (mounted) setState(() => _error = error is StateError
+                                  ? error.message : 'Could not start sharing. Try again.');
+                            } finally {
+                              if (mounted) setState(() => _starting = false);
+                            }
                           },
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF244BFF),
@@ -502,6 +537,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                           ),
                         ),
                       ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(_error!, style: const TextStyle(color: Color(0xFFD32F2F))),
+                      ],
                     ],
                   );
                 },

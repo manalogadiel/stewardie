@@ -13,7 +13,17 @@ class LiveLocationPill extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: service.isSharing,
       builder: (context, sharing, _) {
-        if (!sharing) return const SizedBox.shrink();
+        if (!sharing) {
+          return ValueListenableBuilder<bool>(
+            valueListenable: service.stopPending,
+            builder: (context, pending, _) => pending
+                ? const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Center(child: Text('Location stopped here · waiting for server confirmation')),
+                  )
+                : const SizedBox.shrink(),
+          );
+        }
 
         return ValueListenableBuilder<int>(
           valueListenable: service.remainingMinutes,
@@ -57,17 +67,14 @@ class LiveLocationPill extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () => service.stopSharing(),
-                        child: const Text(
-                          'Stop',
-                          style: TextStyle(
-                            fontFamily: 'NunitoSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFFFF8A80),
-                          ),
+                      TextButton(
+                        onPressed: () => service.stopSharing(),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFFFB4A8),
+                          minimumSize: const Size(48, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                         ),
+                        child: const Text('Stop'),
                       ),
                     ],
                   ),

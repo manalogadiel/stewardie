@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sembast/sembast.dart';
 
 import '../../core/clay.dart';
+import '../../core/place_pin.dart';
 import '../../core/theme.dart';
 import '../../core/demo_state.dart';
 import '../../core/widgets.dart';
@@ -94,6 +95,7 @@ class PhotoComposer extends ConsumerStatefulWidget {
 class _PhotoComposerState extends ConsumerState<PhotoComposer> {
   final caption = TextEditingController();
   PhotoDraft? draft;
+  PlacePin? pin;
   bool busy = false;
   bool attached = false;
   String? error;
@@ -106,6 +108,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
     if (existing != null) {
       attached = true;
       draft = existing.photo;
+      pin = existing.pin;
       caption.text = existing.caption;
       return;
     }
@@ -134,6 +137,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
       if (mounted) {
         setState(() {
           draft = processed;
+          pin = photo.pin;
           error = null;
         });
       }
@@ -286,6 +290,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
           ref.read(repositoryProvider).currentUserId,
           caption.text,
           taskId: widget.task?.id,
+          pin: pin,
         );
         if (widget.task != null && mounted) setState(() => attached = true);
       }
@@ -680,6 +685,35 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             ),
             if (draft != null) ...[
               const SizedBox(height: 16),
+              if (pin != null)
+                Paper(
+                  color: SoftPop.warm,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.place_outlined),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(
+                        pin!.source == 'capture'
+                            ? 'Capture location · ${pin!.accuracy?.round() ?? '?'} m accuracy'
+                            : 'Manually chosen place · ${pin!.label}',
+                      )),
+                      IconButton(
+                        tooltip: 'Remove photo location',
+                        onPressed: () => setState(() => pin = null),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+              if (draft!.source != 'camera' && pin == null)
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final selected = await showPlacePicker(context);
+                    if (selected != null && mounted) setState(() => pin = selected);
+                  },
+                  icon: const Icon(Icons.place_outlined),
+                  label: const Text('Add a manual place (optional)'),
+                ),
               TextField(
                 controller: caption,
                 readOnly: attached,

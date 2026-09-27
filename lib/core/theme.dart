@@ -93,9 +93,13 @@ abstract final class SoftPop {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(48, 48),
-          shape: shape,
-          side: const BorderSide(color: controlBorder),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: const StadiumBorder(),
+          side: BorderSide.none,
+          backgroundColor: surface,
+          foregroundColor: ink,
+          elevation: 2,
+          shadowColor: const Color(0x30202633),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         ),
       ),
       textButtonTheme: TextButtonThemeData(

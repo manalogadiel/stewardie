@@ -12,6 +12,7 @@ import 'features/moments/moments_screen.dart';
 import 'features/timeline/domain/models.dart';
 import 'features/timeline/presentation/task_detail.dart';
 import 'features/timeline/presentation/today_screen.dart';
+import 'online/live_location_pill.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
@@ -263,7 +264,13 @@ class AppShell extends ConsumerWidget {
                             ? 440
                             : 360,
                       ),
-                      child: GlassDock(index: index),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const LiveLocationPill(),
+                          GlassDock(index: index),
+                        ],
+                      ),
                     ),
                   ),
                 ),

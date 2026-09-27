@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:sembast/sembast.dart';
 
 import '../../core/demo_state.dart';
+import '../../core/place_pin.dart';
 import '../timeline/domain/models.dart';
 import '../timeline/data/demo_repository.dart';
 
@@ -379,6 +380,7 @@ class MediaAttachment {
     this.publishedAt,
     this.cloud = false,
     this.framing = FramingRect.full,
+    this.pin,
   });
   final String id, spaceId, uploaderId, caption;
   final String? taskId, taskTitle, completedBy;
@@ -387,6 +389,7 @@ class MediaAttachment {
   final PhotoDraft photo;
   final bool cloud;
   final FramingRect framing;
+  final PlacePin? pin;
   String get heading => taskTitle == null
       ? (caption.isEmpty ? 'A little moment' : caption)
       : '$taskTitle — done!';
@@ -407,6 +410,7 @@ class MediaAttachment {
     'height': photo.height,
     'source': photo.source,
     'framing': framing.toMap(),
+    if (pin != null) 'pin': pin!.toMap(),
   };
   factory MediaAttachment.fromMap(Map<String, Object?> m) {
     final framing = m['framing'] is Map
@@ -426,6 +430,7 @@ class MediaAttachment {
           ? null
           : DateTime.parse(m['publishedAt'] as String),
       framing: framing,
+      pin: PlacePin.fromMap(m['pin']),
       photo: PhotoDraft(
         base64Decode(m['bytes'] as String),
         base64Decode(m['thumbnail'] as String),
@@ -504,6 +509,7 @@ class MediaLibrary extends ChangeNotifier {
     String actor,
     String caption, {
     String? taskId,
+    PlacePin? pin,
   }) => _serialize(() async {
     _member(space, actor);
     final task = taskId == null ? null : _task(taskId, space);
@@ -548,6 +554,7 @@ class MediaLibrary extends ChangeNotifier {
       caption: caption.trim(),
       createdAt: now,
       photo: photo,
+      pin: pin,
       framing: photo.framing,
       taskId: taskId,
       taskTitle: task?.isDone == true ? task!.title : null,
@@ -588,6 +595,7 @@ class MediaLibrary extends ChangeNotifier {
         caption: old.caption,
         createdAt: old.createdAt,
         photo: old.photo,
+        pin: old.pin,
         taskId: task.id,
         taskTitle: task.title,
         completedBy: task.ownerId,

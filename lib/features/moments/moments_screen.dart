@@ -9,6 +9,7 @@ import '../../core/clay.dart';
 import '../../core/demo_state.dart';
 import '../../core/people_filter.dart';
 import '../../core/theme.dart';
+import '../../online/external_launcher.dart';
 import '../../core/top_controls.dart';
 import '../../core/widgets.dart';
 import '../media/media_library.dart';
@@ -253,6 +254,19 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
           Text(
             '${personName(space, photo.uploaderId)} · ${MaterialLocalizations.of(context).formatMediumDate(photo.publishedAt!.toLocal())}',
           ),
+          if (photo.pin != null)
+            TextButton.icon(
+              onPressed: () => ExternalLauncher.openMapDirections(
+                context,
+                query: photo.pin!.label,
+                lat: photo.pin!.lat,
+                lng: photo.pin!.lng,
+              ),
+              icon: const Icon(Icons.place_outlined),
+              label: Text(photo.pin!.source == 'capture'
+                  ? 'Capture pin · view on map'
+                  : '${photo.pin!.label} · manually pinned'),
+            ),
           if (task != null && repo.canView(task))
             TextButton.icon(
               onPressed: () => context.push('/task/${task.id}'),

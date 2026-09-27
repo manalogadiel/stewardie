@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show DeviceOrientation;
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/theme.dart';
+import '../../core/place_pin.dart';
 import 'media_library.dart' show FramingRect;
 
 class CapturedPhoto {
@@ -14,10 +16,12 @@ class CapturedPhoto {
     this.bytes,
     this.source, {
     this.framing = FramingRect.full,
+    this.pin,
   });
   final Uint8List bytes;
   final String source;
   final FramingRect framing;
+  final PlacePin? pin;
 }
 
 class CameraScreen extends StatefulWidget {
@@ -35,6 +39,7 @@ class _CameraScreenState extends State<CameraScreen>
   bool busy = false, flash = false, flashAvailable = true, active = true;
   String? error;
   String selectedRatio = 'Original';
+  bool attachCaptureLocation = false;
 
   @override
   void initState() {
@@ -114,6 +119,28 @@ class _CameraScreenState extends State<CameraScreen>
     final viewportIsLandscape =
         MediaQuery.orientationOf(context) == Orientation.landscape;
     try {
+      Future<Position?>? locationFuture;
+      final shutterAt = DateTime.now().toUtc();
+      if (!gallery && attachCaptureLocation) {
+        locationFuture = () async {
+          try {
+            var permission = await Geolocator.checkPermission();
+            if (permission == LocationPermission.denied) {
+              permission = await Geolocator.requestPermission();
+            }
+            if (permission == LocationPermission.denied ||
+                permission == LocationPermission.deniedForever) return null;
+            return await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(
+                accuracy: LocationAccuracy.medium,
+                timeLimit: Duration(seconds: 12),
+              ),
+            );
+          } catch (_) {
+            return null;
+          }
+        }();
+      }
       if (!gallery && controller != null) {
         try {
           final actualOrientation = controller!.value.deviceOrientation;
@@ -128,6 +155,19 @@ class _CameraScreenState extends State<CameraScreen>
             )
           : await controller!.takePicture();
       if (file != null) {
+        final fix = await locationFuture;
+        final pin = fix != null &&
+                fix.timestamp.toUtc().difference(shutterAt).abs() <
+                    const Duration(seconds: 30)
+            ? PlacePin(
+                lat: fix.latitude,
+                lng: fix.longitude,
+                label: 'Photo location',
+                source: 'capture',
+                accuracy: fix.accuracy,
+                locatedAt: fix.timestamp,
+              )
+            : null;
         final bytes = await file.readAsBytes();
         FramingRect framing = FramingRect.full;
         if (!gallery && selectedRatio != 'Original') {
@@ -171,6 +211,7 @@ class _CameraScreenState extends State<CameraScreen>
               bytes,
               gallery ? 'library' : 'camera',
               framing: framing,
+              pin: pin,
             ),
           );
         }
@@ -290,6 +331,14 @@ class _CameraScreenState extends State<CameraScreen>
                 ),
               ),
             // Ratio selector
+            SwitchListTile.adaptive(
+              title: const Text('Attach capture location',
+                  style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Off by default · only this photo',
+                  style: TextStyle(color: Colors.white70)),
+              value: attachCaptureLocation,
+              onChanged: (value) => setState(() => attachCaptureLocation = value),
+            ),
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: SingleChildScrollView(

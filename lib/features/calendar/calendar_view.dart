@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/clay.dart';
+import '../../core/place_pin.dart';
+import '../../online/external_launcher.dart';
 import '../../core/demo_state.dart';
 import '../../core/people_filter.dart';
 import '../../core/person_labels.dart';
@@ -444,6 +446,21 @@ Future<void> showPlanDetails(
               padding: const EdgeInsets.only(top: 12),
               child: Text(plan.note),
             ),
+          if (plan.pin != null) ...[
+            const SizedBox(height: 12),
+            Text('At ${plan.pin!.label}'),
+            if (plan.pin!.note.isNotEmpty) Text(plan.pin!.note),
+            TextButton.icon(
+              onPressed: () => ExternalLauncher.openMapDirections(
+                dialogContext,
+                query: plan.pin!.label,
+                lat: plan.pin!.lat,
+                lng: plan.pin!.lng,
+              ),
+              icon: const Icon(Icons.directions_outlined),
+              label: const Text('Get directions'),
+            ),
+          ],
           if (plan.participants.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 12),
@@ -546,6 +563,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
   late DateTime start, end;
   late bool allDay;
   late Set<String> participants;
+  PlacePin? pin;
   String? error;
   bool saving = false;
   @override
@@ -564,6 +582,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
         ? p.localEnd.subtract(const Duration(days: 1))
         : p.localEnd;
     participants = {...?p?.participants};
+    pin = p?.pin;
   }
 
   @override
@@ -718,6 +737,20 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                       labelText: 'A note (optional)',
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: saving ? null : () async {
+                      final selected = await showPlacePicker(context, initial: pin);
+                      if (selected != null && mounted) setState(() => pin = selected);
+                    },
+                    icon: const Icon(Icons.place_outlined),
+                    label: Text(pin?.label ?? 'Add place (optional)'),
+                  ),
+                  if (pin != null)
+                    TextButton(
+                      onPressed: () => setState(() => pin = null),
+                      child: const Text('Remove place'),
+                    ),
                   Paper(
                     color: SoftPop.blueSoft,
                     child: Text(
@@ -758,6 +791,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                                     allDay: allDay,
                                     note: note.text,
                                     participants: participants.toList(),
+                                    pin: pin,
                                   );
                               if (!context.mounted) return;
                               ref.read(calendarProvider.notifier).refresh();

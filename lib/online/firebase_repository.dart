@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/place_pin.dart';
 
 import '../features/calendar/calendar_state.dart';
 import '../features/timeline/data/demo_repository.dart';
@@ -39,6 +40,7 @@ Task firebaseTask(String spaceId, String id, Map<String, dynamic> data) => Task(
   ),
   notes: data['notes'] as String? ?? '',
   place: data['place'] as String?,
+  pin: PlacePin.fromMap(data['pin']),
   activity: List<String>.from(data['activity'] as List? ?? []),
   completedAt: firebaseDate(data['completedAt'])?.toLocal(),
   completedLocalDay: DateTime.tryParse(
@@ -361,6 +363,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
     bool assignToMe, {
     String? requestedUid,
     String? operationId,
+    PlacePin? pin,
   }) async {
     final result = await backend.call('createTask', {
       'spaceId': spaceId,
@@ -368,6 +371,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
       if (requestedUid != null || assignToMe)
         'requestedUid': requestedUid ?? currentUserId,
       'operationId': ?operationId,
+      if (pin != null) 'pin': pin.toMap(),
     });
     final doc = await backend.firestore
         .collection('spaces')
@@ -451,7 +455,8 @@ CalendarPlan _plan(String spaceId, String id, Map<String, dynamic> data) {
     end: date(data['endAt'], data['endMillis']),
     allDay: allDay,
     note: data['note'] as String? ?? '',
-    participants: List<String>.from(data['participants'] as List? ?? []),
+      participants: List<String>.from(data['participants'] as List? ?? []),
+      pin: PlacePin.fromMap(data['pin']),
   );
 }
 
@@ -472,7 +477,8 @@ class FirebaseCalendarRepository extends CalendarDataSource {
     required DateTime end,
     required bool allDay,
     String note = '',
-    List<String> participants = const [],
+      List<String> participants = const [],
+      PlacePin? pin,
   }) async {
     if (actorId != timeline.currentUserId) {
       throw StateError('Use your own account.');
@@ -490,7 +496,8 @@ class FirebaseCalendarRepository extends CalendarDataSource {
       'allDay': allDay,
       'startMillis': time(start),
       'endMillis': time(end),
-      'participants': participants,
+        'participants': participants,
+        if (pin != null) 'pin': pin.toMap(),
     });
     return CalendarPlan(
       id: planId,
@@ -501,7 +508,8 @@ class FirebaseCalendarRepository extends CalendarDataSource {
       end: end,
       allDay: allDay,
       note: note,
-      participants: participants,
+        participants: participants,
+        pin: pin,
     );
   }
 
