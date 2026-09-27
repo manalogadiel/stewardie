@@ -129,7 +129,9 @@ class _CameraScreenState extends State<CameraScreen>
               permission = await Geolocator.requestPermission();
             }
             if (permission == LocationPermission.denied ||
-                permission == LocationPermission.deniedForever) return null;
+                permission == LocationPermission.deniedForever) {
+              return null;
+            }
             return await Geolocator.getCurrentPosition(
               locationSettings: const LocationSettings(
                 accuracy: LocationAccuracy.medium,
@@ -156,7 +158,8 @@ class _CameraScreenState extends State<CameraScreen>
           : await controller!.takePicture();
       if (file != null) {
         final fix = await locationFuture;
-        final pin = fix != null &&
+        final pin =
+            fix != null &&
                 fix.timestamp.toUtc().difference(shutterAt).abs() <
                     const Duration(seconds: 30)
             ? PlacePin(
@@ -332,12 +335,17 @@ class _CameraScreenState extends State<CameraScreen>
               ),
             // Ratio selector
             SwitchListTile.adaptive(
-              title: const Text('Attach capture location',
-                  style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Off by default · only this photo',
-                  style: TextStyle(color: Colors.white70)),
+              title: const Text(
+                'Attach capture location',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: const Text(
+                'Off by default · only this photo',
+                style: TextStyle(color: Colors.white70),
+              ),
               value: attachCaptureLocation,
-              onChanged: (value) => setState(() => attachCaptureLocation = value),
+              onChanged: (value) =>
+                  setState(() => attachCaptureLocation = value),
             ),
             Padding(
               padding: const EdgeInsets.only(bottom: 8),

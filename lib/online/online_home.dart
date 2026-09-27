@@ -8,6 +8,7 @@ import '../core/invite_links.dart';
 import '../core/theme.dart';
 import '../core/top_controls.dart';
 import 'account_settings_sheet.dart';
+import 'activity_inbox_sheet.dart';
 import 'dependent_profile_sheet.dart';
 import 'live_location_pill.dart';
 import 'live_location_service.dart';
@@ -58,7 +59,6 @@ class _OnlineHomeState extends State<OnlineHome> {
   String? _moreCursor;
   bool _loadingMore = false;
 
-  final _checkedRoutinesSpaces = <String>{};
 
   @override
   void initState() {
@@ -83,52 +83,6 @@ class _OnlineHomeState extends State<OnlineHome> {
     _historyFuture = null;
     _moreDone.clear();
     _moreCursor = null;
-  }
-
-  Future<void> _generateRoutinesForToday(String spaceId) async {
-    if (_checkedRoutinesSpaces.contains(spaceId)) return;
-    _checkedRoutinesSpaces.add(spaceId);
-
-    try {
-      final routinesSnap = await widget.backend.firestore
-          .collection('spaces')
-          .doc(spaceId)
-          .collection('routines')
-          .get();
-
-      final now = DateTime.now();
-      final dateKey =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-      final isWeekday = now.weekday >= 1 && now.weekday <= 5;
-
-      for (final doc in routinesSnap.docs) {
-        final data = doc.data();
-        final cadence = data['cadence'] as String? ?? 'daily';
-        bool applies = false;
-        if (cadence == 'daily') applies = true;
-        if (cadence == 'weekdays' && isWeekday) applies = true;
-        if (cadence == 'weekly' && now.weekday == 1) applies = true;
-
-        if (applies) {
-          final taskId = 'routine_${doc.id}_$dateKey';
-          final taskRef = widget.backend.firestore
-              .collection('spaces')
-              .doc(spaceId)
-              .collection('tasks')
-              .doc(taskId);
-
-          final taskSnap = await taskRef.get();
-          if (!taskSnap.exists) {
-            await widget.backend.call('createTask', {
-              'spaceId': spaceId,
-              'operationId': taskId,
-              'title': data['title'] ?? 'Routine',
-              'requestedUid': data['assignedUid'],
-            });
-          }
-        }
-      }
-    } catch (_) {}
   }
 
   Future<void> _openTaskDetail(
@@ -516,7 +470,6 @@ class _OnlineHomeState extends State<OnlineHome> {
                             .data()['name']
                         as String? ??
                     'Your space';
-                _generateRoutinesForToday(spaceId);
                 return _todayPage(
                   summary: [
                     const SizedBox(height: 16),
@@ -1350,7 +1303,8 @@ class _OnlineHomeState extends State<OnlineHome> {
                           AccountSettingsSheet.show(
                             context,
                             backend: widget.backend,
-                            tier: plus ? 'Plus' : 'Basic',
+                              tier: plus ? 'Plus' : 'Basic',
+                              spaceId: spaceId,
                             onSignedOut: () {
                               RevenueCatService.instance.logOut();
                             },
@@ -1766,14 +1720,11 @@ class _OnlineHomeState extends State<OnlineHome> {
                     doc.data()['requestedUid'] == widget.user.uid,
               )
               .toList();
-          return ListView(
-            shrinkWrap: true,
-            children: [
-              const ListTile(title: Text('Inbox')),
-              if (requests.isEmpty)
-                const ListTile(title: Text('You’re all caught up.')),
-              for (final doc in requests)
-                ListTile(
+          return ActivityInboxSheet(
+            backend: widget.backend,
+            spaceId: spaceId,
+            requests: [
+              for (final doc in requests) ListTile(
                   title: Text(doc.data()['title'] as String? ?? 'Task'),
                   subtitle: const Text('Awaiting your acceptance'),
                   trailing: const Icon(Icons.chevron_right_rounded),

@@ -283,6 +283,14 @@ class SparkBackend {
             .doc(v['planId'] as String)
             .delete();
         return {'removed': true};
+      case 'checkInPlanArrival':
+        final planId = v['planId'] as String;
+        await space(id!).collection('plans').doc(planId)
+            .collection('arrivals').doc(uid).set({
+          'uid': uid,
+          'checkedInAt': FieldValue.serverTimestamp(),
+        });
+        return {'ok': true};
       case 'createInvite':
         final spaceRef = space(id!);
         final spaceSnap = await spaceRef.get();
@@ -663,18 +671,44 @@ class SparkBackend {
         return {'ok': true};
       case 'createRoutine':
         final ref = space(id!).collection('routines').doc();
-        await ref.set({
-          'id': ref.id,
-          'title': (v['title'] as String).trim(),
-          'cadence': v['cadence'] ?? 'daily',
-          'assignedUid': v['assignedUid'],
-          'creatorUid': uid,
-          'createdAt': FieldValue.serverTimestamp(),
+        final title = (v['title'] as String).trim();
+        final cadence = v['cadence'] as String? ?? 'daily';
+        if (title.isEmpty || title.length > 120 ||
+            !['daily', 'weekdays', 'weekly'].contains(cadence)) {
+          throw ArgumentError('Check the routine title and repeat schedule.');
+        }
+        await db.runTransaction((tx) async {
+          final parent = await tx.get(space(id));
+          final count = parent.data()?['routineCount'] as int? ?? 0;
+          if (count >= 5) throw StateError('This space has five routines already.');
+          tx.set(ref, {
+            'id': ref.id,
+            'title': title,
+            'cadence': cadence,
+            'assignedUid': v['assignedUid'],
+            'creatorUid': uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          tx.update(space(id), {
+            'routineCount': count + 1,
+            'changedRoutineId': ref.id,
+          });
         });
         return {'routineId': ref.id};
       case 'deleteRoutine':
         final routineId = v['routineId'] as String;
-        await space(id!).collection('routines').doc(routineId).delete();
+        await db.runTransaction((tx) async {
+          final ref = space(id!).collection('routines').doc(routineId);
+          final routine = await tx.get(ref);
+          if (!routine.exists) return;
+          final parent = await tx.get(space(id));
+          final count = parent.data()?['routineCount'] as int? ?? 0;
+          tx.delete(ref);
+          tx.update(space(id), {
+            'routineCount': count > 0 ? count - 1 : 0,
+            'changedRoutineId': routineId,
+          });
+        });
         return {'ok': true};
       case 'toggleReaction':
         final momentId = v['momentId'] as String;
@@ -712,7 +746,7 @@ class SparkBackend {
           Duration(minutes: durationMinutes),
         );
         final session = space(id).collection('locationSessions').doc(uid);
-        await session.delete();
+        if ((await session.get()).exists) await session.delete();
         await session.set({
           'uid': uid,
           'name': user.displayName ?? 'Member',

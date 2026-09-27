@@ -23,6 +23,7 @@ import 'online_app.dart';
 import 'online_backend.dart';
 import 'online_home.dart';
 import 'live_location_service.dart';
+import 'push_service.dart';
 
 class FirebaseSessionApp extends StatefulWidget {
   const FirebaseSessionApp({
@@ -100,6 +101,8 @@ class _SignedInAppState extends State<_SignedInApp> {
   void initState() {
     super.initState();
     LiveLocationService.instance.init(widget.backend);
+    unawaited(LiveLocationService.instance.restore());
+    PushService.instance.init(widget.user.uid);
     timeline.start();
     unawaited(() async {
       if (timeline.spaces.isEmpty) {
@@ -209,6 +212,7 @@ class _SignedInAppState extends State<_SignedInApp> {
   @override
   void dispose() {
     unawaited(LiveLocationService.instance.stopSharing());
+    PushService.instance.logOut();
     unawaited(timeline.dispose());
     _loadedLibrary?.dispose();
     super.dispose();

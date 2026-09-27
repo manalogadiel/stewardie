@@ -15,6 +15,7 @@ import 'features/timeline/presentation/task_detail.dart';
 import 'features/timeline/presentation/today_screen.dart';
 import 'online/space_map_sheet.dart';
 import 'online/live_location_pill.dart';
+import 'online/activity_inbox_sheet.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
@@ -218,50 +219,41 @@ class AppShell extends ConsumerWidget {
                                               t.offeredId != null)),
                                 )
                                 .toList();
-                            showModalBottomSheet<void>(
-                              context: context,
-                              useRootNavigator: true,
-                              useSafeArea: true,
-                              builder: (sheet) => SafeArea(
-                                child: ListView(
+                            final backend = ref.read(sharedBackendProvider);
+                            if (backend == null) {
+                              showModalBottomSheet<void>(
+                                context: context,
+                                builder: (_) => ListView(
                                   shrinkWrap: true,
-                                  padding: const EdgeInsets.fromLTRB(
-                                    20,
-                                    0,
-                                    20,
-                                    20,
-                                  ),
                                   children: [
-                                    Text(
-                                      'Inbox · ${space.name}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge,
-                                    ),
+                                    const ListTile(title: Text('Inbox')),
                                     if (requests.isEmpty)
-                                      const Padding(
-                                        padding: EdgeInsets.all(20),
-                                        child: Text('You’re all caught up.'),
-                                      ),
+                                      const ListTile(title: Text('You’re all caught up.')),
                                     for (final task in requests)
-                                      ListTile(
-                                        title: Text(task.title),
-                                        subtitle: Text(
-                                          task.offeredId == null
-                                              ? 'Awaiting your acceptance'
-                                              : 'Review a handoff offer',
-                                        ),
-                                        trailing: const Icon(
-                                          Icons.chevron_right_rounded,
-                                        ),
-                                        onTap: () {
-                                          Navigator.pop(sheet);
-                                          context.push('/task/${task.id}');
-                                        },
-                                      ),
+                                      ListTile(title: Text(task.title)),
                                   ],
                                 ),
-                              ),
+                              );
+                              return;
+                            }
+                            ActivityInboxSheet.show(
+                              context,
+                              backend: backend,
+                              spaceId: space.id,
+                              requests: [
+                                for (final task in requests)
+                                  ListTile(
+                                    title: Text(task.title),
+                                    subtitle: Text(task.offeredId == null
+                                        ? 'Awaiting your acceptance'
+                                        : 'Review a handoff offer'),
+                                    trailing: const Icon(Icons.chevron_right_rounded),
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      context.push('/task/${task.id}');
+                                    },
+                                  ),
+                              ],
                             );
                           },
                         ),

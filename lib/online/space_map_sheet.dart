@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'external_launcher.dart';
@@ -48,6 +47,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   Map<String, dynamic>? _selectedMember;
   bool _showRadarView = false;
   LatLng _lastKnownCenter = const LatLng(0, 0);
+  LatLng? _currentUserLatLng;
   bool _starting = false;
   String? _error;
 
@@ -108,6 +108,69 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
         _currentUserLatLng = userLatLng;
       });
       _mapController.move(userLatLng, 15.0);
+    }
+  }
+
+  Future<void> _startSharing() async {
+    if (_starting) return;
+    setState(() {
+      _starting = true;
+      _error = null;
+    });
+    try {
+      final space = await widget.backend.firestore
+          .doc('spaces/${widget.spaceId}')
+          .get(const GetOptions(source: Source.server));
+      final ids = List<String>.from(space.data()?['memberUids'] as List? ?? []);
+      final me = widget.backend.auth.currentUser?.uid;
+      if (me == null || !ids.contains(me))
+        throw StateError('You are no longer in this space.');
+      final members = await widget.backend.firestore
+          .collection('spaces/${widget.spaceId}/members')
+          .get(const GetOptions(source: Source.server));
+      final names = {
+        for (final doc in members.docs)
+          doc.id: doc.data()['name'] as String? ?? 'Member',
+      };
+      final recipientNames = ids
+          .where((id) => id != me)
+          .map((id) => names[id] ?? 'Member')
+          .join(', ');
+      if (!mounted) return;
+      final approved = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: Text('Share for $_selectedDuration minutes?'),
+          content: Text(
+            'Your latest location will be visible in this space to: '
+            '${recipientNames.isEmpty ? 'no other members yet' : recipientNames}. '
+            'You can stop at any time.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Share location'),
+            ),
+          ],
+        ),
+      );
+      if (approved != true) return;
+      await LiveLocationService.instance.startSharing(
+        spaceId: widget.spaceId,
+        durationMinutes: _selectedDuration,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is StateError ? error.message : 'Could not start sharing. Check location permission and try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _starting = false);
     }
   }
 
@@ -547,8 +610,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   onSelected: (val) {
-                                    if (val)
+                                    if (val) {
                                       setState(() => _selectedDuration = d);
+                                    }
                                   },
                                 ),
                               ),
@@ -560,20 +624,15 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                         width: double.infinity,
                         height: 52,
                         child: FilledButton(
-                          onPressed: () {
-                            locationService.startSharing(
-                              spaceId: widget.spaceId,
-                              durationMinutes: _selectedDuration,
-                            );
-                          },
+                          onPressed: _starting ? null : _startSharing,
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF244BFF),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          child: const Text(
-                            'Start sharing',
+                          child: Text(
+                            _starting ? 'Starting…' : 'Start sharing',
                             style: TextStyle(
                               fontFamily: 'NunitoSans',
                               fontSize: 16,

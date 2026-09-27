@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'online_backend.dart';
 import 'live_location_service.dart';
+import 'push_service.dart';
+import 'notification_settings_sheet.dart';
 
 /// Modal bottom sheet for user profile settings, tier info, sign out, and deletion.
 class AccountSettingsSheet extends StatefulWidget {
@@ -9,17 +11,20 @@ class AccountSettingsSheet extends StatefulWidget {
     super.key,
     required this.backend,
     required this.tier,
+    required this.spaceId,
     required this.onSignedOut,
   });
 
   final OnlineBackend backend;
   final String tier;
+  final String? spaceId;
   final VoidCallback onSignedOut;
 
   static Future<void> show(
     BuildContext context, {
     required OnlineBackend backend,
     required String tier,
+    required String? spaceId,
     required VoidCallback onSignedOut,
   }) {
     return showModalBottomSheet<void>(
@@ -32,6 +37,7 @@ class AccountSettingsSheet extends StatefulWidget {
       builder: (_) => AccountSettingsSheet(
         backend: backend,
         tier: tier,
+        spaceId: spaceId,
         onSignedOut: onSignedOut,
       ),
     );
@@ -70,7 +76,27 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
   }
 
   Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text('You can sign back in with this account later.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Stay'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     await LiveLocationService.instance.stopSharing();
+    PushService.instance.logOut();
+    if (!mounted) return;
     Navigator.of(context).pop();
     await widget.backend.auth.signOut();
     widget.onSignedOut();
@@ -135,9 +161,9 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not delete account: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not delete account: $e')));
       }
     }
   }
@@ -152,173 +178,203 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
       top: false,
       child: Padding(
         padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + media.viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD4D0C8),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: media.size.height * .84),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Account',
-                  style: TextStyle(
-                    fontFamily: 'NunitoSans',
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF202633),
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD4D0C8),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, color: Color(0xFF596171)),
-                  tooltip: 'Close',
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Account',
+                      style: TextStyle(
+                        fontFamily: 'NunitoSans',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF202633),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: Color(0xFF596171)),
+                      tooltip: 'Close',
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFEFB),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E2DA)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Display name',
-                    style: TextStyle(
-                      fontFamily: 'NunitoSans',
-                      fontSize: 12,
-                      color: Color(0xFF8E95A5),
-                    ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
                   ),
-                  TextField(
-                    controller: _nameController,
-                    focusNode: _nameFocus,
-                    style: const TextStyle(
-                      fontFamily: 'NunitoSans',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF202633),
-                    ),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                    ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFEFB),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE5E2DA)),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFEFB),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFE5E2DA)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Email',
+                        'Display name',
                         style: TextStyle(
                           fontFamily: 'NunitoSans',
                           fontSize: 12,
                           color: Color(0xFF8E95A5),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        email,
+                      TextField(
+                        controller: _nameController,
+                        focusNode: _nameFocus,
                         style: const TextStyle(
                           fontFamily: 'NunitoSans',
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
                           color: Color(0xFF202633),
+                        ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isPlus ? const Color(0xFFF8E7B0) : const Color(0xFFE8EEFF),
-                      borderRadius: BorderRadius.circular(12),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFEFB),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE5E2DA)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Email',
+                            style: TextStyle(
+                              fontFamily: 'NunitoSans',
+                              fontSize: 12,
+                              color: Color(0xFF8E95A5),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            email,
+                            style: const TextStyle(
+                              fontFamily: 'NunitoSans',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF202633),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isPlus
+                              ? const Color(0xFFF8E7B0)
+                              : const Color(0xFFE8EEFF),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          isPlus ? 'PLUS' : 'BASIC',
+                          style: TextStyle(
+                            fontFamily: 'NunitoSans',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: isPlus
+                                ? const Color(0xFF8C6D1F)
+                                : const Color(0xFF244BFF),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                if (_busy)
+                  const Center(child: CircularProgressIndicator())
+                else ...[
+                  if (widget.spaceId case final spaceId?) ...[
+                    OutlinedButton.icon(
+                      onPressed: () => NotificationSettingsSheet.show(
+                        context,
+                        widget.backend,
+                        spaceId,
+                      ),
+                      icon: const Icon(Icons.notifications_outlined),
+                      label: const Text('Reminder settings'),
                     ),
-                    child: Text(
-                      isPlus ? 'PLUS' : 'BASIC',
-                      style: TextStyle(
-                        fontFamily: 'NunitoSans',
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: isPlus ? const Color(0xFF8C6D1F) : const Color(0xFF244BFF),
+                    const SizedBox(height: 12),
+                  ],
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: _signOut,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF202633),
+                        side: const BorderSide(color: Color(0xFFE5E2DA)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Sign out',
+                        style: TextStyle(
+                          fontFamily: 'NunitoSans',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton(
+                      onPressed: _deleteAccount,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFFD32F2F),
+                      ),
+                      child: const Text(
+                        'Delete account',
+                        style: TextStyle(
+                          fontFamily: 'NunitoSans',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
-            const SizedBox(height: 24),
-            if (_busy)
-              const Center(child: CircularProgressIndicator())
-            else ...[
-              SizedBox(
-                height: 50,
-                child: OutlinedButton(
-                  onPressed: _signOut,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF202633),
-                    side: const BorderSide(color: Color(0xFFE5E2DA)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Sign out',
-                    style: TextStyle(
-                      fontFamily: 'NunitoSans',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: TextButton(
-                  onPressed: _deleteAccount,
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFD32F2F),
-                  ),
-                  child: const Text(
-                    'Delete account',
-                    style: TextStyle(
-                      fontFamily: 'NunitoSans',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

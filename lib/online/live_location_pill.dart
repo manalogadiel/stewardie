@@ -33,6 +33,7 @@ class LiveLocationPill extends StatelessWidget {
               child: Center(
                 child: Container(
                   height: 44,
+                  constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 32),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   decoration: BoxDecoration(
                     color: const Color(0xFF202633),
@@ -57,15 +58,22 @@ class LiveLocationPill extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Sharing location • ${minutes}m',
-                        style: const TextStyle(
-                          fontFamily: 'NunitoSans',
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
+                      Flexible(child: ValueListenableBuilder<bool>(
+                        valueListenable: service.updatesUnavailable,
+                        builder: (_, unavailable, _) => Text(
+                          unavailable
+                              ? 'Location updates unavailable • ${minutes}m'
+                              : 'Sharing location • ${minutes}m',
+                          style: const TextStyle(
+                            fontFamily: 'NunitoSans',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
+                      )),
                       const SizedBox(width: 12),
                       TextButton(
                         onPressed: () => service.stopSharing(),

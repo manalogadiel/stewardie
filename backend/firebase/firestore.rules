@@ -111,7 +111,17 @@ service cloud.firestore {
           && ((!exists(path) && getAfter(path).data.creatorUid == request.auth.uid && d.activeTaskCount == resource.data.activeTaskCount + 1)
           || (get(path).data.status != 'completed' && getAfter(path).data.status == 'completed' && d.activeTaskCount == resource.data.activeTaskCount - 1));
       }
-      allow update: if joining() || removing() || taskCount()
+      function routineCount() {
+        let d = request.resource.data;
+        let path = /databases/$(database)/documents/spaces/$(id)/routines/$(d.changedRoutineId);
+        return member(id) && d.diff(resource.data).affectedKeys().hasOnly(['routineCount','changedRoutineId'])
+          && d.routineCount is int && d.routineCount >= 0
+          && (d.routineCount <= 5 || (exists(path) && d.routineCount < resource.data.get('routineCount', 0)))
+          && ((!exists(path) && existsAfter(path) && d.routineCount == resource.data.get('routineCount', 0) + 1)
+            || (exists(path) && !existsAfter(path) && d.routineCount ==
+              (resource.data.get('routineCount', 0) > 0 ? resource.data.routineCount - 1 : 0)));
+      }
+      allow update: if joining() || removing() || taskCount() || routineCount()
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeInviteToken']))
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requireApproval']))
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && request.resource.data.pendingOwnerUid in resource.data.memberUids)
@@ -202,7 +212,23 @@ service cloud.firestore {
         }
       }
       match /routines/{routine} {
-        allow read, create, update, delete: if member(id);
+        allow read: if member(id);
+        allow create: if member(id)
+          && request.resource.data.keys().hasOnly(['id','title','cadence','assignedUid','creatorUid','createdAt'])
+          && request.resource.data.id == routine
+          && shortText(request.resource.data.title, 120)
+          && request.resource.data.cadence in ['daily','weekdays','weekly']
+          && (request.resource.data.assignedUid == null || request.resource.data.assignedUid in sp(id).memberUids)
+          && request.resource.data.creatorUid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && afterSpace(id).routineCount <= 5
+          && afterSpace(id).routineCount == sp(id).get('routineCount', 0) + 1
+          && afterSpace(id).changedRoutineId == routine;
+        allow delete: if member(id)
+          && (resource.data.creatorUid == request.auth.uid || owner(id))
+          && afterSpace(id).routineCount ==
+            (sp(id).get('routineCount', 0) > 0 ? sp(id).routineCount - 1 : 0)
+          && afterSpace(id).changedRoutineId == routine;
       }
       match /moments/{moment} {
         allow read, create, update, delete: if member(id);
@@ -235,6 +261,26 @@ service cloud.firestore {
           && request.resource.data.accuracy is number && request.resource.data.accuracy >= 0 && request.resource.data.accuracy <= 10000
           && request.resource.data.updatedAt == request.time;
         allow delete: if self(sessionUid);
+      }
+      match /notificationPrefs/{scope} {
+        allow read: if self(uid);
+        allow create, update: if self(uid)
+          && request.resource.data.keys().hasOnly(['enabled','quietStart','quietEnd','timeZone','updatedAt'])
+          && request.resource.data.enabled is bool
+          && request.resource.data.quietStart is int
+          && request.resource.data.quietStart >= 0 && request.resource.data.quietStart < 1440
+          && request.resource.data.quietEnd is int
+          && request.resource.data.quietEnd >= 0 && request.resource.data.quietEnd < 1440
+          && request.resource.data.timeZone is string
+          && request.resource.data.timeZone.size() <= 64
+          && request.resource.data.updatedAt == request.time
+          && (scope == 'global' || scope in get(/databases/$(database)/documents/accounts/$(uid)).data.spaceIds);
+      }
+      match /activity/{item} {
+        allow read: if self(uid);
+        allow update: if self(uid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt'])
+          && request.resource.data.readAt == request.time;
       }
       match /checkIns/{uid} {
         allow read: if member(id);
@@ -273,6 +319,14 @@ service cloud.firestore {
           && request.resource.data.participants is list && request.resource.data.participants.size() <= 19
           && request.resource.data.participants.toSet().size() == request.resource.data.participants.size()
           && sp(id).memberUids.hasAll(request.resource.data.participants) && request.resource.data.updatedAt == request.time;
+        match /arrivals/{arrivalUid} {
+          allow read: if member(id);
+          allow create, update: if member(id) && self(arrivalUid)
+            && request.resource.data.keys().hasOnly(['uid','checkedInAt'])
+            && request.resource.data.uid == arrivalUid
+            && request.resource.data.checkedInAt == request.time;
+          allow delete: if member(id) && self(arrivalUid);
+        }
       }
     }
     match /invites/{token} {

@@ -200,11 +200,12 @@ class _RoutinesSheetState extends State<RoutinesSheet> {
                                 ],
                               ),
                             ),
-                            IconButton(
-                              onPressed: () => _deleteRoutine(doc.id),
-                              icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFFD32F2F)),
-                              tooltip: 'Delete',
-                            ),
+                            if (data['creatorUid'] == widget.backend.auth.currentUser?.uid)
+                              IconButton(
+                                onPressed: () => _deleteRoutine(doc.id),
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFFD32F2F)),
+                                tooltip: 'Delete',
+                              ),
                           ],
                         ),
                       );

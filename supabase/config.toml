@@ -6,3 +6,7 @@ verify_jwt = false
 [functions.reconcile-subscription]
 # Firebase ID tokens and RevenueCat webhooks are verified inside the edge function.
 verify_jwt = false
+
+[functions.scheduled-work]
+# Supabase Cron sends STEW_WORKER_SECRET; no public/mobile caller is allowed.
+verify_jwt = false

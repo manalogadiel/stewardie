@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
-import '../../core/theme.dart';
 import '../../online/online_backend.dart';
 import '../timeline/domain/models.dart';
 
@@ -29,15 +27,23 @@ class GoogleCalendarEvent {
   final DateTime start, end;
   final bool allDay;
 
-  static GoogleCalendarEvent? decode(String calendarId, Map<String, dynamic> data) {
+  static GoogleCalendarEvent? decode(
+    String calendarId,
+    Map<String, dynamic> data,
+  ) {
     if (data['status'] == 'cancelled') return null;
     final start = data['start'] as Map?;
     final end = data['end'] as Map?;
     final allDay = start?['date'] != null;
-    final begins = DateTime.tryParse(start?[allDay ? 'date' : 'dateTime'] as String? ?? '');
-    final ends = DateTime.tryParse(end?[allDay ? 'date' : 'dateTime'] as String? ?? '');
+    final begins = DateTime.tryParse(
+      start?[allDay ? 'date' : 'dateTime'] as String? ?? '',
+    );
+    final ends = DateTime.tryParse(
+      end?[allDay ? 'date' : 'dateTime'] as String? ?? '',
+    );
     final id = data['id'] as String?;
-    if (id == null || begins == null || ends == null || !ends.isAfter(begins)) return null;
+    if (id == null || begins == null || ends == null || !ends.isAfter(begins))
+      return null;
     return GoogleCalendarEvent(
       calendarId: calendarId,
       eventId: id,
@@ -74,9 +80,12 @@ class GoogleCalendarImport {
 
   Future<void> _init() => _initialization ??= _signIn.initialize(
     clientId: const String.fromEnvironment('GOOGLE_OAUTH_CLIENT_ID').isEmpty
-        ? null : const String.fromEnvironment('GOOGLE_OAUTH_CLIENT_ID'),
-    serverClientId: const String.fromEnvironment('GOOGLE_OAUTH_SERVER_CLIENT_ID').isEmpty
-        ? null : const String.fromEnvironment('GOOGLE_OAUTH_SERVER_CLIENT_ID'),
+        ? null
+        : const String.fromEnvironment('GOOGLE_OAUTH_CLIENT_ID'),
+    serverClientId:
+        const String.fromEnvironment('GOOGLE_OAUTH_SERVER_CLIENT_ID').isEmpty
+        ? null
+        : const String.fromEnvironment('GOOGLE_OAUTH_SERVER_CLIENT_ID'),
   );
 
   Future<bool> restore() async {
@@ -84,7 +93,8 @@ class GoogleCalendarImport {
     try {
       _account ??= await _signIn.attemptLightweightAuthentication();
       return _account != null &&
-          await _account!.authorizationClient.authorizationForScopes(_scopes) != null;
+          await _account!.authorizationClient.authorizationForScopes(_scopes) !=
+              null;
     } catch (_) {
       return false;
     }
@@ -94,7 +104,9 @@ class GoogleCalendarImport {
     await _init();
     if (_account == null) {
       if (!_signIn.supportsAuthenticate()) {
-        throw StateError('Google Calendar connection is available on Android and iOS.');
+        throw StateError(
+          'Google Calendar connection is available on Android and iOS.',
+        );
       }
       _account = await _signIn.authenticate();
     }
@@ -104,14 +116,19 @@ class GoogleCalendarImport {
   Future<Map<String, dynamic>> _get(Uri uri) async {
     final account = _account;
     if (account == null) throw StateError('Connect Google Calendar first.');
-    final headers = await account.authorizationClient.authorizationHeaders(_scopes);
-    if (headers == null) throw StateError('Reconnect Google Calendar to refresh.');
-    final response = await http.get(uri, headers: headers)
+    final headers = await account.authorizationClient.authorizationHeaders(
+      _scopes,
+    );
+    if (headers == null)
+      throw StateError('Reconnect Google Calendar to refresh.');
+    final response = await http
+        .get(uri, headers: headers)
         .timeout(const Duration(seconds: 20));
     if (response.statusCode == 401 || response.statusCode == 403) {
       throw StateError('Google Calendar access expired. Reconnect to refresh.');
     }
-    if (response.statusCode == 404) throw StateError('Google event was removed.');
+    if (response.statusCode == 404)
+      throw StateError('Google event was removed.');
     if (response.statusCode != 200) {
       throw StateError('Could not load Google Calendar. Try again.');
     }
@@ -119,9 +136,11 @@ class GoogleCalendarImport {
   }
 
   Future<List<GoogleCalendarEvent>> preview() async {
-    final calendars = await _get(Uri.parse(
-      'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=100',
-    ));
+    final calendars = await _get(
+      Uri.parse(
+        'https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=100',
+      ),
+    );
     final start = DateTime.now().toUtc().subtract(const Duration(days: 7));
     final end = start.add(const Duration(days: 70));
     final events = <GoogleCalendarEvent>[];
@@ -129,20 +148,24 @@ class GoogleCalendarImport {
       final calendar = Map<String, dynamic>.from(raw as Map);
       final id = calendar['id'] as String?;
       if (id == null) continue;
-      final uri = Uri.parse(
-        'https://www.googleapis.com/calendar/v3/calendars/${Uri.encodeComponent(id)}/events',
-      ).replace(queryParameters: {
-        'timeMin': start.toIso8601String(),
-        'timeMax': end.toIso8601String(),
-        'singleEvents': 'true',
-        'showDeleted': 'false',
-        'maxResults': '250',
-      });
+      final uri =
+          Uri.parse(
+            'https://www.googleapis.com/calendar/v3/calendars/${Uri.encodeComponent(id)}/events',
+          ).replace(
+            queryParameters: {
+              'timeMin': start.toIso8601String(),
+              'timeMax': end.toIso8601String(),
+              'singleEvents': 'true',
+              'showDeleted': 'false',
+              'maxResults': '250',
+            },
+          );
       try {
         final page = await _get(uri);
         for (final item in (page['items'] as List? ?? const [])) {
           final event = GoogleCalendarEvent.decode(
-            id, Map<String, dynamic>.from(item as Map),
+            id,
+            Map<String, dynamic>.from(item as Map),
           );
           if (event != null) events.add(event);
         }
@@ -155,15 +178,21 @@ class GoogleCalendarImport {
   }
 
   Future<void> share(
-    OnlineBackend backend, String spaceId, GoogleCalendarEvent event,
+    OnlineBackend backend,
+    String spaceId,
+    GoogleCalendarEvent event,
   ) async {
-    int millis(DateTime date) => (event.allDay
-        ? DateTime.utc(date.year, date.month, date.day)
-        : date.toUtc()).millisecondsSinceEpoch;
+    int millis(DateTime date) =>
+        (event.allDay
+                ? DateTime.utc(date.year, date.month, date.day)
+                : date.toUtc())
+            .millisecondsSinceEpoch;
     await backend.call('savePlan', {
       'spaceId': spaceId,
       'planId': event.planId,
-      'title': event.title.length > 100 ? event.title.substring(0, 100) : event.title,
+      'title': event.title.length > 100
+          ? event.title.substring(0, 100)
+          : event.title,
       'note': 'Imported from Google Calendar',
       'allDay': event.allDay,
       'startMillis': millis(event.start),
@@ -179,10 +208,15 @@ class GoogleCalendarImport {
   Future<void> refreshSpace(OnlineBackend backend, String spaceId) async {
     if (!await restore()) return;
     final plans = await backend.firestore
-        .collection('spaces').doc(spaceId).collection('plans').get();
-    final mine = plans.docs.where((doc) =>
-        doc.data()['ownerUid'] == backend.auth.currentUser?.uid &&
-        doc.data()['source'] == 'google');
+        .collection('spaces')
+        .doc(spaceId)
+        .collection('plans')
+        .get();
+    final mine = plans.docs.where(
+      (doc) =>
+          doc.data()['ownerUid'] == backend.auth.currentUser?.uid &&
+          doc.data()['source'] == 'google',
+    );
     for (final doc in mine) {
       final data = doc.data();
       final calendarId = data['sourceCalendarId'] as String?;
@@ -191,18 +225,26 @@ class GoogleCalendarImport {
       try {
         final event = GoogleCalendarEvent.decode(
           calendarId,
-          await _get(Uri.parse(
-            'https://www.googleapis.com/calendar/v3/calendars/${Uri.encodeComponent(calendarId)}/events/${Uri.encodeComponent(eventId)}',
-          )),
+          await _get(
+            Uri.parse(
+              'https://www.googleapis.com/calendar/v3/calendars/${Uri.encodeComponent(calendarId)}/events/${Uri.encodeComponent(eventId)}',
+            ),
+          ),
         );
         if (event == null) {
-          await backend.call('removePlan', {'spaceId': spaceId, 'planId': doc.id});
+          await backend.call('removePlan', {
+            'spaceId': spaceId,
+            'planId': doc.id,
+          });
         } else if (event.updated != data['sourceUpdatedAt']) {
           await share(backend, spaceId, event);
         }
       } on StateError catch (error) {
         if (error.message == 'Google event was removed.') {
-          await backend.call('removePlan', {'spaceId': spaceId, 'planId': doc.id});
+          await backend.call('removePlan', {
+            'spaceId': spaceId,
+            'planId': doc.id,
+          });
         } else {
           rethrow;
         }
@@ -211,13 +253,21 @@ class GoogleCalendarImport {
     lastRefreshed = DateTime.now();
   }
 
-  Future<void> disconnect(OnlineBackend backend, Iterable<String> spaces) async {
+  Future<void> disconnect(
+    OnlineBackend backend,
+    Iterable<String> spaces,
+  ) async {
     for (final space in spaces) {
       final plans = await backend.firestore
-          .collection('spaces').doc(space).collection('plans').get();
-      for (final doc in plans.docs.where((d) =>
-          d.data()['ownerUid'] == backend.auth.currentUser?.uid &&
-          d.data()['source'] == 'google')) {
+          .collection('spaces')
+          .doc(space)
+          .collection('plans')
+          .get();
+      for (final doc in plans.docs.where(
+        (d) =>
+            d.data()['ownerUid'] == backend.auth.currentUser?.uid &&
+            d.data()['source'] == 'google',
+      )) {
         await backend.call('removePlan', {'spaceId': space, 'planId': doc.id});
       }
     }
@@ -228,7 +278,9 @@ class GoogleCalendarImport {
 }
 
 Future<void> showGoogleCalendarImport(
-  BuildContext context, OnlineBackend backend, Space space,
+  BuildContext context,
+  OnlineBackend backend,
+  Space space,
 ) => showModalBottomSheet<void>(
   context: context,
   useRootNavigator: true,
@@ -249,16 +301,22 @@ class _GoogleImportSheetState extends State<_GoogleImportSheet> {
   List<GoogleCalendarEvent> events = [];
   final selected = <String>{};
   bool busy = false;
+  bool connected = false;
   String? error;
   @override
   void initState() {
     super.initState();
     Future.microtask(load);
   }
+
   Future<void> load() async {
-    setState(() { busy = true; error = null; });
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
-      if (!await GoogleCalendarImport.instance.restore()) return;
+      connected = await GoogleCalendarImport.instance.restore();
+      if (!connected) return;
       events = await GoogleCalendarImport.instance.preview();
     } catch (e) {
       error = e is StateError ? e.message : 'Could not load calendars.';
@@ -266,6 +324,7 @@ class _GoogleImportSheetState extends State<_GoogleImportSheet> {
       if (mounted) setState(() => busy = false);
     }
   }
+
   @override
   Widget build(BuildContext context) => SizedBox(
     height: MediaQuery.sizeOf(context).height * .8,
@@ -274,26 +333,92 @@ class _GoogleImportSheetState extends State<_GoogleImportSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Choose Google events', style: Theme.of(context).textTheme.titleLarge),
-          Text('Only selected events will be copied into ${widget.space.name}.'),
+          Text(
+            'Choose Google events',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          Text(
+            'Only selected events will be copied into ${widget.space.name}.',
+          ),
           const SizedBox(height: 12),
           if (busy) const LinearProgressIndicator(),
-          if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
+          if (error != null)
+            Text(error!, style: const TextStyle(color: Colors.red)),
           OutlinedButton.icon(
-            onPressed: busy ? null : () async {
-              setState(() => busy = true);
-              try {
-                await GoogleCalendarImport.instance.connect();
-                if (mounted) await load();
-              } catch (_) {
-                if (mounted) setState(() => error = 'Could not connect Google Calendar. Check the OAuth app setup.');
-              } finally {
-                if (mounted) setState(() => busy = false);
-              }
-            },
+            onPressed: busy
+                ? null
+                : () async {
+                    setState(() => busy = true);
+                    try {
+                      await GoogleCalendarImport.instance.connect();
+                      if (mounted) await load();
+                    } catch (_) {
+                      if (mounted)
+                        setState(
+                          () => error = 'Could not connect Google Calendar. Check the OAuth app setup.',
+                        );
+                    } finally {
+                      if (mounted) setState(() => busy = false);
+                    }
+                  },
             icon: const Icon(Icons.link_rounded),
             label: const Text('Connect Google Calendar'),
           ),
+          if (connected)
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final remove = await showDialog<bool>(
+                        context: context,
+                        builder: (dialog) => AlertDialog(
+                          title: const Text('Disconnect Google Calendar?'),
+                          content: const Text(
+                            'Remove all Google events you shared to Stewardie spaces?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialog, false),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(dialog, true),
+                              child: const Text('Disconnect and remove'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (remove != true || !mounted) return;
+                      setState(() => busy = true);
+                      try {
+                        final uid = widget.backend.auth.currentUser!.uid;
+                        final account = await widget.backend.firestore
+                            .doc('accounts/$uid')
+                            .get();
+                        final spaces = List<String>.from(
+                          account.data()?['spaceIds'] as List? ?? [],
+                        );
+                        await GoogleCalendarImport.instance.disconnect(
+                          widget.backend,
+                          spaces,
+                        );
+                        if (mounted)
+                          setState(() {
+                            connected = false;
+                            events = [];
+                            selected.clear();
+                          });
+                      } catch (_) {
+                        if (mounted)
+                          setState(
+                            () => error = 'Could not disconnect. Try again.',
+                          );
+                      } finally {
+                        if (mounted) setState(() => busy = false);
+                      }
+                    },
+              child: const Text('Disconnect Google Calendar'),
+            ),
           Expanded(
             child: ListView.builder(
               itemCount: events.length,
@@ -302,34 +427,56 @@ class _GoogleImportSheetState extends State<_GoogleImportSheet> {
                 return CheckboxListTile(
                   value: selected.contains(event.planId),
                   title: Text(event.title),
-                  subtitle: Text(event.allDay
-                      ? event.start.toIso8601String().substring(0, 10)
-                      : event.start.toLocal().toString()),
-                  onChanged: busy ? null : (value) => setState(() {
-                    if (value == true) { selected.add(event.planId); }
-                    else { selected.remove(event.planId); }
-                  }),
+                  subtitle: Text(
+                    event.allDay
+                        ? event.start.toIso8601String().substring(0, 10)
+                        : event.start.toLocal().toString(),
+                  ),
+                  onChanged: busy
+                      ? null
+                      : (value) => setState(() {
+                          if (value == true) {
+                            selected.add(event.planId);
+                          } else {
+                            selected.remove(event.planId);
+                          }
+                        }),
                 );
               },
             ),
           ),
           FilledButton(
-            onPressed: busy || selected.isEmpty ? null : () async {
-              setState(() { busy = true; error = null; });
-              try {
-                for (final event in events.where((e) => selected.contains(e.planId))) {
-                  await GoogleCalendarImport.instance.share(
-                    widget.backend, widget.space.id, event,
-                  );
-                }
-                if (context.mounted) Navigator.pop(context);
-              } catch (e) {
-                if (mounted) setState(() => error = e is StateError
-                    ? e.message : 'Could not share selected events.');
-              } finally {
-                if (mounted) setState(() => busy = false);
-              }
-            },
+            onPressed: busy || selected.isEmpty
+                ? null
+                : () async {
+                    setState(() {
+                      busy = true;
+                      error = null;
+                    });
+                    try {
+                      for (final event in events.where(
+                        (e) => selected.contains(e.planId),
+                      )) {
+                        await GoogleCalendarImport.instance.share(
+                          widget.backend,
+                          widget.space.id,
+                          event,
+                        );
+                      }
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      if (mounted)
+                        setState(
+                          () => error = e is StateError
+                              ? e.message
+                              : 'Could not share selected events.',
+                        );
+                    } finally {
+                      if (mounted) setState(() => busy = false);
+                    }
+                  },
             child: Text('Share ${selected.length} selected'),
           ),
           TextButton(

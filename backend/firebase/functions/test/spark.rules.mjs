@@ -57,6 +57,35 @@ test('Spark moods persist with expiry; peers cannot overwrite them or plans',asy
  await assertFails(db('alice').doc('spaces/home/plans/walk').update({ownerUid:'alice'}));
  await assertFails(db('alice').doc('spaces/home/plans/walk').delete());
 });
+test('location sessions restrict recipients and expire at the server',async()=>{
+ const d=db('alice');
+ const location={uid:'alice',name:'Alice',lat:14.6,lng:121,accuracy:25,
+  recipientUids:['alice','bob'],durationMinutes:15,startedAt:now(),updatedAt:now(),
+  expiresAt:ClientTimestamp.fromMillis(Date.now()+14*60000)};
+ await assertFails(d.doc('spaces/home/locationSessions/alice').set({...location,lat:999}));
+ await assertSucceeds(d.doc('spaces/home/locationSessions/alice').set(location));
+ await assertSucceeds(db('bob').doc('spaces/home/locationSessions/alice').get());
+ await assertFails(db('outsider').doc('spaces/home/locationSessions/alice').get());
+ await assertFails(db('bob').collection('spaces/home/locationSessions').get());
+ await assertFails(db('bob').doc('spaces/home/locationSessions/alice').delete());
+ await assertSucceeds(d.doc('spaces/home/locationSessions/alice').delete());
+});
+test('routine quotas and private activity are enforced',async()=>{
+ const d=db('bob');
+ const routine={id:'morning',title:'Water plants',cadence:'daily',assignedUid:null,creatorUid:'bob',createdAt:now()};
+ await assertFails(d.doc('spaces/home/routines/morning').set(routine));
+ const batch=d.batch();
+ batch.set(d.doc('spaces/home/routines/morning'),routine);
+ batch.update(d.doc('spaces/home'),{routineCount:1,changedRoutineId:'morning'});
+ await assertSucceeds(batch.commit());
+ await assertFails(db('outsider').doc('spaces/home/routines/morning').delete());
+ await assertFails(d.doc('accounts/bob/activity/test').set({title:'forged'}));
+ await env.withSecurityRulesDisabled(async c=>{
+  await c.firestore().doc('accounts/bob/activity/test').set({spaceId:'home',title:'Reminder',body:'Open the task',createdAt:ClientTimestamp.now(),readAt:null});
+ });
+ await assertSucceeds(d.doc('accounts/bob/activity/test').update({readAt:now()}));
+ await assertFails(db('alice').doc('accounts/bob/activity/test').get());
+});
 test('Spark creation preserves Plus and enforces protected account lists',async()=>{
  const d=db('alice'), b=d.batch();
  b.set(d.doc('spaces/new'),{name:'New',kind:'crew',timeZone:'UTC',ownerUid:'alice',memberUids:['alice'],memberCount:1,activeTaskCount:0,createdAt:now()});

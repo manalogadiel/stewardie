@@ -38,7 +38,8 @@ class CalendarTile extends ConsumerWidget {
           onTap: () {
             final backend = ref.read(sharedBackendProvider);
             if (backend != null) {
-              GoogleCalendarImport.instance.refreshSpace(backend, space.id)
+              GoogleCalendarImport.instance
+                  .refreshSpace(backend, space.id)
                   .then((_) => ref.read(calendarProvider.notifier).refresh())
                   .catchError((Object _) {});
             }
@@ -403,9 +404,8 @@ class CalendarSheet extends ConsumerWidget {
             Builder(
               builder: (context) {
                 final now = DateTime.now();
-                final isPast = dateOnly(state.selectedDay).isBefore(
-                  dateOnly(now),
-                );
+                final isPast = dateOnly(state.selectedDay)
+                    .isBefore(dateOnly(now));
                 return FilledButton.icon(
                   onPressed: isPast
                       ? null
@@ -415,8 +415,8 @@ class CalendarSheet extends ConsumerWidget {
                     isPast
                         ? 'Plans closed for past days'
                         : (person != null && person != space.currentUserId
-                            ? 'Add my plan'
-                            : 'Add plan'),
+                              ? 'Add my plan'
+                              : 'Add plan'),
                   ),
                 );
               },
@@ -424,12 +424,16 @@ class CalendarSheet extends ConsumerWidget {
             if (ref.read(sharedBackendProvider) case final backend?) ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
-                onPressed: () => showGoogleCalendarImport(context, backend, space),
+                onPressed: () =>
+                    showGoogleCalendarImport(context, backend, space),
                 icon: const Icon(Icons.calendar_month_outlined),
                 label: const Text('Import selected Google events'),
               ),
-              if (GoogleCalendarImport.instance.lastRefreshed case final refreshed?)
-                Text('Google refreshed ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(refreshed))}'),
+              if (GoogleCalendarImport.instance.lastRefreshed
+                  case final refreshed?)
+                Text(
+                  'Google refreshed ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(refreshed))}',
+                ),
             ],
           ],
         ),
@@ -493,6 +497,42 @@ Future<void> showPlanDetails(
               icon: const Icon(Icons.directions_outlined),
               label: const Text('Get directions'),
             ),
+            if (ref.read(sharedBackendProvider) case final backend?)
+              StreamBuilder(
+                stream: backend.firestore
+                    .doc(
+                      'spaces/${space.id}/plans/${plan.id}/arrivals/${backend.auth.currentUser!.uid}',
+                    )
+                    .snapshots(),
+                builder: (context, snapshot) => OutlinedButton.icon(
+                  onPressed: snapshot.data?.exists == true
+                      ? null
+                      : () async {
+                          try {
+                            await backend.call('checkInPlanArrival', {
+                              'spaceId': space.id,
+                              'planId': plan.id,
+                            });
+                          } catch (_) {
+                            if (dialogContext.mounted) {
+                              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Could not check in. Try again.',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: Text(
+                    snapshot.data?.exists == true
+                        ? 'You reported arriving'
+                        : "I'm here · member-reported",
+                  ),
+                ),
+              ),
           ],
           if (plan.participants.isNotEmpty)
             Padding(
@@ -611,8 +651,8 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
     final initialDay = p != null
         ? p.localStart
         : dayDate.isBefore(today)
-            ? today
-            : widget.day;
+        ? today
+        : widget.day;
     start =
         p?.localStart ??
         DateTime(initialDay.year, initialDay.month, initialDay.day, 10);
@@ -780,10 +820,16 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
-                    onPressed: saving ? null : () async {
-                      final selected = await showPlacePicker(context, initial: pin);
-                      if (selected != null && mounted) setState(() => pin = selected);
-                    },
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            final selected = await showPlacePicker(
+                              context,
+                              initial: pin,
+                            );
+                            if (selected != null && mounted)
+                              setState(() => pin = selected);
+                          },
                     icon: const Icon(Icons.place_outlined),
                     label: Text(pin?.label ?? 'Add place (optional)'),
                   ),
@@ -810,9 +856,8 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                         : () async {
                             if (!form.currentState!.validate()) return;
                             if (widget.existing == null &&
-                                dateOnly(start).isBefore(
-                                  dateOnly(DateTime.now()),
-                                )) {
+                                dateOnly(start)
+                                    .isBefore(dateOnly(DateTime.now()))) {
                               setState(
                                 () => error =
                                     'Plans cannot be created in the past.',
