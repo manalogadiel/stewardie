@@ -85,6 +85,24 @@ Deno.serve(async req=>{
   if(isUpload){
    const form=await new Response(raw,{headers:{"Content-Type":req.headers.get("content-type")??""}}).formData();
    const id=form.get("id"),space=form.get("space"),taskId=form.get("task")||null,caption=form.get("caption")??"";
+   const pinRaw=form.get("pin"),photoSource=form.get("photoSource");
+   let pin:null|{lat:number,lng:number,label:string,note:string,source:string,accuracy?:number,locatedAt?:string}=null;
+   if(pinRaw!==null){
+    if(typeof pinRaw!=="string"||pinRaw.length>700)throw new Failure("Invalid photo place.");
+    let p:any;try{p=JSON.parse(pinRaw);}catch(_){throw new Failure("Invalid photo place.");}
+    if(!p||typeof p!=="object"||typeof p.lat!=="number"||!Number.isFinite(p.lat)||p.lat<-90||p.lat>90
+      ||typeof p.lng!=="number"||!Number.isFinite(p.lng)||p.lng<-180||p.lng>180
+      ||typeof p.label!=="string"||p.label.length<1||p.label.length>80
+      ||typeof p.note!=="string"||p.note.length>180
+      ||!["manual","capture"].includes(p.source)
+      ||(p.source==="capture"&&photoSource!=="camera"))throw new Failure("Invalid photo place.");
+    pin={lat:p.lat,lng:p.lng,label:p.label,note:p.note,source:p.source};
+    if(p.source==="capture"){
+     if(typeof p.accuracy!=="number"||!Number.isFinite(p.accuracy)||p.accuracy<0||p.accuracy>10000
+       ||typeof p.locatedAt!=="string"||!Number.isFinite(Date.parse(p.locatedAt)))throw new Failure("Invalid capture location.");
+     pin.accuracy=p.accuracy;pin.locatedAt=p.locatedAt;
+    }
+   }
    const photo=form.get("photo"),thumb=form.get("thumbnail"),framingRaw=form.get("framing");
    if(!validId(id)||!validId(space)||(taskId!==null&&!validId(taskId))||typeof caption!=="string"||caption.length>300||!(photo instanceof File)||!(thumb instanceof File))throw new Failure("Invalid photo request.");
    let framing={x:0,y:0,width:1,height:1,ratioName:"original"};
@@ -114,6 +132,7 @@ Deno.serve(async req=>{
    const digest=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",hashInput))).map(b=>b.toString(16).padStart(2,"0")).join("");
    const row=check(await sb.rpc("reserve_media",{p:{id,uid:auth.uid,space,task:taskId,caption,digest,bytes:bytes.length+thumbnail.length,...dimensions,source:"shared",plus,framing}}));
    if(row.state==="ready")return json({item:row});
+   check(await sb.from("media_items").update({pin}).eq("id",id).eq("uploader_uid",auth.uid).eq("state","reserved"));
    const prefix=`${space}/${auth.uid}/${id}`;
    check(await bucket.upload(`${prefix}/photo.jpg`,bytes,{contentType:"image/jpeg",upsert:true}));
    check(await bucket.upload(`${prefix}/thumb.jpg`,thumbnail,{contentType:"image/jpeg",upsert:true}));

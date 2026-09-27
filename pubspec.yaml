@@ -31,6 +31,8 @@ dependencies:
   geolocator_android: ^4.6.2
   geolocator_apple: ^2.3.14
   url_launcher: ^6.3.2
+  google_sign_in: ^7.2.0
+  onesignal_flutter: ^5.7.0
 
 dev_dependencies:
   flutter_test:

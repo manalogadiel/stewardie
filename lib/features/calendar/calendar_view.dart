@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/clay.dart';
+import '../../core/backend_provider.dart';
 import '../../core/place_pin.dart';
 import '../../online/external_launcher.dart';
 import '../../core/demo_state.dart';
@@ -11,6 +12,7 @@ import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
 import 'calendar_state.dart';
+import 'google_calendar_import.dart';
 
 String monthLabel(BuildContext context, DateTime month) =>
     MaterialLocalizations.of(context).formatMonthYear(month);
@@ -33,7 +35,15 @@ class CalendarTile extends ConsumerWidget {
         borderRadius: BorderRadius.circular(24),
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
-          onTap: () => showCalendar(context, space),
+          onTap: () {
+            final backend = ref.read(sharedBackendProvider);
+            if (backend != null) {
+              GoogleCalendarImport.instance.refreshSpace(backend, space.id)
+                  .then((_) => ref.read(calendarProvider.notifier).refresh())
+                  .catchError((Object _) {});
+            }
+            showCalendar(context, space);
+          },
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -411,6 +421,16 @@ class CalendarSheet extends ConsumerWidget {
                 );
               },
             ),
+            if (ref.read(sharedBackendProvider) case final backend?) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => showGoogleCalendarImport(context, backend, space),
+                icon: const Icon(Icons.calendar_month_outlined),
+                label: const Text('Import selected Google events'),
+              ),
+              if (GoogleCalendarImport.instance.lastRefreshed case final refreshed?)
+                Text('Google refreshed ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(refreshed))}'),
+            ],
           ],
         ),
       ),
@@ -450,6 +470,8 @@ Future<void> showPlanDetails(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('${personName(space, plan.ownerId)} · ${space.name}'),
+          if (plan.isImported)
+            const Text('Shared from Google Calendar · read-only here'),
           const SizedBox(height: 12),
           Text('${planDates(context, plan)} · ${planTime(context, plan)}'),
           if (plan.note.isNotEmpty)
@@ -483,7 +505,7 @@ Future<void> showPlanDetails(
       ),
     ),
     actions: [
-      if (plan.ownerId == space.currentUserId)
+      if (plan.ownerId == space.currentUserId && !plan.isImported)
         TextButton(
           onPressed: () {
             Navigator.pop(dialogContext);
@@ -531,7 +553,7 @@ Future<void> showPlanDetails(
               }
             }
           },
-          child: const Text('Remove plan'),
+          child: Text(plan.isImported ? 'Unshare event' : 'Remove plan'),
         ),
       TextButton(
         onPressed: () => Navigator.pop(dialogContext),

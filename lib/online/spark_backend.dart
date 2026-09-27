@@ -268,6 +268,12 @@ class SparkBackend {
           'endMillis': v['endMillis'],
           'participants': v['participants'] ?? [],
           if (v['pin'] != null) 'pin': v['pin'],
+          if (v['source'] == 'google') ...{
+            'source': 'google',
+            'sourceCalendarId': v['sourceCalendarId'],
+            'sourceEventId': v['sourceEventId'],
+            'sourceUpdatedAt': v['sourceUpdatedAt'],
+          },
           'updatedAt': FieldValue.serverTimestamp(),
         });
         return {'planId': v['planId']};

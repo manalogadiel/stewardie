@@ -18,6 +18,9 @@ class CalendarPlan {
     this.note = '',
     this.participants = const [],
     this.pin,
+    this.googleCalendarId,
+    this.googleEventId,
+    this.googleUpdatedAt,
   });
   final String id, spaceId, ownerId, title, note;
   // Timed instants are UTC. All-day values are floating local dates, end exclusive.
@@ -25,6 +28,8 @@ class CalendarPlan {
   final bool allDay;
   final List<String> participants;
   final PlacePin? pin;
+  final String? googleCalendarId, googleEventId, googleUpdatedAt;
+  bool get isImported => googleCalendarId != null && googleEventId != null;
   DateTime get localStart => allDay ? start : start.toLocal();
   DateTime get localEnd => allDay ? end : end.toLocal();
   bool matches(String? person) =>

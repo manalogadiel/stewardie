@@ -13,6 +13,7 @@ import '../core/backend_provider.dart';
 import '../core/demo_state.dart';
 import '../core/theme.dart';
 import '../features/calendar/calendar_state.dart';
+import '../features/calendar/google_calendar_import.dart';
 import '../features/media/media_library.dart';
 import '../features/media/camera_screen.dart';
 import '../features/media/picker_recovery.dart';
@@ -100,6 +101,20 @@ class _SignedInAppState extends State<_SignedInApp> {
     super.initState();
     LiveLocationService.instance.init(widget.backend);
     timeline.start();
+    unawaited(() async {
+      if (timeline.spaces.isEmpty) {
+        await timeline.changes.firstWhere((_) => timeline.spaces.isNotEmpty);
+      }
+      if (await GoogleCalendarImport.instance.restore()) {
+        for (final space in timeline.spaces) {
+          try {
+            await GoogleCalendarImport.instance.refreshSpace(widget.backend, space.id);
+          } catch (_) {
+            // Calendar remains usable; the member can reconnect on opening it.
+          }
+        }
+      }
+    }());
     unawaited(RevenueCatService.instance.init(userId: widget.user.uid));
   }
 

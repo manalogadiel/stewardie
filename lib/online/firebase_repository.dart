@@ -460,6 +460,9 @@ CalendarPlan _plan(String spaceId, String id, Map<String, dynamic> data) {
     note: data['note'] as String? ?? '',
       participants: List<String>.from(data['participants'] as List? ?? []),
       pin: PlacePin.fromMap(data['pin']),
+      googleCalendarId: data['sourceCalendarId'] as String?,
+      googleEventId: data['sourceEventId'] as String?,
+      googleUpdatedAt: data['sourceUpdatedAt'] as String?,
   );
 }
 

@@ -260,8 +260,13 @@ service cloud.firestore {
         allow read: if member(id);
         allow delete: if member(id) && resource.data.ownerUid == request.auth.uid;
         allow create, update: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/plans/$(plan)) || resource.data.ownerUid == request.auth.uid)
-          && request.resource.data.keys().hasOnly(['ownerUid','title','note','allDay','startMillis','endMillis','participants','pin','updatedAt'])
+          && request.resource.data.keys().hasOnly(['ownerUid','title','note','allDay','startMillis','endMillis','participants','pin','source','sourceCalendarId','sourceEventId','sourceUpdatedAt','updatedAt'])
           && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
+          && (!('source' in request.resource.data)
+              || (request.resource.data.source == 'google'
+                && shortText(request.resource.data.sourceCalendarId, 300)
+                && shortText(request.resource.data.sourceEventId, 300)
+                && shortText(request.resource.data.sourceUpdatedAt, 80)))
           && request.resource.data.ownerUid == request.auth.uid && shortText(request.resource.data.title, 100)
           && request.resource.data.note is string && request.resource.data.note.size() <= 500 && request.resource.data.allDay is bool
           && request.resource.data.startMillis is int && request.resource.data.endMillis is int && request.resource.data.endMillis > request.resource.data.startMillis
