@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'online_backend.dart';
+import '../core/member_avatar.dart';
 
 /// Task requests remain visible even if scheduled notifications are unavailable.
 class ActivityInboxSheet extends StatelessWidget {
@@ -10,12 +11,16 @@ class ActivityInboxSheet extends StatelessWidget {
     required this.backend,
     required this.spaceNames,
     this.onOpenSpace,
+    this.onOpenTask,
+    this.onOpenOwnership,
     this.requests = const [],
   });
 
   final OnlineBackend backend;
   final Map<String, String> spaceNames;
   final ValueChanged<String>? onOpenSpace;
+  final Future<void> Function(String spaceId, String taskId)? onOpenTask;
+  final Future<void> Function(String spaceId)? onOpenOwnership;
   final List<Widget> requests;
 
   static Future<void> show(
@@ -50,8 +55,11 @@ class ActivityInboxSheet extends StatelessWidget {
             .snapshots(),
         builder: (context, snapshot) {
           final items = (snapshot.data?.docs ?? [])
-              .where((doc) => doc.data()['pushState'] != 'cancelled' &&
-                  spaceNames.containsKey(doc.data()['spaceId']))
+              .where(
+                (doc) =>
+                    doc.data()['pushState'] != 'cancelled' &&
+                    spaceNames.containsKey(doc.data()['spaceId']),
+              )
               .toList();
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
@@ -81,19 +89,27 @@ class ActivityInboxSheet extends StatelessWidget {
     );
   }
 
-  Widget _historyItem(BuildContext context,
-      QueryDocumentSnapshot<Map<String, dynamic>> doc, String uid) {
+  Widget _historyItem(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    String uid,
+  ) {
     final data = doc.data();
     final spaceId = data['spaceId'] as String?;
     final kind = data['kind'];
-    if (spaceId != null && (kind == 'taskAssigned' || kind == 'action') && data['taskId'] is String) {
+    if (spaceId != null &&
+        (kind == 'taskAssigned' || kind == 'action') &&
+        data['taskId'] is String) {
       return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: backend.firestore.doc('spaces/$spaceId/tasks/${data['taskId']}').snapshots(),
+        stream: backend.firestore
+            .doc('spaces/$spaceId/tasks/${data['taskId']}')
+            .snapshots(),
         builder: (context, snapshot) {
           final task = snapshot.data?.data();
-          final pending = task != null &&
+          final pending =
+              task != null &&
               ((task['status'] == 'requested' && task['requestedUid'] == uid) ||
-               (task['offeredUid'] != null && task['ownerUid'] == uid));
+                  (task['offeredUid'] != null && task['ownerUid'] == uid));
           return pending ? const SizedBox.shrink() : _historyTile(context, doc);
         },
       );
@@ -101,42 +117,69 @@ class ActivityInboxSheet extends StatelessWidget {
     if (spaceId != null && kind == 'ownershipOffered') {
       return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: backend.firestore.doc('spaces/$spaceId').snapshots(),
-        builder: (context, snapshot) => snapshot.data?.data()?['pendingOwnerUid'] == uid
-            ? const SizedBox.shrink() : _historyTile(context, doc),
+        builder: (context, snapshot) =>
+            snapshot.data?.data()?['pendingOwnerUid'] == uid
+            ? const SizedBox.shrink()
+            : _historyTile(context, doc),
       );
     }
     return _historyTile(context, doc);
   }
 
-  Widget _historyTile(BuildContext context,
-      QueryDocumentSnapshot<Map<String, dynamic>> doc) => ListTile(
-                  leading: Icon(
-                    doc.data()['readAt'] == null
-                        ? Icons.notifications_active_rounded
-                        : Icons.notifications_none_rounded,
-                  ),
-                  title: Text(doc.data()['title'] as String? ?? 'Activity'),
-                  subtitle: Text(
-                    [
-                      spaceNames[doc.data()['spaceId']] ?? 'Space',
-                      doc.data()['body'] as String? ?? '',
-                      if (doc.data()['createdAt'] is Timestamp)
-                        TimeOfDay.fromDateTime(
-                          (doc.data()['createdAt'] as Timestamp)
-                              .toDate()
-                              .toLocal(),
-                        ).format(context),
-                    ].where((text) => text.isNotEmpty).join(' · '),
-                  ),
-                  onTap: () async {
-                    if (doc.data()['readAt'] == null) {
-                      await doc.reference.update({
-                        'readAt': FieldValue.serverTimestamp(),
-                      });
-                    }
-                    final spaceId = doc.data()['spaceId'] as String?;
-                    if (spaceId != null && spaceNames.containsKey(spaceId))
-                      onOpenSpace?.call(spaceId);
-                  },
-                );
+  Widget _historyTile(
+    BuildContext context,
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) => ListTile(
+    leading: _eventAvatar(doc.data()),
+    title: Text(doc.data()['title'] as String? ?? 'Activity'),
+    subtitle: Text(
+      [
+        spaceNames[doc.data()['spaceId']] ?? 'Space',
+        doc.data()['body'] as String? ?? '',
+        if (doc.data()['createdAt'] is Timestamp)
+          TimeOfDay.fromDateTime(
+            (doc.data()['createdAt'] as Timestamp).toDate().toLocal(),
+          ).format(context),
+      ].where((text) => text.isNotEmpty).join(' · '),
+    ),
+    onTap: () async {
+      if (doc.data()['readAt'] == null) {
+        await doc.reference.update({'readAt': FieldValue.serverTimestamp()});
+      }
+      final spaceId = doc.data()['spaceId'] as String?;
+      if (spaceId == null || !spaceNames.containsKey(spaceId)) return;
+      final kind = doc.data()['kind'] as String?;
+      final taskId = (doc.data()['taskId'] ?? doc.data()['entityId']) as String?;
+      if (taskId != null &&
+          ['taskAssigned', 'action', 'helpRequested', 'covered', 'completed', 'due'].contains(kind) &&
+          onOpenTask != null) {
+        await onOpenTask!(spaceId, taskId);
+      } else if (kind == 'ownershipOffered' && onOpenOwnership != null) {
+        await onOpenOwnership!(spaceId);
+      } else {
+        onOpenSpace?.call(spaceId);
+      }
+    },
+  );
+
+  Widget _eventAvatar(Map<String, dynamic> item) {
+    final actorUid = item['actorUid'] as String?;
+    final spaceId = item['spaceId'] as String?;
+    if (actorUid == null || spaceId == null) {
+      return Icon(
+        item['readAt'] == null
+            ? Icons.notifications_active_rounded
+            : Icons.notifications_none_rounded,
+      );
+    }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: backend.firestore
+          .doc('spaces/$spaceId/members/$actorUid')
+          .snapshots(),
+      builder: (context, snapshot) => MemberAvatar(
+        uid: actorUid,
+        name: snapshot.data?.data()?['name'] as String? ?? 'Former member',
+      ),
+    );
+  }
 }

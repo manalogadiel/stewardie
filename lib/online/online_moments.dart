@@ -377,7 +377,7 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
           : MemberAvatar(
               uid: uid,
               name: name == 'Me'
-                  ? (widget.backend?.auth.currentUser?.displayName ??
+                  ? (widget.members[uid]?['name'] as String? ?? widget.backend?.auth.currentUser?.displayName ??
                         widget.backend?.auth.currentUser?.email
                             ?.split('@')
                             .first ??

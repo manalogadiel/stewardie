@@ -127,9 +127,9 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
     final details = [
       subtitle,
       pin.label,
-      if (pin.locatedAt != null)
-        MaterialLocalizations.of(context)
-            .formatMediumDate(pin.locatedAt!.toLocal()),
+      if (pin.source == 'capture' && pin.locatedAt != null)
+        '${MaterialLocalizations.of(context).formatMediumDate(pin.locatedAt!.toLocal())} '
+            '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(pin.locatedAt!.toLocal()))}',
       if (pin.accuracy != null) '±${pin.accuracy!.round()} m',
     ].join(' · ');
     Widget map(double height) => SizedBox(
@@ -162,43 +162,53 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
-              onTap: () => showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                showDragHandle: true,
-                builder: (sheet) => SafeArea(
-                  child: SizedBox(
-                    height: MediaQuery.sizeOf(sheet).height * .8,
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(details),
-                        ),
-                        Expanded(
-                          child: StewardieMap(
-                            center: point,
-                            zoom: 16,
-                            markers: [
-                              Marker(
-                                point: point,
-                                width: 72,
-                                height: 72,
-                                child: ClipOval(
-                                  child: Image.memory(
-                                    widget.photo.photo.thumbnail,
-                                    fit: BoxFit.cover,
+              onTap: () {
+                var expandedStyle = mapTilerKey.isEmpty
+                    ? StewardieMapStyle.streets
+                    : StewardieMapStyle.satellite;
+                showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  showDragHandle: true,
+                  builder: (sheet) => StatefulBuilder(
+                    builder: (sheet, setMapState) => SafeArea(
+                      child: SizedBox(
+                        height: MediaQuery.sizeOf(sheet).height * .8,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(details),
+                            ),
+                            Expanded(
+                              child: StewardieMap(
+                                center: point,
+                                zoom: 16,
+                                style: expandedStyle,
+                                onStyleChanged: (value) =>
+                                    setMapState(() => expandedStyle = value),
+                                markers: [
+                                  Marker(
+                                    point: point,
+                                    width: 72,
+                                    height: 72,
+                                    child: ClipOval(
+                                      child: Image.memory(
+                                        widget.photo.photo.thumbnail,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
               child: map(150),
             ),
           ),

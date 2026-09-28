@@ -46,7 +46,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   final MapController _mapController = MapController();
   int _selectedDuration = 15; // 15, 30, 60
   Map<String, dynamic>? _selectedMember;
-  StewardieMapStyle _style = StewardieMapStyle.satellite;
+  StewardieMapStyle _style = mapTilerKey.isEmpty
+      ? StewardieMapStyle.streets
+      : StewardieMapStyle.satellite;
   LatLng _lastKnownCenter = const LatLng(12, 122);
   LatLng? _currentUserLatLng;
   bool _mapReady = false;
@@ -78,13 +80,22 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   Future<void> _showCachedPosition() async {
     try {
       final cached = await Geolocator.getLastKnownPosition();
-      if (cached == null || !mounted || _freshResolved ||
-          DateTime.now().difference(cached.timestamp) > const Duration(minutes: 10)) return;
+      if (cached == null ||
+          !mounted ||
+          _freshResolved ||
+          DateTime.now().difference(cached.timestamp) >
+              const Duration(minutes: 10))
+        return;
       final point = LatLng(cached.latitude, cached.longitude);
-      setState(() { _currentUserLatLng = point; _lastKnownCenter = point;
-        _locationStatus = 'Showing a recent device location while locating…'; });
+      setState(() {
+        _currentUserLatLng = point;
+        _lastKnownCenter = point;
+        _locationStatus = 'Showing a recent device location while locating…';
+      });
       if (_allowAutoCenter && _mapReady) _mapController.move(point, 15);
-    } catch (_) { /* A cached fix is optional. */ }
+    } catch (_) {
+      /* A cached fix is optional. */
+    }
   }
 
   void _onPositionChanged() {
@@ -275,31 +286,6 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                SegmentedButton<StewardieMapStyle>(
-                  segments: const [
-                    ButtonSegment(
-                      value: StewardieMapStyle.satellite,
-                      label: Text('Satellite'),
-                      icon: Icon(Icons.satellite_alt_outlined),
-                    ),
-                    ButtonSegment(
-                      value: StewardieMapStyle.streets,
-                      label: Text('Streets'),
-                      icon: Icon(Icons.map_outlined),
-                    ),
-                  ],
-                  selected: {_style},
-                  onSelectionChanged: (value) =>
-                      setState(() => _style = value.first),
-                ),
-                if (mapTilerKey.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Satellite needs a free MapTiler key. Streets remain available.',
-                    ),
-                  ),
-                const SizedBox(height: 12),
                 StreamBuilder<List<Map<String, dynamic>>>(
                   stream: widget.backend.locationSessions(widget.spaceId),
                   builder: (context, snapshot) {
@@ -403,6 +389,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                               zoom: _currentUserLatLng == null ? 5 : 15,
                               markers: markers,
                               style: _style,
+                              onStyleChanged: (value) =>
+                                  setState(() => _style = value),
                               onUserInteraction: () => _allowAutoCenter = false,
                               onReady: () {
                                 _mapReady = true;
@@ -455,28 +443,30 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _selectedMember!['name'] as String? ?? 'Member',
-                              style: const TextStyle(
-                                fontFamily: 'NunitoSans',
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF202633),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedMember!['name'] as String? ?? 'Member',
+                                style: const TextStyle(
+                                  fontFamily: 'NunitoSans',
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF202633),
+                                ),
                               ),
-                            ),
-                            Text(
-                              _memberLocationStatus(_selectedMember!),
-                              style: const TextStyle(
-                                fontFamily: 'NunitoSans',
-                                fontSize: 12,
-                                color: Color(0xFF596171),
+                              Text(
+                                _memberLocationStatus(_selectedMember!),
+                                style: const TextStyle(
+                                  fontFamily: 'NunitoSans',
+                                  fontSize: 12,
+                                  color: Color(0xFF596171),
+                                ),
                               ),
-                            ),
-                          ],
-                        )),
+                            ],
+                          ),
+                        ),
                         TextButton(
                           onPressed: () {
                             final lat = (_selectedMember!['lat'] as num?)
@@ -650,7 +640,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
     final age = DateTime.now().difference(updated.toDate());
     final ageLabel = age.inMinutes < 1 ? 'just now' : '${age.inMinutes}m ago';
     final accuracy = member['accuracy'] is num
-        ? ' · ±${(member['accuracy'] as num).round()} m' : '';
+        ? ' · ±${(member['accuracy'] as num).round()} m'
+        : '';
     return '${age > const Duration(minutes: 2) ? 'Stale · ' : ''}Updated $ageLabel$accuracy';
   }
 

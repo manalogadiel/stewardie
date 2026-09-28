@@ -244,8 +244,11 @@ service cloud.firestore {
           let after = getAfter(taskPath()).data;
           return member(id) && existsAfter(taskPath())
             && after.updatedAt == request.time
-            && ((e.type == 'taskAssigned' && !exists(taskPath())
-                  && after.creatorUid == request.auth.uid && after.requestedUid == e.targetUid)
+              && ((e.type == 'taskAssigned' && !exists(taskPath())
+                    && after.creatorUid == request.auth.uid && after.requestedUid == e.targetUid)
+                || (e.type == 'taskAssigned' && exists(taskPath())
+                    && get(taskPath()).data.requestedUid != e.targetUid
+                    && after.requestedUid == e.targetUid)
               || (exists(taskPath()) &&
                 ((e.type == 'helpRequested'
                     && get(taskPath()).data.get('helpNeeded', false) == false
@@ -325,10 +328,7 @@ service cloud.firestore {
         function contentEdit() {
           return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','pin','requestedUid','subtasks','helpNeeded','handoffToUid','activity','updatedAt'])
             && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
-            && (request.resource.data.requestedUid == resource.data.requestedUid
-              || request.resource.data.requestedUid == null
-              || (request.resource.data.requestedUid in sp(id).memberUids
-                && !exists(/databases/$(database)/documents/accounts/$(request.resource.data.requestedUid)/blocks/$(request.auth.uid))))
+            && request.resource.data.requestedUid == resource.data.requestedUid
             && request.resource.data.updatedAt == request.time
             && shortText(request.resource.data.title, 120);
         }
@@ -341,7 +341,32 @@ service cloud.firestore {
             && request.resource.data.helpNeeded == false
             && request.resource.data.updatedAt == request.time;
         }
-        allow update: if member(id) && (contentEdit() || helpTakeover() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
+        function reassign() {
+          return resource.data.creatorUid == request.auth.uid
+            && resource.data.status in ['unclaimed','requested']
+            && request.resource.data.status == 'requested'
+            && request.resource.data.ownerUid == null
+            && request.resource.data.offeredUid == null
+            && request.resource.data.requestedUid in sp(id).memberUids
+            && request.resource.data.requestedUid != resource.data.requestedUid
+            && !exists(/databases/$(database)/documents/accounts/$(request.resource.data.requestedUid)/blocks/$(request.auth.uid))
+            && request.resource.data.version == resource.data.version + 1
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','requestedUid','version','updatedAt','title','note','destination'])
+            && shortText(request.resource.data.title, 120);
+        }
+        function unassign() {
+          return resource.data.creatorUid == request.auth.uid
+            && resource.data.status == 'requested'
+            && request.resource.data.status == 'unclaimed'
+            && request.resource.data.ownerUid == null
+            && request.resource.data.requestedUid == null
+            && request.resource.data.version == resource.data.version + 1
+            && request.resource.data.updatedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','requestedUid','version','updatedAt','title','note','destination'])
+            && shortText(request.resource.data.title, 120);
+        }
+        allow update: if member(id) && (contentEdit() || reassign() || unassign() || helpTakeover() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
           && request.resource.data.version == resource.data.version + 1 && request.resource.data.updatedAt == request.time && (transition() || released())));
         match /operations/{op} {
           allow read: if member(id) && op.matches(request.auth.uid + '_.*');

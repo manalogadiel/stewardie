@@ -47,7 +47,11 @@ class MemberAvatar extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-    child: identity.MemberAvatar(uid: member.id, name: member.name, radius: size / 2),
+    child: identity.MemberAvatar(
+      uid: member.id,
+      name: member.name,
+      radius: size / 2,
+    ),
   );
 }
 

@@ -72,6 +72,22 @@ test('space events require a matching atomic transition and inboxes stay server-
  await assertFails(d.doc('spaces/home/events/task_task_2').update({type:'completed'}));
  await assertFails(d.doc('spaces/home/events/task_task_2').delete());
 });
+test('a creator can reassign an unclaimed task with an atomic event', async()=>{
+ await env.withSecurityRulesDisabled(c=>c.firestore().doc('spaces/home/tasks/task').update({status:'unclaimed',requestedUid:null}));
+ const d=db('alice'); const task=d.doc('spaces/home/tasks/task');
+ await assertFails(task.update({requestedUid:'bob',updatedAt:now()}));
+ const batch=d.batch();
+ batch.update(task,{status:'requested',requestedUid:'bob',version:2,updatedAt:now()});
+ batch.set(d.doc('spaces/home/events/reassign-task'),{
+  type:'taskAssigned',actorUid:'alice',entityId:'task',targetUid:'bob',
+  recipientUids:['alice','bob'],createdAt:now(),
+ });
+ await assertSucceeds(batch.commit());
+ await assertFails(db('bob').doc('spaces/home/events/forged-reassign').set({
+  type:'taskAssigned',actorUid:'bob',entityId:'task',targetUid:'bob',
+  recipientUids:['alice','bob'],createdAt:now(),
+ }));
+});
 test('location sessions restrict recipients and expire at the server',async()=>{
  const d=db('alice');
  const location={uid:'alice',name:'Alice',lat:14.6,lng:121,accuracy:25,

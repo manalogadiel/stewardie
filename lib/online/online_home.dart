@@ -10,6 +10,7 @@ import '../core/top_controls.dart';
 import '../core/member_avatar.dart';
 import 'account_settings_sheet.dart';
 import 'activity_inbox_sheet.dart';
+import 'account_notification_bell.dart';
 import 'safety_sheet.dart';
 import 'live_location_pill.dart';
 import 'live_location_service.dart';
@@ -771,7 +772,8 @@ class _OnlineHomeState extends State<OnlineHome> {
         child: Row(
           children: [
             _personChip(null, 'Everyone'),
-            _personChip(widget.user.uid, 'Me'),
+            _personChip(widget.user.uid, 'Me',
+                resolvedName: members[widget.user.uid]?['name'] as String?),
             for (final entry in members.entries)
               if (entry.key != widget.user.uid)
                 _personChip(
@@ -782,7 +784,7 @@ class _OnlineHomeState extends State<OnlineHome> {
         ),
       );
 
-  Widget _personChip(String? id, String label) => Padding(
+  Widget _personChip(String? id, String label, {String? resolvedName}) => Padding(
     padding: const EdgeInsets.only(right: 8),
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 180),
@@ -792,11 +794,11 @@ class _OnlineHomeState extends State<OnlineHome> {
             ? null
             : MemberAvatar(
                 uid: id,
-                name: id == widget.user.uid
+                name: resolvedName ?? (id == widget.user.uid
                     ? (widget.user.displayName?.trim().isNotEmpty == true
                           ? widget.user.displayName!
                           : widget.user.email?.split('@').first ?? 'Member')
-                    : label,
+                    : label),
                 radius: 13,
               ),
         label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1759,55 +1761,64 @@ class _OnlineHomeState extends State<OnlineHome> {
   );
 
   Widget _notificationBell(List<QueryDocumentSnapshot<Map<String, dynamic>>> refs) =>
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: widget.backend.firestore
-            .collection('accounts/${widget.user.uid}/activity')
-            .orderBy('createdAt', descending: true)
-            .limit(100)
-            .snapshots(),
-        builder: (context, snapshot) {
-          final unread = (snapshot.data?.docs ?? [])
-              .where(
-                (doc) =>
-            refs.any((ref) => ref.id == doc.data()['spaceId']) &&
-            doc.data()['readAt'] == null &&
-                    doc.data()['pushState'] != 'cancelled',
-              )
-              .length;
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(Icons.notifications_none_rounded),
-              if (unread > 0)
-                Positioned(
-                  right: -8,
-                  top: -8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    decoration: const BoxDecoration(
-                      color: SoftPop.blue,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        unread > 9 ? '9+' : '$unread',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
+      AccountNotificationBell(
+        backend: widget.backend,
+        uid: widget.user.uid,
+        spaceIds: [for (final ref in refs) ref.id],
       );
+
+  Future<void> _openInboxTask(
+    BuildContext sheet,
+    String spaceId,
+    String taskId,
+  ) async {
+    try {
+      final space = await widget.backend.firestore.doc('spaces/$spaceId').get();
+      final members = List<String>.from(space.data()?['memberUids'] as List? ?? []);
+      if (!members.contains(widget.user.uid)) throw StateError('Space access ended.');
+      final task = await widget.backend.firestore
+          .doc('spaces/$spaceId/tasks/$taskId')
+          .get();
+      if (!task.exists || task.data() == null) throw StateError('Task unavailable.');
+      final people = await widget.backend.members(spaceId).first;
+      if (!mounted || !sheet.mounted) return;
+      Navigator.pop(sheet);
+      _switchSpace(spaceId);
+      setState(() {
+        _destination = 0;
+        _showDone = task.data()?['status'] == 'completed';
+      });
+      await _openTaskDetail(spaceId, taskId, task.data()!, {
+        for (final person in people.docs) person.id: person.data(),
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This task is no longer available to you.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openInboxOwnership(BuildContext sheet, String spaceId) async {
+    try {
+      final space = await widget.backend.firestore.doc('spaces/$spaceId').get();
+      if (!List<String>.from(space.data()?['memberUids'] as List? ?? [])
+          .contains(widget.user.uid)) {
+        throw StateError('Space access ended.');
+      }
+      if (!mounted || !sheet.mounted) return;
+      Navigator.pop(sheet);
+      _switchSpace(spaceId);
+      setState(() => _destination = 2);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This space is no longer available to you.')),
+        );
+      }
+    }
+  }
 
   void _showInbox(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> refs,
@@ -1830,6 +1841,10 @@ class _OnlineHomeState extends State<OnlineHome> {
             _showDone = false;
           });
         },
+        onOpenTask: (spaceId, taskId) =>
+            _openInboxTask(sheet, spaceId, taskId),
+        onOpenOwnership: (spaceId) =>
+            _openInboxOwnership(sheet, spaceId),
         requests: [
           for (final ref in refs) ...[
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -1851,14 +1866,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                           '${ref.data()['name'] ?? 'Space'} · Awaiting your answer',
                         ),
                         trailing: const Icon(Icons.chevron_right_rounded),
-                        onTap: () {
-                          Navigator.pop(sheet);
-                          _switchSpace(ref.id);
-                          setState(() {
-                            _destination = 0;
-                            _showDone = false;
-                          });
-                        },
+                         onTap: () => _openInboxTask(sheet, ref.id, doc.id),
                       ),
                 ],
               ),
@@ -1873,11 +1881,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                       title: const Text('Ownership offer'),
                       subtitle: Text(ref.data()['name'] as String? ?? 'Space'),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () {
-                        Navigator.pop(sheet);
-                        _switchSpace(ref.id);
-                        setState(() => _destination = 2);
-                      },
+                       onTap: () => _openInboxOwnership(sheet, ref.id),
                     )
                   : const SizedBox.shrink(),
             ),

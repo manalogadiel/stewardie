@@ -36,7 +36,13 @@ class PlacePin {
     if (raw is! Map) return null;
     final lat = raw['lat'], lng = raw['lng'];
     if (lat is! num || lng is! num) return null;
-    if (!lat.isFinite || !lng.isFinite || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    if (!lat.isFinite ||
+        !lng.isFinite ||
+        lat < -90 ||
+        lat > 90 ||
+        lng < -180 ||
+        lng > 180)
+      return null;
     return PlacePin(
       lat: lat.toDouble(),
       lng: lng.toDouble(),
@@ -71,7 +77,9 @@ class _PlacePickerState extends State<_PlacePicker> {
   late final note = TextEditingController(text: widget.initial?.note);
   LatLng? point;
   String? error;
-  StewardieMapStyle style = StewardieMapStyle.satellite;
+  StewardieMapStyle style = mapTilerKey.isEmpty
+      ? StewardieMapStyle.streets
+      : StewardieMapStyle.satellite;
 
   @override
   void initState() {
@@ -147,6 +155,7 @@ class _PlacePickerState extends State<_PlacePicker> {
                   center: p ?? const LatLng(12, 122),
                   zoom: p == null ? 5 : 14,
                   style: style,
+                  onStyleChanged: (value) => setState(() => style = value),
                   onTap: (_, position) => setState(() => point = position),
                   markers: [
                     if (p != null)
@@ -163,21 +172,6 @@ class _PlacePickerState extends State<_PlacePicker> {
                   ],
                 ),
               ),
-            ),
-            SegmentedButton<StewardieMapStyle>(
-              segments: const [
-                ButtonSegment(
-                  value: StewardieMapStyle.satellite,
-                  label: Text('Satellite'),
-                ),
-                ButtonSegment(
-                  value: StewardieMapStyle.streets,
-                  label: Text('Streets'),
-                ),
-              ],
-              selected: {style},
-              onSelectionChanged: (value) =>
-                  setState(() => style = value.first),
             ),
             Align(
               alignment: Alignment.centerRight,

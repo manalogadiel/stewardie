@@ -27,7 +27,8 @@ class MomentsScreen extends ConsumerStatefulWidget {
   ConsumerState<MomentsScreen> createState() => _MomentsScreenState();
 }
 
-class _MomentsScreenState extends ConsumerState<MomentsScreen> with WidgetsBindingObserver {
+class _MomentsScreenState extends ConsumerState<MomentsScreen>
+    with WidgetsBindingObserver {
   PageController pages = PageController();
   int index = 0;
   String scope = '';

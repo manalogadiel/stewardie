@@ -271,7 +271,7 @@ async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc,
   if (!copy) return;
   for (const uid of recipients) {
     await create(`accounts/${uid}/activity/event_${spaceId}_${eventId}`, {
-      spaceId, kind: type, eventId, entityId,
+      spaceId, kind: type, eventId, entityId, actorUid: actor,
       ...(type.startsWith('task') || ['helpRequested', 'covered', 'completed'].includes(type) ? { taskId: entityId } : {}),
       title: copy[0], body: copy[1],
       createdAt: typeof e.createdAt === 'string' ? new Date(e.createdAt) : now,
