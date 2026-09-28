@@ -123,8 +123,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
           .get(const GetOptions(source: Source.server));
       final ids = List<String>.from(space.data()?['memberUids'] as List? ?? []);
       final me = widget.backend.auth.currentUser?.uid;
-      if (me == null || !ids.contains(me))
+      if (me == null || !ids.contains(me)) {
         throw StateError('You are no longer in this space.');
+      }
       final members = await widget.backend.firestore
           .collection('spaces/${widget.spaceId}/members')
           .get(const GetOptions(source: Source.server));

@@ -17,7 +17,9 @@ class InviteLinks {
     if (raw.contains('://')) {
       final uri = Uri.tryParse(raw);
       if (uri == null || uri.scheme != 'https' ||
-          uri.host != 'stewardie.web.app') return null;
+          uri.host != 'stewardie.web.app') {
+        return null;
+      }
     }
     final code = sanitize(raw);
     return isValidCode(code) ? code : null;

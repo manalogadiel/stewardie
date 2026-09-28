@@ -762,6 +762,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
           maxHeight: MediaQuery.sizeOf(context).height * .9,
         ),
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: SafeArea(
             top: false,
@@ -824,13 +825,20 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                     ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<PlanReminder>(
-                    value: reminder,
+                    initialValue: reminder,
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Reminder'),
                     items: (allDay
                             ? const [PlanReminder.none, PlanReminder.morningOf, PlanReminder.morningBefore]
                             : const [PlanReminder.none, PlanReminder.atStart, PlanReminder.tenMinutes,
                                 PlanReminder.oneHour, PlanReminder.oneDay])
-                        .map((option) => DropdownMenuItem(value: option, child: Text(option.label)))
+                        .map((option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(
+                                option.label,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ))
                         .toList(),
                     onChanged: (option) => setState(() => reminder = option ?? PlanReminder.none),
                   ),
@@ -872,11 +880,15 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                               context,
                               initial: pin,
                             );
-                            if (selected != null && mounted)
+                            if (selected != null && mounted) {
                               setState(() => pin = selected);
+                            }
                           },
                     icon: const Icon(Icons.place_outlined),
-                    label: Text(pin?.label ?? 'Add place (optional)'),
+                    label: Text(
+                      pin?.label ?? 'Add place (optional)',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   if (pin != null)
                     TextButton(

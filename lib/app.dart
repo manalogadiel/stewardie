@@ -359,6 +359,7 @@ class GlassDock extends StatelessWidget {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(28),
                       onTap: () {
+                        HapticFeedback.selectionClick();
                         if (onSelected != null) {
                           onSelected!(i);
                         } else {

@@ -56,13 +56,17 @@ class SafetySheet {
         });
       }
       await batch.commit();
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report sent for private review.')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report sent for private review.')),
+        );
+      }
     } catch (_) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not send report. Try again online.')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not send report. Try again online.')),
+        );
+      }
     }
   }
 
@@ -70,10 +74,14 @@ class SafetySheet {
     required String spaceId, required String memberUid, required String memberName,
   }) async {
     final uid = backend.auth.currentUser!.uid;
-    if (uid == memberUid) return;
+    if (uid == memberUid) {
+      return;
+    }
     final blockRef = backend.firestore.doc('accounts/$uid/blocks/$memberUid');
     final blocked = (await blockRef.get()).exists;
-    if (!context.mounted) return;
+    if (!context.mounted) {
+      return;
+    }
     await showModalBottomSheet<void>(context: context, builder: (sheet) => SafeArea(
       child: Padding(padding: const EdgeInsets.all(20), child: Column(
         mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -94,11 +102,15 @@ class SafetySheet {
               } else {
                 await blockRef.set({'blockedUid': memberUid, 'createdAt': FieldValue.serverTimestamp()});
               }
-              if (sheet.mounted) Navigator.pop(sheet);
+              if (sheet.mounted) {
+                Navigator.pop(sheet);
+              }
             } catch (_) {
-              if (sheet.mounted) ScaffoldMessenger.of(sheet).showSnackBar(
-                const SnackBar(content: Text('Could not update block. Try again online.')),
-              );
+              if (sheet.mounted) {
+                ScaffoldMessenger.of(sheet).showSnackBar(
+                  const SnackBar(content: Text('Could not update block. Try again online.')),
+                );
+              }
             }
           }, icon: Icon(blocked ? Icons.person_add_alt : Icons.block),
             label: Text(blocked ? 'Unblock' : 'Block direct requests')),

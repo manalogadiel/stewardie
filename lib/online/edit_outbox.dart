@@ -48,13 +48,19 @@ class EditOutbox extends ChangeNotifier {
   }
 
   Future<void> flush({bool retryFailed = false}) async {
-    if (_closed || _flushing || backend.auth.currentUser?.uid != uid) return;
+    if (_closed || _flushing || backend.auth.currentUser?.uid != uid) {
+      return;
+    }
     _flushing = true;
     try {
       for (final item in _items.values.toList()) {
-        if (_closed || backend.auth.currentUser?.uid != uid) return;
+        if (_closed || backend.auth.currentUser?.uid != uid) {
+          return;
+        }
         if (item['status'] == 'synced' ||
-            (item['status'] == 'failed' && !retryFailed)) continue;
+            (item['status'] == 'failed' && !retryFailed)) {
+          continue;
+        }
         final payload = Map<String, dynamic>.from(item['payload'] as Map);
         try {
           await backend.call(switch (item['kind']) {

@@ -156,7 +156,9 @@ class FirebaseTimelineRepository extends TimelineRepository {
   CalendarPlan _draftPlanFor(CalendarPlan remote) {
     for (final item in outbox.items) {
       if (item['kind'] == 'planSave' && item['spaceId'] == remote.spaceId &&
-          (item['payload'] as Map)['planId'] == remote.id) return _draftPlan(item);
+          (item['payload'] as Map)['planId'] == remote.id) {
+        return _draftPlan(item);
+      }
       if (item['kind'] == 'planRemove' && item['spaceId'] == remote.spaceId &&
           (item['payload'] as Map)['planId'] == remote.id) {
         return CalendarPlan(

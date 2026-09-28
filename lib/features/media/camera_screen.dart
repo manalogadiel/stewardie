@@ -333,76 +333,77 @@ class _CameraScreenState extends State<CameraScreen>
                   style: const TextStyle(color: Colors.white),
                 ),
               ),
-            // Ratio selector
-            SwitchListTile.adaptive(
-              title: const Text(
-                'Attach capture location',
-                style: TextStyle(color: Colors.white),
+            if (camera?.value.isInitialized == true) ...[
+              SwitchListTile.adaptive(
+                title: const Text(
+                  'Attach capture location',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: const Text(
+                  'Off by default · only this photo',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                value: attachCaptureLocation,
+                onChanged: (value) =>
+                    setState(() => attachCaptureLocation = value),
               ),
-              subtitle: const Text(
-                'Off by default · only this photo',
-                style: TextStyle(color: Colors.white70),
-              ),
-              value: attachCaptureLocation,
-              onChanged: (value) =>
-                  setState(() => attachCaptureLocation = value),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF161B26),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final r in [
-                        'Original',
-                        '1:1',
-                        '3:4',
-                        '4:3',
-                        '9:16',
-                        '16:9',
-                      ])
-                        InkWell(
-                          onTap: () => setState(() => selectedRatio = r),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: selectedRatio == r
-                                  ? SoftPop.surface
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              r,
-                              style: TextStyle(
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF161B26),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final r in [
+                          'Original',
+                          '1:1',
+                          '3:4',
+                          '4:3',
+                          '9:16',
+                          '16:9',
+                        ])
+                          InkWell(
+                            onTap: () => setState(() => selectedRatio = r),
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
                                 color: selectedRatio == r
-                                    ? SoftPop.ink
-                                    : Colors.white70,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                                    ? SoftPop.surface
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                r,
+                                style: TextStyle(
+                                  color: selectedRatio == r
+                                      ? SoftPop.ink
+                                      : Colors.white70,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
             // Centered shutter with balanced side controls
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
