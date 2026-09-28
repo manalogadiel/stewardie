@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
@@ -5,6 +8,18 @@ plugins {
     // END: FlutterFire Configuration
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+val uploadKey = Properties()
+val uploadKeyFile = rootProject.file("key.properties")
+if (uploadKeyFile.exists()) {
+    uploadKey.load(FileInputStream(uploadKeyFile))
+}
+val releaseRequested = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true) || it.contains("bundle", ignoreCase = true)
+}
+if (releaseRequested && !uploadKeyFile.exists()) {
+    throw GradleException("Android release requires android/key.properties and a private upload keystore; debug signing is disabled for release.")
 }
 
 android {
@@ -32,11 +47,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = uploadKey.getProperty("keyAlias")
+            keyPassword = uploadKey.getProperty("keyPassword")
+            storeFile = uploadKey.getProperty("storeFile")?.let { file(it) }
+            storePassword = uploadKey.getProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

@@ -485,10 +485,11 @@ Future<void> showPlanDetails(
               spaceId: plan.spaceId, kind: 'plan', contentId: plan.id,
               targetUid: plan.ownerId), icon: const Icon(Icons.flag_outlined),
               label: const Text('Report plan')),
-          if (plan.syncState != SyncState.synced)
-            Text(plan.syncState == SyncState.pending
-              ? (plan.pendingRemoval ? 'Removal pending' : 'Pending sync')
-              : 'Needs retry'),
+          Text(switch (plan.syncState) {
+            SyncState.synced => 'Synced',
+            SyncState.pending => plan.pendingRemoval ? 'Removal pending' : 'Pending sync',
+            SyncState.failed => 'Needs retry',
+          }),
           if (plan.isImported)
             const Text('Shared from Google Calendar · read-only here'),
           const SizedBox(height: 12),

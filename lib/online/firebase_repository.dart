@@ -122,7 +122,8 @@ class FirebaseTimelineRepository extends TimelineRepository {
     return Task(
       id: item['id'] as String, spaceId: item['spaceId'] as String,
       title: payload['title'] as String,
-      day: dateOnly(DateTime.now()), creatorId: currentUserId,
+      day: DateTime.tryParse(payload['scheduledLocalDate'] as String? ?? '') ?? dateOnly(DateTime.now()),
+      creatorId: currentUserId,
       requestedId: payload['requestedUid'] as String?,
       status: payload['requestedUid'] == null ? Responsibility.unclaimed : Responsibility.requested,
       pin: PlacePin.fromMap(payload['pin']),
@@ -451,6 +452,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
     final payload = <String, Object?>{
       'spaceId': spaceId,
       'title': title,
+      'scheduledLocalDate': '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}',
       if (requestedUid != null || assignToMe)
         'requestedUid': requestedUid ?? currentUserId,
       'operationId': stableId,

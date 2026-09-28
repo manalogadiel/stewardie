@@ -12,11 +12,11 @@ class OperatorReviewSheet extends StatelessWidget {
       showModalBottomSheet<void>(context: context, isScrollControlled: true,
         builder: (_) => OperatorReviewSheet(backend: backend));
 
-  Future<void> _setStatus(DocumentReference<Map<String, dynamic>> ref, String status) async {
+  Future<void> _setStatus(DocumentReference<Map<String, dynamic>> ref, String choice) async {
     await ref.update({
-      'status': status,
-      if (ref.path.startsWith('safetyReports/')) 'reviewedAt': FieldValue.serverTimestamp(),
-      if (ref.path.startsWith('deletionRequests/')) 'resolvedAt': FieldValue.serverTimestamp(),
+      'status': choice == 'reviewing' ? 'reviewing' : 'closed',
+      'reviewedAt': FieldValue.serverTimestamp(),
+      if (choice != 'reviewing') 'resolution': choice,
     });
   }
 
@@ -26,7 +26,7 @@ class OperatorReviewSheet extends StatelessWidget {
     child: Padding(padding: const EdgeInsets.all(20), child: ListView(children: [
       Text('Private review queue', style: Theme.of(context).textTheme.headlineSmall),
       const SizedBox(height: 8),
-      const Text('Review reports and deletion requests. Mark deletion complete only after Firebase and Supabase cleanup is verified.'),
+      const Text('Review reports here. Deletion requests are completed only by the private cleanup tool after Firebase and Supabase checks pass.'),
       const SizedBox(height: 20),
       Text('Reports', style: Theme.of(context).textTheme.titleLarge),
       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -43,7 +43,8 @@ class OperatorReviewSheet extends StatelessWidget {
               onSelected: (status) => _setStatus(doc.reference, status),
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'reviewing', child: Text('Reviewing')),
-                PopupMenuItem(value: 'closed', child: Text('Close report')),
+                PopupMenuItem(value: 'no_action', child: Text('Close · no action needed')),
+                PopupMenuItem(value: 'handled_externally', child: Text('Close · action completed')),
               ],
             ),
           ))]);
@@ -60,9 +61,7 @@ class OperatorReviewSheet extends StatelessWidget {
           return Column(children: [for (final doc in docs) Card(child: ListTile(
             title: Text(doc.data()['email'] as String? ?? doc.id),
             subtitle: Text('UID ${doc.id} · ${doc.data()['status']}'),
-            trailing: TextButton(onPressed: doc.data()['status'] == 'pending'
-                ? () => _setStatus(doc.reference, 'processing') : null,
-              child: const Text('Start review')),
+            trailing: const Icon(Icons.lock_outline_rounded),
           ))]);
         },
       ),

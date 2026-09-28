@@ -133,11 +133,29 @@ test('blocking stops new direct requests and reports stay private',async()=>{
  b.set(d.doc('spaces/home/tasks/blocked'),{title:'Help',creatorUid:'alice',requestedUid:'bob',ownerUid:null,offeredUid:null,status:'requested',scheduledLocalDate:'2026-09-28',version:1,completedAt:null,createdAt:now(),updatedAt:now()});
  b.update(d.doc('spaces/home'),{activeTaskCount:2,changedTaskId:'blocked'});
  await assertFails(b.commit());
+ await env.withSecurityRulesDisabled(async c=>{
+  await c.firestore().doc('spaces/home/tasks/editTarget').set({title:'Existing',creatorUid:'alice',
+    requestedUid:null,ownerUid:null,offeredUid:null,status:'unclaimed',version:1,completedAt:null});
+ });
+ await assertFails(d.doc('spaces/home/tasks/editTarget').update({requestedUid:'bob',updatedAt:now()}));
  const report={reporterUid:'bob',spaceId:'home',kind:'member',contentId:'alice',targetUid:'alice',reason:'harassment',status:'open',createdAt:now()};
  await assertSucceeds(db('bob').doc('safetyReports/example').set(report));
  await assertFails(db('bob').doc('safetyReports/example').get());
  const founder=env.authenticatedContext('alice',{email_verified:true,email:'gadielmanalo19@gmail.com'}).firestore();
  await assertSucceeds(founder.doc('safetyReports/example').get());
+ await assertFails(founder.doc('safetyReports/example').update({status:'closed',reviewedAt:now()}));
+ await assertSucceeds(founder.doc('safetyReports/example').update({status:'closed',resolution:'no_action',reviewedAt:now()}));
+});
+test('deletion requests belong to the verified account and remain private',async()=>{
+ const bob=env.authenticatedContext('bob',{email_verified:true,email:'bob@example.com'}).firestore();
+ const request={uid:'bob',email:'bob@example.com',status:'pending',createdAt:now()};
+ await assertFails(db('bob',false).doc('deletionRequests/bob').set(request));
+ await assertFails(bob.doc('deletionRequests/alice').set({...request,uid:'alice'}));
+ await assertSucceeds(bob.doc('deletionRequests/bob').set(request));
+ await assertFails(db('alice').doc('deletionRequests/bob').get());
+ const founder=env.authenticatedContext('alice',{email_verified:true,email:'gadielmanalo19@gmail.com'}).firestore();
+ await assertSucceeds(founder.doc('deletionRequests/bob').get());
+ await assertFails(founder.doc('deletionRequests/bob').update({status:'complete',resolvedAt:now()}));
 });
 
 test('Spark ownership requires consent and preserves account ownership quotas',async()=>{

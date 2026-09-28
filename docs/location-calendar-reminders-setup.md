@@ -1,6 +1,6 @@
 # Location, calendar, and reminders rollout
 
-The Flutter implementation keeps Today / Moments / Space. Task and plan pins, member-reported arrival, optional capture-time photo pins, and 15/30/60-minute location sessions are in the app. The scheduled worker is in `supabase/functions/scheduled-work/index.ts`; it is **not active until deployed and scheduled**. The old client-on-open routine generator was removed so a routine is not silently tied to someone opening Today.
+The Flutter implementation keeps Today / Moments / Space. Task and plan pins, member-reported arrival, optional capture-time photo pins, and 15/30/60-minute location sessions are in the app. The scheduled worker is in `supabase/functions/scheduled-work/index.ts`; version 3 was deployed September 28, 2026, and one scheduled invocation returned HTTP 200. Real reminder delivery still needs a two-account check; see [pilot verification](pilot-completion-verification.md). The old client-on-open routine generator was removed so a routine is not silently tied to someone opening Today.
 
 ## Enable the free-plan worker
 

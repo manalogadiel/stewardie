@@ -22,10 +22,11 @@
       <label for="email">Email</label><input id="email" type="email" autocomplete="username" required>
       <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
       <button type="submit">Sign in</button>
+      <button id="reset" type="button" style="background:#eeeaf8;color:#202633">Reset password</button>
     </form>
     <div id="signed" hidden>
       <p id="identity"></p>
-      <p>Requesting deletion does not remove shared task records immediately. Your account stays accessible until cleanup is confirmed.</p>
+      <p>Requesting deletion does not remove shared task records immediately. You can sign in until processing starts; sign-in may be disabled while cleanup runs.</p>
       <button id="request" type="button">Request permanent deletion</button>
       <button id="signout" type="button">Sign out</button>
     </div>
@@ -34,7 +35,7 @@
 </main>
 <script type="module">
   import {initializeApp} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
-  import {getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+  import {getAuth, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
   import {getFirestore, doc, getDoc, setDoc, serverTimestamp} from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
   const app=initializeApp({apiKey:'AIzaSyA-N7VY9dd-12NBPkYMSk63fpDERTe-ALg',authDomain:'stewardie.firebaseapp.com',projectId:'stewardie',appId:'1:1085424018448:web:6f17ee94996f83615d9695'});
   const auth=getAuth(app), db=getFirestore(app);
@@ -48,6 +49,12 @@
     try{await signInWithEmailAndPassword(auth,$('email').value,$('password').value);$('password').value='';message('');}
     catch(_){message('Could not sign in. Check your details and try again.');}
   });
+  $('reset').addEventListener('click',async()=>{
+    const email=$('email').value.trim();
+    if(!email){message('Enter your account email first.');return;}
+    try{await sendPasswordResetEmail(auth,email);message('If this email has an account, a reset link is on its way.');}
+    catch(_){message('Could not send a reset link. Try again later.');}
+  });
   $('request').addEventListener('click',async()=>{
     const user=auth.currentUser;if(!user)return;
     if(!confirm('Request permanent deletion of your Stewardie account and associated data?'))return;
@@ -57,7 +64,7 @@
       const ref=doc(db,'deletionRequests',user.uid);
       if((await getDoc(ref)).exists()){message('Your deletion request is already in the review queue.');return;}
       await setDoc(ref,{uid:user.uid,email:user.email,status:'pending',createdAt:serverTimestamp()});
-      message('Deletion request received. Your account remains active until cleanup is complete.');
+      message('Deletion request received. You can sign in until processing starts.');
     }catch(error){message(error.message?.includes('Verify your email')?error.message:'Could not submit the request. Try again later.');}
     finally{$('request').disabled=false;}
   });

@@ -27,12 +27,14 @@ class TaskCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (task.syncState != SyncState.synced)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(task.syncState == SyncState.pending ? 'Pending sync' : 'Needs retry',
-                  style: Theme.of(context).textTheme.labelMedium),
-              ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(switch (task.syncState) {
+                SyncState.synced => 'Synced',
+                SyncState.pending => 'Pending sync',
+                SyncState.failed => 'Needs retry',
+              }, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: SoftPop.secondary)),
+            ),
             if (task.syncState == SyncState.failed && ref.read(repositoryProvider) is FirebaseTimelineRepository)
               Wrap(spacing: 8, children: [
                 TextButton(onPressed: () => (ref.read(repositoryProvider) as FirebaseTimelineRepository).outbox.flush(retryFailed: true), child: const Text('Retry sync')),

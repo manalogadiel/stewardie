@@ -283,16 +283,15 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
                                   : 'Enter your password'
                             : null,
                       ),
-                    if (!_resetPassword && widget.database != null)
-                      if (_register)
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text('I am at least 18 years old'),
-                          value: _adultConfirmed,
-                          onChanged: _busy ? null : (value) =>
-                            setState(() => _adultConfirmed = value ?? false),
-                        ),
+                    if (_register && !_resetPassword)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('I am at least 18 years old'),
+                        value: _adultConfirmed,
+                        onChanged: _busy ? null : (value) =>
+                          setState(() => _adultConfirmed = value ?? false),
+                      ),
                     if (!_resetPassword && widget.database != null)
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,

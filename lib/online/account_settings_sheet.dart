@@ -109,13 +109,13 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
-          title: const Text('Delete account'),
+          title: const Text('Request account deletion'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Type DELETE to request permanent account and shared-media deletion. Your request will be reviewed; your account stays accessible until cleanup is confirmed.',
+                'Type DELETE to request permanent account and shared-media deletion. Your request will be reviewed. You can sign in until processing starts; sign-in may be disabled while cleanup runs.',
                 style: TextStyle(fontFamily: 'NunitoSans', fontSize: 14),
               ),
               const SizedBox(height: 16),
@@ -143,7 +143,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
               style: TextButton.styleFrom(
                 foregroundColor: const Color(0xFFD32F2F),
               ),
-              child: const Text('Delete permanently'),
+              child: const Text('Send deletion request'),
             ),
           ],
         ),
@@ -159,7 +159,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
         final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop();
         messenger.showSnackBar(const SnackBar(
-          content: Text('Deletion request received. Your account remains active until cleanup is complete.'),
+          content: Text('Deletion request received. You can sign in until processing starts.'),
         ));
       }
     } catch (e) {

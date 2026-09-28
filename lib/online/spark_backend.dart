@@ -82,6 +82,11 @@ class SparkBackend {
         });
         return {'spaceId': ref.id};
       case 'createTask':
+        final requestedDay = v['scheduledLocalDate'] as String?;
+        if (requestedDay != null &&
+            !RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(requestedDay)) {
+          throw ArgumentError('Check the task date.');
+        }
         final ref = space(id!)
             .collection('tasks')
             .doc(v['operationId'] as String?);
@@ -103,7 +108,7 @@ class SparkBackend {
             'ownerUid': null,
             'offeredUid': null,
             'status': v['requestedUid'] == null ? 'unclaimed' : 'requested',
-            'scheduledLocalDate': day(DateTime.now()),
+            'scheduledLocalDate': requestedDay ?? day(DateTime.now()),
             'version': 1,
             'completedAt': null,
             'createdAt': FieldValue.serverTimestamp(),

@@ -88,7 +88,7 @@ class _SignedInApp extends StatefulWidget {
   State<_SignedInApp> createState() => _SignedInAppState();
 }
 
-class _SignedInAppState extends State<_SignedInApp> {
+class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver {
   late final outbox = EditOutbox(widget.database, widget.backend, widget.user.uid);
   late final timeline = FirebaseTimelineRepository(
     widget.backend,
@@ -103,6 +103,7 @@ class _SignedInAppState extends State<_SignedInApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     LiveLocationService.instance.init(widget.backend);
     unawaited(LiveLocationService.instance.restore());
     PushService.instance.init(widget.user.uid);
@@ -123,6 +124,11 @@ class _SignedInAppState extends State<_SignedInApp> {
       }
     }());
     unawaited(RevenueCatService.instance.init(userId: widget.user.uid));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(outbox.flush());
   }
 
   void _checkInviteOnLaunch(BuildContext context) {
@@ -228,6 +234,7 @@ class _SignedInAppState extends State<_SignedInApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(LiveLocationService.instance.stopSharing());
     PushService.instance.logOut();
     unawaited(timeline.dispose());

@@ -329,9 +329,13 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
     const recipients = [p.ownerUid, ...((p.participants as string[]) ?? [])];
     if (!plan || !recipients.includes(uid) || Number(p.startMillis) !== Number(data.planStartMillis) ||
         p.reminder !== data.planReminder || p.source === 'google' ||
-        Number(p.revision ?? 0) !== Number(data.planRevision) ||
-        (p.allDay !== true && now.getTime() >= Number(p.endMillis))) {
+        Number(p.revision ?? 0) !== Number(data.planRevision)) {
       await cancel();
+      return;
+    }
+    if (p.allDay !== true && now.getTime() >= Number(p.endMillis)) {
+      // A missed push must not erase a valid in-app reminder.
+      await update(path, { pushState: 'missed', pushLeaseUntil: null }, item.updateTime!);
       return;
     }
   }

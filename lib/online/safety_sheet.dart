@@ -43,17 +43,19 @@ class SafetySheet {
     if (submitted != true) return;
     try {
       final uid = backend.auth.currentUser!.uid;
-      await backend.firestore.collection('safetyReports').add({
+      final batch = backend.firestore.batch();
+      batch.set(backend.firestore.collection('safetyReports').doc(), {
         'reporterUid': uid, 'spaceId': spaceId, 'kind': kind,
         'contentId': contentId, 'targetUid': targetUid, 'reason': reason,
         'status': 'open', 'createdAt': FieldValue.serverTimestamp(),
       });
       if (hide) {
-        await backend.firestore.doc('accounts/$uid/hidden/${spaceId}_${kind}_$contentId').set({
+        batch.set(backend.firestore.doc('accounts/$uid/hidden/${spaceId}_${kind}_$contentId'), {
           'spaceId': spaceId, 'kind': kind, 'contentId': contentId,
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+      await batch.commit();
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Report sent for private review.')),
       );

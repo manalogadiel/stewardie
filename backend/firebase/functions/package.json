@@ -15,6 +15,7 @@
     "seed:local-founder": "node scripts/seed-local-founder.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.57.4",
     "firebase-admin": "14.4.0",
     "firebase-functions": "7.4.0"
   },
