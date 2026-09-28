@@ -42,8 +42,9 @@ class GoogleCalendarEvent {
       end?[allDay ? 'date' : 'dateTime'] as String? ?? '',
     );
     final id = data['id'] as String?;
-    if (id == null || begins == null || ends == null || !ends.isAfter(begins))
+    if (id == null || begins == null || ends == null || !ends.isAfter(begins)) {
       return null;
+    }
     return GoogleCalendarEvent(
       calendarId: calendarId,
       eventId: id,
@@ -119,16 +120,18 @@ class GoogleCalendarImport {
     final headers = await account.authorizationClient.authorizationHeaders(
       _scopes,
     );
-    if (headers == null)
+    if (headers == null) {
       throw StateError('Reconnect Google Calendar to refresh.');
+    }
     final response = await http
         .get(uri, headers: headers)
         .timeout(const Duration(seconds: 20));
     if (response.statusCode == 401 || response.statusCode == 403) {
       throw StateError('Google Calendar access expired. Reconnect to refresh.');
     }
-    if (response.statusCode == 404)
+    if (response.statusCode == 404) {
       throw StateError('Google event was removed.');
+    }
     if (response.statusCode != 200) {
       throw StateError('Could not load Google Calendar. Try again.');
     }
@@ -353,10 +356,11 @@ class _GoogleImportSheetState extends State<_GoogleImportSheet> {
                       await GoogleCalendarImport.instance.connect();
                       if (mounted) await load();
                     } catch (_) {
-                      if (mounted)
+                      if (mounted) {
                         setState(
                           () => error = 'Could not connect Google Calendar. Check the OAuth app setup.',
                         );
+                      }
                     } finally {
                       if (mounted) setState(() => busy = false);
                     }
@@ -402,17 +406,19 @@ class _GoogleImportSheetState extends State<_GoogleImportSheet> {
                           widget.backend,
                           spaces,
                         );
-                        if (mounted)
+                        if (mounted) {
                           setState(() {
                             connected = false;
                             events = [];
                             selected.clear();
                           });
+                        }
                       } catch (_) {
-                        if (mounted)
+                        if (mounted) {
                           setState(
                             () => error = 'Could not disconnect. Try again.',
                           );
+                        }
                       } finally {
                         if (mounted) setState(() => busy = false);
                       }
@@ -467,12 +473,13 @@ class _GoogleImportSheetState extends State<_GoogleImportSheet> {
                         Navigator.pop(context);
                       }
                     } catch (e) {
-                      if (mounted)
+                      if (mounted) {
                         setState(
                           () => error = e is StateError
                               ? e.message
                               : 'Could not share selected events.',
                         );
+                      }
                     } finally {
                       if (mounted) setState(() => busy = false);
                     }

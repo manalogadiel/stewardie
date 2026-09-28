@@ -9,6 +9,7 @@ import 'package:stewardie/app.dart';
 import 'package:stewardie/core/demo_state.dart';
 import 'package:stewardie/core/person_labels.dart';
 import 'package:stewardie/core/widgets.dart';
+import 'package:stewardie/core/place_pin.dart';
 import 'package:stewardie/features/calendar/calendar_state.dart';
 import 'package:stewardie/features/media/media_library.dart';
 import 'package:stewardie/features/timeline/data/demo_repository.dart';
@@ -68,6 +69,7 @@ class SignedInRepository extends TimelineRepository {
     bool assignToMe, {
     String? requestedUid,
     String? operationId,
+    PlacePin? pin,
   }) => throw UnimplementedError();
   @override
   CheckIn? checkIn(String spaceId, String memberId) => null;

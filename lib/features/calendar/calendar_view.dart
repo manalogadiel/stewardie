@@ -791,6 +791,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
           maxHeight: MediaQuery.sizeOf(context).height * .9,
         ),
         child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
           child: SafeArea(
             top: false,
@@ -854,7 +855,8 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                     ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<PlanReminder>(
-                    value: reminder,
+                    initialValue: reminder,
+                    isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Reminder'),
                     items:
                         (allDay
@@ -918,11 +920,15 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                               context,
                               initial: pin,
                             );
-                            if (selected != null && mounted)
+                            if (selected != null && mounted) {
                               setState(() => pin = selected);
+                            }
                           },
                     icon: const Icon(Icons.place_outlined),
-                    label: Text(pin?.label ?? 'Add place (optional)'),
+                    label: Text(
+                      pin?.label ?? 'Add place (optional)',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   if (pin != null)
                     TextButton(

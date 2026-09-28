@@ -18,6 +18,7 @@ final captureKey = GlobalKey();
 const capture = bool.fromEnvironment('CAPTURE_DEMO');
 
 Future<void> reveal(WidgetTester tester, Finder finder) async {
+  await tester.pumpAndSettle();
   await Scrollable.ensureVisible(tester.element(finder), alignment: .2);
   await tester.pumpAndSettle();
 }

@@ -721,9 +721,13 @@ class SparkBackend {
         final pendingRef = space(sId).collection('pendingJoins').doc(uid);
         final prior = await pendingRef.get();
         if (prior.data()?['status'] == 'approved' &&
-            prior.data()?['token'] == token) return {'approved': true};
+            prior.data()?['token'] == token) {
+          return {'approved': true};
+        }
         if (prior.exists) {
-          if (prior.data()?['token'] == token) return {'approved': false};
+          if (prior.data()?['token'] == token) {
+            return {'approved': false};
+          }
           await pendingRef.delete();
         }
         await pendingRef.set({
