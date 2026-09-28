@@ -26,6 +26,21 @@ class SparkBackend {
     'kind': data['kind'],
     'joinedAt': FieldValue.serverTimestamp(),
   };
+  void addSpaceEvent(Transaction tx, String spaceId, String eventId, {
+    required String type,
+    required String entityId,
+    required List<String> recipients,
+    String? targetUid,
+  }) {
+    tx.set(space(spaceId).collection('events').doc(eventId), {
+      'type': type,
+      'actorUid': uid,
+      'entityId': entityId,
+      'targetUid': targetUid,
+      'recipientUids': recipients,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
   Future<Map<String, dynamic>> call(
     String action,
     Map<String, dynamic> v,
@@ -119,6 +134,11 @@ class SparkBackend {
                 (parent.data()?['activeTaskCount'] as int? ?? 0) + 1,
             'changedTaskId': ref.id,
           });
+          if (v['requestedUid'] != null) {
+            addSpaceEvent(tx, id!, 'task_${ref.id}_1', type: 'taskAssigned',
+              entityId: ref.id, targetUid: v['requestedUid'] as String,
+              recipients: List<String>.from(parent.data()?['memberUids'] as List? ?? []));
+          }
         });
         return {'taskId': ref.id};
       case 'actOnTask':
@@ -182,6 +202,18 @@ class SparkBackend {
               throw StateError('This action is unavailable.');
           }
           tx.update(ref, changes);
+          final eventType = switch (v['action']) {
+            'needHelp' => 'helpRequested',
+            'accept' || 'confirmHandoff' => 'covered',
+            'complete' => 'completed',
+            _ => null,
+          };
+          if (eventType != null) {
+            addSpaceEvent(tx, id!, 'task_${ref.id}_${changes['version']}',
+              type: eventType, entityId: ref.id,
+              targetUid: eventType == 'covered' ? current['creatorUid'] as String? : null,
+              recipients: List<String>.from(parent['memberUids'] as List? ?? []));
+          }
           tx.set(receipt, {
             'actorUid': uid,
             'version': changes['version'],
@@ -386,6 +418,7 @@ class SparkBackend {
       case 'joinSpace':
       case 'redeemInvite':
         final token = InviteLinks.sanitize(v['token'] as String);
+        final joinEventId = db.collection('eventIds').doc().id;
         String? joined;
         await db.runTransaction((tx) async {
           final invite = db.doc('invites/$token');
@@ -412,6 +445,7 @@ class SparkBackend {
           }
           final account = db.doc('accounts/$uid');
           final accountSnap = await tx.get(account);
+          final parent = await tx.get(space(joined!));
           final old = accountSnap.data() ?? {};
           if (List.from(old['spaceIds'] ?? []).contains(joined)) return;
           tx.update(invite, {'redeemedUid': uid});
@@ -421,6 +455,8 @@ class SparkBackend {
             'memberCount': FieldValue.increment(1),
             'joinToken': token,
           });
+          addSpaceEvent(tx, joined!, joinEventId, type: 'joined', entityId: uid,
+            targetUid: uid, recipients: [...List<String>.from(parent.data()?['memberUids'] as List? ?? []), uid]);
           tx.set(space(joined!).collection('members').doc(uid), {
             ...member('member'),
             'joinToken': token,
@@ -461,6 +497,7 @@ class SparkBackend {
       case 'removeMember':
       case 'leaveSpace':
         final target = action == 'leaveSpace' ? uid : v['memberUid'] as String;
+        final departureEventId = db.collection('eventIds').doc().id;
         final tasks = await space(id!)
             .collection('tasks')
             .where('status', isNotEqualTo: 'completed')
@@ -480,6 +517,10 @@ class SparkBackend {
             'memberCount': FieldValue.increment(-1),
             'removedUid': target,
           });
+          addSpaceEvent(tx, id, departureEventId,
+            type: action == 'leaveSpace' ? 'left' : 'removed', entityId: target,
+            targetUid: target,
+            recipients: List<String>.from(parent['memberUids'] as List? ?? [])..remove(target));
           tx.update(space(id).collection('members').doc(target), {
             'status': 'removed',
           });
@@ -512,12 +553,22 @@ class SparkBackend {
         });
         return {'ok': true};
       case 'offerOwnership':
-        await space(id!).update({'pendingOwnerUid': v['memberUid']});
+        final nominee = v['memberUid'] as String;
+        final offerEventId = db.collection('eventIds').doc().id;
+        await db.runTransaction((tx) async {
+          final parent = (await tx.get(space(id!))).data()!;
+          tx.update(space(id), {'pendingOwnerUid': nominee});
+          addSpaceEvent(tx, id, offerEventId, type: 'ownershipOffered', entityId: nominee,
+            targetUid: nominee, recipients: List<String>.from(parent['memberUids'] as List? ?? []));
+        });
         return {'ok': true};
       case 'acceptOwnership':
+        final acceptEventId = db.collection('eventIds').doc().id;
         await db.runTransaction((tx) async {
           final parent = (await tx.get(space(id!))).data()!;
           tx.update(space(id), {'ownerUid': uid, 'pendingOwnerUid': null});
+          addSpaceEvent(tx, id, acceptEventId, type: 'ownershipAccepted', entityId: uid,
+            targetUid: uid, recipients: List<String>.from(parent['memberUids'] as List? ?? []));
           tx.update(db.doc('accounts/$uid'), {
             'ownedSpaceIds': FieldValue.arrayUnion([id]),
             'changedSpaceId': id,
@@ -601,41 +652,39 @@ class SparkBackend {
       case 'requestHelp':
         final sId = id!;
         final taskId = v['taskId'] as String;
-        final taskDoc = await space(sId).collection('tasks').doc(taskId).get();
-        final currentActivity = List<Map<String, dynamic>>.from(
-          taskDoc.data()?['activity'] as List? ?? [],
-        );
-        currentActivity.insert(0, {
-          'action': 'help_requested',
-          'uid': uid,
-          'name': user.displayName ?? 'Member',
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        });
-        await space(sId).collection('tasks').doc(taskId).update({
-          'helpNeeded': true,
-          'activity': currentActivity,
-          'updatedAt': FieldValue.serverTimestamp(),
+        final helpEventId = db.collection('eventIds').doc().id;
+        await db.runTransaction((tx) async {
+          final taskRef = space(sId).collection('tasks').doc(taskId);
+          final taskDoc = await tx.get(taskRef);
+          final parent = await tx.get(space(sId));
+          if (taskDoc.data()?['helpNeeded'] == true) return;
+          final currentActivity = List<Map<String, dynamic>>.from(taskDoc.data()?['activity'] as List? ?? []);
+          currentActivity.insert(0, {'action': 'help_requested', 'uid': uid,
+            'name': user.displayName ?? 'Member', 'timestamp': DateTime.now().millisecondsSinceEpoch});
+          tx.update(taskRef, {'helpNeeded': true, 'activity': currentActivity,
+            'updatedAt': FieldValue.serverTimestamp()});
+          addSpaceEvent(tx, sId, helpEventId, type: 'helpRequested', entityId: taskId,
+            recipients: List<String>.from(parent.data()?['memberUids'] as List? ?? []));
         });
         return {'ok': true};
       case 'takeOverTask':
         final sId = id!;
         final taskId = v['taskId'] as String;
-        final taskDoc = await space(sId).collection('tasks').doc(taskId).get();
-        final currentActivity = List<Map<String, dynamic>>.from(
-          taskDoc.data()?['activity'] as List? ?? [],
-        );
-        currentActivity.insert(0, {
-          'action': 'taken_over',
-          'uid': uid,
-          'name': user.displayName ?? 'Member',
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        });
-        await space(sId).collection('tasks').doc(taskId).update({
-          'ownerUid': uid,
-          'requestedUid': null,
-          'helpNeeded': false,
-          'activity': currentActivity,
-          'updatedAt': FieldValue.serverTimestamp(),
+        final takeoverEventId = db.collection('eventIds').doc().id;
+        await db.runTransaction((tx) async {
+          final taskRef = space(sId).collection('tasks').doc(taskId);
+          final taskDoc = await tx.get(taskRef);
+          final parent = await tx.get(space(sId));
+          if (taskDoc.data()?['ownerUid'] == uid) return;
+          final currentActivity = List<Map<String, dynamic>>.from(taskDoc.data()?['activity'] as List? ?? []);
+          currentActivity.insert(0, {'action': 'taken_over', 'uid': uid,
+            'name': user.displayName ?? 'Member', 'timestamp': DateTime.now().millisecondsSinceEpoch});
+          tx.update(taskRef, {'ownerUid': uid, 'requestedUid': null,
+            'helpNeeded': false, 'activity': currentActivity,
+            'updatedAt': FieldValue.serverTimestamp()});
+          addSpaceEvent(tx, sId, takeoverEventId, type: 'covered', entityId: taskId,
+            targetUid: taskDoc.data()?['creatorUid'] as String?,
+            recipients: List<String>.from(parent.data()?['memberUids'] as List? ?? []));
         });
         return {'ok': true};
       case 'createDependentProfile':

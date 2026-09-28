@@ -239,6 +239,47 @@ async function activityForTask(
   });
 }
 
+async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc, now: Date): Promise<void> {
+  const e = fields(event);
+  const eventId = event.name.split('/').pop()!;
+  const type = String(e.type ?? '');
+  const actor = String(e.actorUid ?? '');
+  const entityId = String(e.entityId ?? '');
+  const current = new Set((space.memberUids as string[] ?? []));
+  const original = (e.recipientUids as string[] ?? []);
+  const target = typeof e.targetUid === 'string' ? e.targetUid : null;
+  const task = ['taskAssigned', 'helpRequested', 'covered', 'completed'].includes(type)
+    ? fields(await get(`spaces/${spaceId}/tasks/${entityId}`) ?? { name: '', fields: {} }) : {};
+  const recipients = original.filter((uid) => current.has(uid) && uid !== actor && (
+    type === 'ownershipOffered' || type === 'taskAssigned' ? uid === target
+    : type === 'covered' || type === 'completed' ?
+      uid === task.creatorUid || uid === task.ownerUid || uid === task.requestedUid || uid === task.offeredUid
+    : true
+  ));
+  const labels: Record<string, [string, string]> = {
+    joined: ['A member joined', 'Someone joined your space.'],
+    left: ['A member left', 'Someone left your space.'],
+    removed: ['A member was removed', 'Your space membership changed.'],
+    ownershipOffered: ['Ownership offer', 'Review the offer in your space.'],
+    ownershipAccepted: ['Ownership transferred', 'Your space has a new owner.'],
+    taskAssigned: ['Task assigned', 'A task needs your response.'],
+    helpRequested: ['Help requested', 'A member asked for help with a task.'],
+    covered: ['Task covered', 'Someone is covering a task.'],
+    completed: ['Task done', 'A shared task was completed.'],
+  };
+  const copy = labels[type];
+  if (!copy) return;
+  for (const uid of recipients) {
+    await create(`accounts/${uid}/activity/event_${spaceId}_${eventId}`, {
+      spaceId, kind: type, eventId, entityId,
+      ...(type.startsWith('task') || ['helpRequested', 'covered', 'completed'].includes(type) ? { taskId: entityId } : {}),
+      title: copy[0], body: copy[1],
+      createdAt: typeof e.createdAt === 'string' ? new Date(e.createdAt) : now,
+      readAt: null, pushState: 'none',
+    });
+  }
+}
+
 async function activityForPlan(spaceId: string, space: Fields, plan: Doc, now: Date): Promise<void> {
   const p = fields(plan);
   const reminder = String(p.reminder ?? 'none');
@@ -407,6 +448,9 @@ async function run(): Promise<{ spaces: number; errors: number }> {
       }
       for (const task of await list(`spaces/${id}/tasks`)) {
         await activityForTask(id, s, task, today.date, now, today.minute >= 540);
+      }
+      for (const event of await list(`spaces/${id}/events`)) {
+        await activityForSpaceEvent(id, s, event, now);
       }
       for (const plan of await list(`spaces/${id}/plans`)) {
         await activityForPlan(id, s, plan, now);

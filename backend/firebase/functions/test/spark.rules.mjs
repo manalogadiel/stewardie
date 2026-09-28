@@ -57,6 +57,21 @@ test('Spark moods persist with expiry; peers cannot overwrite them or plans',asy
  await assertFails(db('alice').doc('spaces/home/plans/walk').update({ownerUid:'alice'}));
  await assertFails(db('alice').doc('spaces/home/plans/walk').delete());
 });
+test('space events require a matching atomic transition and inboxes stay server-owned', async()=>{
+ const d=db('bob');
+ const event={type:'covered',actorUid:'bob',entityId:'task',targetUid:'alice',
+  recipientUids:['alice','bob'],createdAt:now()};
+ await assertFails(d.doc('spaces/home/events/forged').set(event));
+ await assertFails(db('outsider').doc('spaces/home/events/forged').set(event));
+ await assertFails(d.doc('accounts/alice/activity/forged').set({title:'Fake'}));
+ const batch=d.batch();
+ batch.update(d.doc('spaces/home/tasks/task'),{status:'accepted',ownerUid:'bob',requestedUid:null,
+  offeredUid:null,version:2,updatedAt:now()});
+ batch.set(d.doc('spaces/home/events/task_task_2'),event);
+ await assertSucceeds(batch.commit());
+ await assertFails(d.doc('spaces/home/events/task_task_2').update({type:'completed'}));
+ await assertFails(d.doc('spaces/home/events/task_task_2').delete());
+});
 test('location sessions restrict recipients and expire at the server',async()=>{
  const d=db('alice');
  const location={uid:'alice',name:'Alice',lat:14.6,lng:121,accuracy:25,

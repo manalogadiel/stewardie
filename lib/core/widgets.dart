@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../features/timeline/domain/models.dart';
 import 'theme.dart';
+import 'member_avatar.dart' as identity;
 
 class PageBody extends StatelessWidget {
   const PageBody({
@@ -46,24 +47,7 @@ class MemberAvatar extends StatelessWidget {
   final double size;
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
-    child: Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: SoftPop.members[member.colorIndex],
-        borderRadius: BorderRadius.circular(size * .38),
-      ),
-      child: Text(
-        member.initials,
-        textScaler: TextScaler.noScaling,
-        style: TextStyle(
-          color: SoftPop.ink,
-          fontWeight: FontWeight.w800,
-          fontSize: size * .4,
-        ),
-      ),
-    ),
+    child: identity.MemberAvatar(uid: member.id, name: member.name, radius: size / 2),
   );
 }
 

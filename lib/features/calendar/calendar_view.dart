@@ -471,163 +471,192 @@ Future<void> showPlanDetails(
   final backend = ref.read(sharedBackendProvider);
   final repository = ref.read(repositoryProvider);
   return showDialog<void>(
-  context: context,
-  builder: (dialogContext) => AlertDialog(
-    title: Text(plan.title),
-    content: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('${personName(space, plan.ownerId)} · ${space.name}'),
-          if (plan.ownerId != space.currentUserId && backend != null)
-            TextButton.icon(onPressed: () => SafetySheet.report(dialogContext, backend,
-              spaceId: plan.spaceId, kind: 'plan', contentId: plan.id,
-              targetUid: plan.ownerId), icon: const Icon(Icons.flag_outlined),
-              label: const Text('Report plan')),
-          Text(switch (plan.syncState) {
-            SyncState.synced => 'Synced',
-            SyncState.pending => plan.pendingRemoval ? 'Removal pending' : 'Pending sync',
-            SyncState.failed => 'Needs retry',
-          }),
-          if (plan.isImported)
-            const Text('Shared from Google Calendar · read-only here'),
-          const SizedBox(height: 12),
-          Text('${planDates(context, plan)} · ${planTime(context, plan)}'),
-          if (plan.note.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(plan.note),
-            ),
-          if (plan.pin != null) ...[
-            const SizedBox(height: 12),
-            Text('At ${plan.pin!.label}'),
-            if (plan.pin!.note.isNotEmpty) Text(plan.pin!.note),
-            TextButton.icon(
-              onPressed: () => ExternalLauncher.openMapDirections(
-                dialogContext,
-                query: plan.pin!.label,
-                lat: plan.pin!.lat,
-                lng: plan.pin!.lng,
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(plan.title),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${personName(space, plan.ownerId)} · ${space.name}'),
+            if (plan.ownerId != space.currentUserId && backend != null)
+              TextButton.icon(
+                onPressed: () => SafetySheet.report(
+                  dialogContext,
+                  backend,
+                  spaceId: plan.spaceId,
+                  kind: 'plan',
+                  contentId: plan.id,
+                  targetUid: plan.ownerId,
+                ),
+                icon: const Icon(Icons.flag_outlined),
+                label: const Text('Report plan'),
               ),
-              icon: const Icon(Icons.directions_outlined),
-              label: const Text('Get directions'),
-            ),
-            if (plan.syncState == SyncState.synced && backend != null)
-              StreamBuilder(
-                stream: backend.firestore
-                    .doc(
-                      'spaces/${space.id}/plans/${plan.id}/arrivals/${backend.auth.currentUser!.uid}',
-                    )
-                    .snapshots(),
-                builder: (context, snapshot) => OutlinedButton.icon(
-                  onPressed: snapshot.data?.exists == true
-                      ? null
-                      : () async {
-                          try {
-                            await backend.call('checkInPlanArrival', {
-                              'spaceId': space.id,
-                              'planId': plan.id,
-                            });
-                          } catch (_) {
-                            if (dialogContext.mounted) {
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Could not check in. Try again.',
-                                  ),
-                                ),
-                              );
+            Text(switch (plan.syncState) {
+              SyncState.synced => 'Synced',
+              SyncState.pending =>
+                plan.pendingRemoval ? 'Removal pending' : 'Pending sync',
+              SyncState.failed => 'Needs retry',
+            }),
+            if (plan.isImported)
+              const Text('Shared from Google Calendar · read-only here'),
+            const SizedBox(height: 12),
+            Text('${planDates(context, plan)} · ${planTime(context, plan)}'),
+            if (plan.note.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(plan.note),
+              ),
+            if (plan.pin != null) ...[
+              const SizedBox(height: 12),
+              Text('At ${plan.pin!.label}'),
+              if (plan.pin!.note.isNotEmpty) Text(plan.pin!.note),
+              TextButton.icon(
+                onPressed: () => ExternalLauncher.openMapDirections(
+                  dialogContext,
+                  query: plan.pin!.label,
+                  lat: plan.pin!.lat,
+                  lng: plan.pin!.lng,
+                ),
+                icon: const Icon(Icons.directions_outlined),
+                label: const Text('Get directions'),
+              ),
+              if (plan.syncState == SyncState.synced && backend != null)
+                StreamBuilder(
+                  stream: backend.firestore
+                      .doc(
+                        'spaces/${space.id}/plans/${plan.id}/arrivals/${backend.auth.currentUser!.uid}',
+                      )
+                      .snapshots(),
+                  builder: (context, snapshot) => OutlinedButton.icon(
+                    onPressed: snapshot.data?.exists == true
+                        ? null
+                        : () async {
+                            try {
+                              await backend.call('checkInPlanArrival', {
+                                'spaceId': space.id,
+                                'planId': plan.id,
+                              });
+                            } catch (_) {
+                              if (dialogContext.mounted) {
+                                ScaffoldMessenger.of(dialogContext)
+                                    .showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Could not check in. Try again.',
+                                        ),
+                                      ),
+                                    );
+                              }
                             }
-                          }
-                        },
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: Text(
-                    snapshot.data?.exists == true
-                        ? 'You reported arriving'
-                        : "I'm here · member-reported",
+                          },
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: Text(
+                      snapshot.data?.exists == true
+                          ? 'You reported arriving'
+                          : "I'm here · member-reported",
+                    ),
                   ),
+                ),
+            ],
+            if (plan.participants.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  'With ${plan.participants.map((id) => personName(space, id)).join(', ')}',
                 ),
               ),
           ],
-          if (plan.participants.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                'With ${plan.participants.map((id) => personName(space, id)).join(', ')}',
-              ),
-            ),
-        ],
-      ),
-    ),
-    actions: [
-      if (plan.syncState == SyncState.failed && repository is FirebaseTimelineRepository)
-        TextButton(onPressed: () {
-          repository.outbox.acknowledged(repository.outbox.items.firstWhere((i) =>
-            (i['kind'] == 'planSave' || i['kind'] == 'planRemove') && i['spaceId'] == plan.spaceId && (i['payload'] as Map)['planId'] == plan.id)['id'] as String);
-          Navigator.pop(dialogContext);
-        }, child: const Text('Discard local change')),
-      if (plan.syncState == SyncState.failed && repository is FirebaseTimelineRepository)
-        TextButton(onPressed: () {
-          repository.outbox.flush(retryFailed: true);
-          Navigator.pop(dialogContext);
-        }, child: const Text('Retry sync')),
-      if (plan.syncState == SyncState.synced && plan.ownerId == space.currentUserId && !plan.isImported)
-        TextButton(
-          onPressed: () {
-            Navigator.pop(dialogContext);
-            showPlanEditor(context, space, plan.localStart, existing: plan);
-          },
-          child: const Text('Edit plan'),
         ),
-      if (plan.syncState == SyncState.synced && plan.ownerId == space.currentUserId)
-        TextButton(
-          onPressed: () async {
-            final confirmed = await showDialog<bool>(
-              context: dialogContext,
-              builder: (c) => AlertDialog(
-                title: const Text('Remove this plan?'),
-                content: const Text(
-                  'It will be removed from this space’s calendar.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(c, false),
-                    child: const Text('Keep plan'),
+      ),
+      actions: [
+        if (plan.syncState == SyncState.failed &&
+            repository is FirebaseTimelineRepository)
+          TextButton(
+            onPressed: () {
+              repository.outbox.acknowledged(
+                repository.outbox.items.firstWhere(
+                      (i) =>
+                          (i['kind'] == 'planSave' ||
+                              i['kind'] == 'planRemove') &&
+                          i['spaceId'] == plan.spaceId &&
+                          (i['payload'] as Map)['planId'] == plan.id,
+                    )['id']
+                    as String,
+              );
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Discard local change'),
+          ),
+        if (plan.syncState == SyncState.failed &&
+            repository is FirebaseTimelineRepository)
+          TextButton(
+            onPressed: () {
+              repository.outbox.flush(retryFailed: true);
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Retry sync'),
+          ),
+        if (plan.syncState == SyncState.synced &&
+            plan.ownerId == space.currentUserId &&
+            !plan.isImported)
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              showPlanEditor(context, space, plan.localStart, existing: plan);
+            },
+            child: const Text('Edit plan'),
+          ),
+        if (plan.syncState == SyncState.synced &&
+            plan.ownerId == space.currentUserId)
+          TextButton(
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: dialogContext,
+                builder: (c) => AlertDialog(
+                  title: const Text('Remove this plan?'),
+                  content: const Text(
+                    'It will be removed from this space’s calendar.',
                   ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(c, true),
-                    child: const Text('Remove'),
-                  ),
-                ],
-              ),
-            );
-            if (confirmed == true) {
-              try {
-                await ref
-                    .read(calendarRepositoryProvider)
-                    .remove(plan.id, space.currentUserId);
-                ref.read(calendarProvider.notifier).refresh();
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              } catch (_) {
-                if (dialogContext.mounted) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not remove this plan. Try again.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(c, false),
+                      child: const Text('Keep plan'),
                     ),
-                  );
+                    FilledButton(
+                      onPressed: () => Navigator.pop(c, true),
+                      child: const Text('Remove'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true) {
+                try {
+                  await ref
+                      .read(calendarRepositoryProvider)
+                      .remove(plan.id, space.currentUserId);
+                  ref.read(calendarProvider.notifier).refresh();
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                } catch (_) {
+                  if (dialogContext.mounted) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Could not remove this plan. Try again.'),
+                      ),
+                    );
+                  }
                 }
               }
-            }
-          },
-          child: Text(plan.isImported ? 'Unshare event' : 'Remove plan'),
+            },
+            child: Text(plan.isImported ? 'Unshare event' : 'Remove plan'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Close'),
         ),
-      TextButton(
-        onPressed: () => Navigator.pop(dialogContext),
-        child: const Text('Close'),
-      ),
-    ],
-  ),
+      ],
+    ),
   );
 }
 
@@ -806,6 +835,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                       icon: const Icon(Icons.calendar_month_outlined),
                       label: Text(local.formatMediumDate(begin ? start : end)),
                     ),
+                    const SizedBox(height: 8),
                     if (!allDay)
                       OutlinedButton.icon(
                         onPressed: () => pick(begin, true),
@@ -816,7 +846,7 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                           ),
                         ),
                       ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                   ],
                   if (!allDay)
                     Text(
@@ -826,13 +856,29 @@ class _PlanEditorState extends ConsumerState<PlanEditor> {
                   DropdownButtonFormField<PlanReminder>(
                     value: reminder,
                     decoration: const InputDecoration(labelText: 'Reminder'),
-                    items: (allDay
-                            ? const [PlanReminder.none, PlanReminder.morningOf, PlanReminder.morningBefore]
-                            : const [PlanReminder.none, PlanReminder.atStart, PlanReminder.tenMinutes,
-                                PlanReminder.oneHour, PlanReminder.oneDay])
-                        .map((option) => DropdownMenuItem(value: option, child: Text(option.label)))
-                        .toList(),
-                    onChanged: (option) => setState(() => reminder = option ?? PlanReminder.none),
+                    items:
+                        (allDay
+                                ? const [
+                                    PlanReminder.none,
+                                    PlanReminder.morningOf,
+                                    PlanReminder.morningBefore,
+                                  ]
+                                : const [
+                                    PlanReminder.none,
+                                    PlanReminder.atStart,
+                                    PlanReminder.tenMinutes,
+                                    PlanReminder.oneHour,
+                                    PlanReminder.oneDay,
+                                  ])
+                            .map(
+                              (option) => DropdownMenuItem(
+                                value: option,
+                                child: Text(option.label),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (option) =>
+                        setState(() => reminder = option ?? PlanReminder.none),
                   ),
                   const SizedBox(height: 16),
                   Text(

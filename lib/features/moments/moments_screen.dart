@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:flutter/material.dart';
@@ -26,7 +27,7 @@ class MomentsScreen extends ConsumerStatefulWidget {
   ConsumerState<MomentsScreen> createState() => _MomentsScreenState();
 }
 
-class _MomentsScreenState extends ConsumerState<MomentsScreen> {
+class _MomentsScreenState extends ConsumerState<MomentsScreen> with WidgetsBindingObserver {
   PageController pages = PageController();
   int index = 0;
   String scope = '';
@@ -37,12 +38,18 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final backend = ref.read(sharedBackendProvider);
     if (backend != null && backend.auth.currentUser != null) {
-      _hiddenSub = backend.firestore.collection('accounts')
-        .doc(backend.auth.currentUser!.uid).collection('hidden').snapshots().listen((snapshot) {
-          if (mounted) setState(() => _hidden = snapshot.docs.map((d) => d.id).toSet());
-        });
+      _hiddenSub = backend.firestore
+          .collection('accounts')
+          .doc(backend.auth.currentUser!.uid)
+          .collection('hidden')
+          .snapshots()
+          .listen((snapshot) {
+            if (mounted)
+              setState(() => _hidden = snapshot.docs.map((d) => d.id).toSet());
+          });
     }
     _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted &&
@@ -51,6 +58,13 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
         unawaited(ref.read(mediaLibraryProvider).refresh(_cloudSpace!));
       }
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _cloudSpace != null) {
+      unawaited(ref.read(mediaLibraryProvider).refresh(_cloudSpace!));
+    }
   }
 
   Future<void> discardRecovery() async {
@@ -69,6 +83,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _hiddenSub?.cancel();
     pages.dispose();
@@ -148,22 +163,17 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
             library.syncError!,
             style: const TextStyle(color: SoftPop.secondary),
           ),
+        if (library.syncError != null && library.supportsSharing)
+          TextButton.icon(
+            onPressed: library.syncing ? null : () => library.refresh(space.id),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry loading moments'),
+          ),
         if (library.pendingIds.isNotEmpty)
           TextButton.icon(
             onPressed: library.syncing ? null : () => library.retryPending(),
             icon: const Icon(Icons.cloud_upload_outlined),
             label: Text('Retry sharing (${library.pendingIds.length})'),
-          ),
-        if (library.supportsSharing)
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: library.syncing
-                  ? null
-                  : () => library.refresh(space.id),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Refresh moments'),
-            ),
           ),
         if (photo != null &&
             !photo.cloud &&
@@ -277,9 +287,11 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
                 lng: photo.pin!.lng,
               ),
               icon: const Icon(Icons.place_outlined),
-              label: Text(photo.pin!.source == 'capture'
-                  ? 'Capture pin · view on map'
-                  : '${photo.pin!.label} · manually pinned'),
+              label: Text(
+                photo.pin!.source == 'capture'
+                    ? 'Capture pin · view on map'
+                    : '${photo.pin!.label} · manually pinned',
+              ),
             ),
           if (task != null && repo.canView(task))
             TextButton.icon(
@@ -292,11 +304,17 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
               onPressed: () => removePhoto(context, ref, photo),
               child: const Text('Remove photo'),
             ),
-          if (photo.uploaderId != repo.currentUserId && ref.read(sharedBackendProvider) != null)
+          if (photo.uploaderId != repo.currentUserId &&
+              ref.read(sharedBackendProvider) != null)
             TextButton.icon(
-              onPressed: () => SafetySheet.report(context, ref.read(sharedBackendProvider)!,
-                spaceId: space.id, kind: 'moment', contentId: photo.id,
-                targetUid: photo.uploaderId),
+              onPressed: () => SafetySheet.report(
+                context,
+                ref.read(sharedBackendProvider)!,
+                spaceId: space.id,
+                kind: 'moment',
+                contentId: photo.id,
+                targetUid: photo.uploaderId,
+              ),
               icon: const Icon(Icons.flag_outlined),
               label: const Text('Report or hide moment'),
             ),

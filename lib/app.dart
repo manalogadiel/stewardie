@@ -228,7 +228,9 @@ class AppShell extends ConsumerWidget {
                                   children: [
                                     const ListTile(title: Text('Inbox')),
                                     if (requests.isEmpty)
-                                      const ListTile(title: Text('You’re all caught up.')),
+                                      const ListTile(
+                                        title: Text('You’re all caught up.'),
+                                      ),
                                     for (final task in requests)
                                       ListTile(title: Text(task.title)),
                                   ],
@@ -239,15 +241,19 @@ class AppShell extends ConsumerWidget {
                             ActivityInboxSheet.show(
                               context,
                               backend: backend,
-                              spaceId: space.id,
+                              spaceNames: {space.id: space.name},
                               requests: [
                                 for (final task in requests)
                                   ListTile(
                                     title: Text(task.title),
-                                    subtitle: Text(task.offeredId == null
-                                        ? 'Awaiting your acceptance'
-                                        : 'Review a handoff offer'),
-                                    trailing: const Icon(Icons.chevron_right_rounded),
+                                    subtitle: Text(
+                                      task.offeredId == null
+                                          ? 'Awaiting your acceptance'
+                                          : 'Review a handoff offer',
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.chevron_right_rounded,
+                                    ),
                                     onTap: () {
                                       Navigator.pop(context);
                                       context.push('/task/${task.id}');

@@ -233,6 +233,60 @@ service cloud.firestore {
           && request.resource.data.status == 'approved';
         allow delete: if member(id) || self(joinUid);
       }
+      // Immutable, transaction-bound facts. Clients cannot write account inboxes.
+      match /events/{eventId} {
+        allow read: if member(id);
+        function taskPath() {
+          return /databases/$(database)/documents/spaces/$(id)/tasks/$(request.resource.data.entityId);
+        }
+        function taskEvent() {
+          let e = request.resource.data;
+          let after = getAfter(taskPath()).data;
+          return member(id) && existsAfter(taskPath())
+            && after.updatedAt == request.time
+            && ((e.type == 'taskAssigned' && !exists(taskPath())
+                  && after.creatorUid == request.auth.uid && after.requestedUid == e.targetUid)
+              || (exists(taskPath()) &&
+                ((e.type == 'helpRequested'
+                    && get(taskPath()).data.get('helpNeeded', false) == false
+                    && after.get('helpNeeded', false) == true)
+                  || (e.type == 'helpRequested' && get(taskPath()).data.status == 'accepted'
+                    && after.status == 'needsHelp' && after.ownerUid == request.auth.uid)
+                  || (e.type == 'covered' && after.status == 'accepted'
+                    && after.ownerUid != get(taskPath()).data.ownerUid
+                    && (after.ownerUid == request.auth.uid || get(taskPath()).data.ownerUid == request.auth.uid)
+                    && e.targetUid == after.creatorUid)
+                  || (e.type == 'completed' && get(taskPath()).data.status != 'completed'
+                    && after.status == 'completed' && after.ownerUid == request.auth.uid))));
+        }
+        function spaceEvent() {
+          let e = request.resource.data;
+          return (e.type == 'joined' && e.entityId == request.auth.uid
+                    && e.targetUid == request.auth.uid
+                    && !(request.auth.uid in sp(id).memberUids)
+                    && request.auth.uid in afterSpace(id).memberUids)
+            || (e.type in ['left','removed'] && e.targetUid == e.entityId
+                    && e.entityId in sp(id).memberUids
+                    && !(e.entityId in afterSpace(id).memberUids)
+                    && (e.type == 'left' ? e.entityId == request.auth.uid : owner(id)))
+            || (owner(id) && e.type == 'ownershipOffered'
+                    && e.targetUid == e.entityId && e.targetUid in sp(id).memberUids
+                    && sp(id).get('pendingOwnerUid', null) != e.targetUid
+                    && afterSpace(id).pendingOwnerUid == e.targetUid)
+            || (member(id) && e.type == 'ownershipAccepted'
+                    && e.entityId == request.auth.uid && e.targetUid == request.auth.uid
+                    && sp(id).ownerUid != request.auth.uid
+                    && afterSpace(id).ownerUid == request.auth.uid);
+        }
+        allow create: if verified()
+          && request.resource.data.keys().hasOnly(['type','actorUid','entityId','targetUid','recipientUids','createdAt'])
+          && request.resource.data.keys().hasAll(['type','actorUid','entityId','recipientUids','createdAt'])
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && shortText(request.resource.data.entityId, 160)
+          && request.resource.data.recipientUids == afterSpace(id).memberUids
+          && (taskEvent() || spaceEvent());
+      }
       match /tasks/{task} {
         allow read: if member(id) && (!exists(/databases/$(database)/documents/spaces/$(id)/tasks/$(task)) || resource.data.status != 'completed' || plus() || resource.data.completedAt >= request.time.date() - duration.value(3, 'd'));
         allow delete: if member(id);
@@ -278,7 +332,16 @@ service cloud.firestore {
             && request.resource.data.updatedAt == request.time
             && shortText(request.resource.data.title, 120);
         }
-        allow update: if member(id) && (contentEdit() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
+        function helpTakeover() {
+          return resource.data.get('helpNeeded', false) == true
+            && resource.data.status == 'accepted'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid','requestedUid','helpNeeded','activity','updatedAt'])
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.requestedUid == null
+            && request.resource.data.helpNeeded == false
+            && request.resource.data.updatedAt == request.time;
+        }
+        allow update: if member(id) && (contentEdit() || helpTakeover() || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
           && request.resource.data.version == resource.data.version + 1 && request.resource.data.updatedAt == request.time && (transition() || released())));
         match /operations/{op} {
           allow read: if member(id) && op.matches(request.auth.uid + '_.*');

@@ -1,16 +1,16 @@
-import 'dart:math';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
+import '../core/stewardie_map.dart';
+import '../core/member_avatar.dart';
 import 'external_launcher.dart';
 import 'live_location_service.dart';
 import 'online_backend.dart';
 
-/// Modal bottom sheet featuring an interactive live map (flutter_map) and clay radar view
-/// with real-time member locations and GPS sharing.
+/// A private map view; opening it does not start live sharing.
 class SpaceMapSheet extends StatefulWidget {
   const SpaceMapSheet({
     super.key,
@@ -30,6 +30,7 @@ class SpaceMapSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFFFAF9F6),
+      showDragHandle: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -45,9 +46,13 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   final MapController _mapController = MapController();
   int _selectedDuration = 15; // 15, 30, 60
   Map<String, dynamic>? _selectedMember;
-  bool _showRadarView = false;
-  LatLng _lastKnownCenter = const LatLng(0, 0);
+  StewardieMapStyle _style = StewardieMapStyle.satellite;
+  LatLng _lastKnownCenter = const LatLng(12, 122);
   LatLng? _currentUserLatLng;
+  bool _mapReady = false;
+  bool _allowAutoCenter = true;
+  bool _freshResolved = false;
+  String _locationStatus = 'Finding your location…';
   bool _starting = false;
   String? _error;
 
@@ -55,25 +60,43 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   void initState() {
     super.initState();
     final cached = LiveLocationService.instance.currentPosition.value;
-    if (cached != null) {
+    if (cached != null &&
+        DateTime.now().difference(cached.timestamp) <
+            const Duration(minutes: 10)) {
       final pos = LatLng(cached.latitude, cached.longitude);
       _lastKnownCenter = pos;
       _currentUserLatLng = pos;
+      _locationStatus = 'Showing a recent device location while locating…';
     }
     LiveLocationService.instance.currentPosition.addListener(
       _onPositionChanged,
     );
+    _showCachedPosition();
     _initUserLocation();
+  }
+
+  Future<void> _showCachedPosition() async {
+    try {
+      final cached = await Geolocator.getLastKnownPosition();
+      if (cached == null || !mounted || _freshResolved ||
+          DateTime.now().difference(cached.timestamp) > const Duration(minutes: 10)) return;
+      final point = LatLng(cached.latitude, cached.longitude);
+      setState(() { _currentUserLatLng = point; _lastKnownCenter = point;
+        _locationStatus = 'Showing a recent device location while locating…'; });
+      if (_allowAutoCenter && _mapReady) _mapController.move(point, 15);
+    } catch (_) { /* A cached fix is optional. */ }
   }
 
   void _onPositionChanged() {
     final pos = LiveLocationService.instance.currentPosition.value;
     if (pos != null && mounted) {
+      _freshResolved = true;
+      final latLng = LatLng(pos.latitude, pos.longitude);
       setState(() {
-        final latLng = LatLng(pos.latitude, pos.longitude);
         _currentUserLatLng = latLng;
         _lastKnownCenter = latLng;
       });
+      if (_allowAutoCenter && _mapReady) _mapController.move(latLng, 15);
     }
   }
 
@@ -86,20 +109,39 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   }
 
   Future<void> _initUserLocation() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      if (mounted)
+        setState(
+          () => _locationStatus =
+              'Location services are off. Enable them to recenter.',
+        );
+      return;
+    }
     final pos = await LiveLocationService.instance.determinePosition();
     if (pos != null && mounted) {
       final userLatLng = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _lastKnownCenter = userLatLng;
         _currentUserLatLng = userLatLng;
+        _locationStatus = 'Your private device location';
       });
-      try {
-        _mapController.move(userLatLng, 15.0);
-      } catch (_) {}
+      if (_allowAutoCenter && _mapReady) _mapController.move(userLatLng, 15.0);
+    } else if (mounted) {
+      final permission = await Geolocator.checkPermission();
+      setState(
+        () => _locationStatus =
+            permission == LocationPermission.denied ||
+                permission == LocationPermission.deniedForever
+            ? 'Location permission denied. Enable it in device settings.'
+            : 'Location timed out or is unavailable. Try Recenter.',
+      );
     }
   }
 
   Future<void> _recenterOnUser() async {
+    _allowAutoCenter = true;
+    if (_currentUserLatLng != null && _mapReady)
+      _mapController.move(_currentUserLatLng!, 15);
     final pos = await LiveLocationService.instance.determinePosition();
     if (pos != null && mounted) {
       final userLatLng = LatLng(pos.latitude, pos.longitude);
@@ -107,7 +149,12 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
         _lastKnownCenter = userLatLng;
         _currentUserLatLng = userLatLng;
       });
-      _mapController.move(userLatLng, 15.0);
+      if (_mapReady) _mapController.move(userLatLng, 15.0);
+    } else if (mounted) {
+      setState(
+        () => _locationStatus =
+            'Could not update your location. Check permission and services.',
+      );
     }
   }
 
@@ -181,535 +228,442 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
 
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 14, 20, 24 + media.viewInsets.bottom),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4D0C8),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Space map',
-                    style: TextStyle(
-                      fontFamily: 'NunitoSans',
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF202633),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      // View mode toggle (Live Map / Radar)
-                      IconButton(
-                        onPressed: () {
-                          setState(() => _showRadarView = !_showRadarView);
-                        },
-                        icon: Icon(
-                          _showRadarView
-                              ? Icons.map_outlined
-                              : Icons.radar_rounded,
-                          color: const Color(0xFF244BFF),
-                          size: 22,
-                        ),
-                        tooltip: _showRadarView
-                            ? 'Switch to Map'
-                            : 'Switch to Radar',
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close, color: Color(0xFF596171)),
-                        tooltip: 'Close',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _showRadarView
-                    ? 'Pastel clay radar view'
-                    : 'Interactive live map with member pins',
-                style: const TextStyle(
-                  fontFamily: 'NunitoSans',
-                  fontSize: 14,
-                  color: Color(0xFF596171),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Map or Radar View
-              StreamBuilder<List<Map<String, dynamic>>>(
-                stream: widget.backend.locationSessions(widget.spaceId),
-                builder: (context, snapshot) {
-                  final sessions =
-                      snapshot.data ?? const <Map<String, dynamic>>[];
-
-                  if (_showRadarView) {
-                    return Center(
-                      child: SizedBox(
-                        width: 260,
-                        height: 260,
-                        child: GestureDetector(
-                          onTapUp: (details) {
-                            if (sessions.isEmpty) return;
-                            const boxSize = 260.0;
-                            const center = Offset(boxSize / 2, boxSize / 2);
-                            final maxRadius = boxSize / 2 - 12;
-                            final dist = maxRadius * 0.65;
-                            Map<String, dynamic>? closest;
-                            double minDistance = double.infinity;
-                            for (var i = 0; i < sessions.length; i++) {
-                              final angle =
-                                  (i * (2 * pi / max(1, sessions.length))) -
-                                  (pi / 2);
-                              final pinPos = Offset(
-                                center.dx + cos(angle) * dist,
-                                center.dy + sin(angle) * dist,
-                              );
-                              final d =
-                                  (details.localPosition - pinPos).distance;
-                              if (d < minDistance && d < 28) {
-                                minDistance = d;
-                                closest = sessions[i];
-                              }
-                            }
-                            if (closest != null) {
-                              setState(() => _selectedMember = closest);
-                            }
-                          },
-                          child: CustomPaint(
-                            painter: _ClayRadarPainter(sessions: sessions),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  final myUid = widget.backend.auth.currentUser?.uid;
-                  final myUser = widget.backend.auth.currentUser;
-                  final myRawName = myUser?.displayName?.isNotEmpty == true
-                      ? myUser!.displayName!
-                      : (myUser?.email?.split('@').first ?? 'You');
-                  final myInitial = myRawName.isNotEmpty
-                      ? myRawName[0].toUpperCase()
-                      : 'Y';
-
-                  // Build markers for all active sessions
-                  final markers = <Marker>[];
-                  bool userHasSessionMarker = false;
-
-                  for (final s in sessions) {
-                    final lat = (s['lat'] as num?)?.toDouble();
-                    final lng = (s['lng'] as num?)?.toDouble();
-                    if (lat == null || lng == null) continue;
-
-                    final isMe = s['uid'] == myUid;
-                    if (isMe) userHasSessionMarker = true;
-
-                    final name = isMe
-                        ? 'You'
-                        : (s['name'] as String? ?? 'Member');
-                    final initial = isMe
-                        ? myInitial
-                        : (name.isNotEmpty ? name[0].toUpperCase() : 'M');
-                    final isSelected = _selectedMember?['uid'] == s['uid'];
-
-                    markers.add(
-                      Marker(
-                        point: LatLng(lat, lng),
-                        width: 56,
-                        height: 62,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() => _selectedMember = s);
-                          },
-                          child: _buildPin(
-                            initial: initial,
-                            label: isMe ? 'You' : name,
-                            isSelected: isSelected,
-                            isMe: isMe,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  // Only show a personal pin after a real GPS fix. The map's
-                  // neutral (0, 0) center is never a reported location.
-                  final userPoint = _currentUserLatLng;
-                  if (!userHasSessionMarker && userPoint != null) {
-                    final isSelected = _selectedMember?['uid'] == myUid;
-                    markers.add(
-                      Marker(
-                        point: userPoint,
-                        width: 56,
-                        height: 62,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedMember = {
-                                'uid': myUid,
-                                'name': '$myRawName (You)',
-                                'lat': userPoint.latitude,
-                                'lng': userPoint.longitude,
-                              };
-                            });
-                          },
-                          child: _buildPin(
-                            initial: myInitial,
-                            label: 'You',
-                            isSelected: isSelected,
-                            isMe: true,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(22),
-                    child: Container(
-                      height: 280,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8E5DF),
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(
-                          color: const Color(0xFFE5E2DA),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Stack(
-                        children: [
-                          FlutterMap(
-                            mapController: _mapController,
-                            options: MapOptions(
-                              initialCenter:
-                                  sessions.isNotEmpty &&
-                                      sessions.first['lat'] != null &&
-                                      sessions.first['lng'] != null
-                                  ? LatLng(
-                                      (sessions.first['lat'] as num).toDouble(),
-                                      (sessions.first['lng'] as num).toDouble(),
-                                    )
-                                  : _lastKnownCenter,
-                              initialZoom:
-                                  sessions.isEmpty &&
-                                      _lastKnownCenter == const LatLng(0, 0)
-                                  ? 3.0
-                                  : 14.0,
-                              minZoom: 3.0,
-                              maxZoom: 18.0,
-                            ),
-                            children: [
-                              TileLayer(
-                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.stewardie.app',
-                              ),
-                              MarkerLayer(markers: markers),
-                            ],
-                          ),
-                          // Recenter button
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: Material(
-                              color: const Color(0xFFFFFEFB),
-                              shape: const CircleBorder(),
-                              elevation: 3,
-                              child: InkWell(
-                                onTap: _recenterOnUser,
-                                customBorder: const CircleBorder(),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(10),
-                                  child: Icon(
-                                    Icons.my_location_rounded,
-                                    color: Color(0xFF244BFF),
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+      child: SizedBox(
+        height: media.size.height * .9 - media.padding.top,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + media.viewInsets.bottom),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Space map',
+                      style: TextStyle(
+                        fontFamily: 'NunitoSans',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF202633),
                       ),
                     ),
-                  );
-                },
-              ),
-              if (_selectedMember != null) ...[
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Color(0xFF596171),
+                          ),
+                          tooltip: 'Close',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _locationStatus,
+                  style: const TextStyle(
+                    fontFamily: 'NunitoSans',
+                    fontSize: 14,
+                    color: Color(0xFF596171),
+                  ),
+                ),
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFEFB),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE5E2DA)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _selectedMember!['name'] as String? ?? 'Member',
-                            style: const TextStyle(
-                              fontFamily: 'NunitoSans',
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF202633),
-                            ),
-                          ),
-                          Text(
-                            _selectedMember!['updatedAt'] == null
-                                ? 'Current device location · not shared'
-                                : _selectedMember!['updatedAt'] is Timestamp &&
-                                      DateTime.now().difference(
-                                            (_selectedMember!['updatedAt']
-                                                    as Timestamp)
-                                                .toDate(),
-                                          ) >
-                                          const Duration(minutes: 2)
-                                ? 'Last update is stale'
-                                : 'Updated recently · location may be approximate',
-                            style: const TextStyle(
-                              fontFamily: 'NunitoSans',
-                              fontSize: 12,
-                              color: Color(0xFF596171),
-                            ),
-                          ),
-                        ],
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          final lat = (_selectedMember!['lat'] as num?)
-                              ?.toDouble();
-                          final lng = (_selectedMember!['lng'] as num?)
-                              ?.toDouble();
-                          ExternalLauncher.openMapDirections(
-                            context,
-                            query: 'Member location',
-                            lat: lat,
-                            lng: lng,
-                          );
-                        },
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF244BFF),
-                        ),
-                        child: const Text(
-                          'Directions',
-                          style: TextStyle(
-                            fontFamily: 'NunitoSans',
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                SegmentedButton<StewardieMapStyle>(
+                  segments: const [
+                    ButtonSegment(
+                      value: StewardieMapStyle.satellite,
+                      label: Text('Satellite'),
+                      icon: Icon(Icons.satellite_alt_outlined),
+                    ),
+                    ButtonSegment(
+                      value: StewardieMapStyle.streets,
+                      label: Text('Streets'),
+                      icon: Icon(Icons.map_outlined),
+                    ),
+                  ],
+                  selected: {_style},
+                  onSelectionChanged: (value) =>
+                      setState(() => _style = value.first),
                 ),
-              ],
-              const SizedBox(height: 20),
-              ValueListenableBuilder<bool>(
-                valueListenable: locationService.isSharing,
-                builder: (context, sharing, _) {
-                  if (sharing) {
-                    return ValueListenableBuilder<int>(
-                      valueListenable: locationService.remainingMinutes,
-                      builder: (context, remaining, _) {
-                        return Column(
-                          children: [
-                            Text(
-                              'Sharing your live location (${remaining}m left)',
-                              style: const TextStyle(
-                                fontFamily: 'NunitoSans',
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF202633),
-                              ),
+                if (mapTilerKey.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Satellite needs a free MapTiler key. Streets remain available.',
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: widget.backend.locationSessions(widget.spaceId),
+                  builder: (context, snapshot) {
+                    final sessions =
+                        snapshot.data ?? const <Map<String, dynamic>>[];
+
+                    final myUid = widget.backend.auth.currentUser?.uid;
+                    final myUser = widget.backend.auth.currentUser;
+                    final myRawName = myUser?.displayName?.isNotEmpty == true
+                        ? myUser!.displayName!
+                        : (myUser?.email?.split('@').first ?? 'You');
+
+                    // Build markers for all active sessions
+                    final markers = <Marker>[];
+                    bool userHasSessionMarker = false;
+
+                    for (final s in sessions) {
+                      final lat = (s['lat'] as num?)?.toDouble();
+                      final lng = (s['lng'] as num?)?.toDouble();
+                      if (lat == null || lng == null) continue;
+
+                      final isMe = s['uid'] == myUid;
+                      if (isMe) userHasSessionMarker = true;
+
+                      final name = isMe
+                          ? 'You'
+                          : (s['name'] as String? ?? 'Member');
+                      final isSelected = _selectedMember?['uid'] == s['uid'];
+
+                      markers.add(
+                        Marker(
+                          point: LatLng(lat, lng),
+                          width: 56,
+                          height: 62,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _selectedMember = s);
+                            },
+                            child: _buildPin(
+                              uid: s['uid'] as String? ?? '',
+                              name: isMe ? myRawName : name,
+                              label: isMe ? 'You' : name,
+                              isSelected: isSelected,
+                              isMe: isMe,
                             ),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: OutlinedButton(
-                                onPressed: () => locationService.stopSharing(),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFFD32F2F),
-                                  side: const BorderSide(
-                                    color: Color(0xFFD32F2F),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Stop sharing',
-                                  style: TextStyle(
-                                    fontFamily: 'NunitoSans',
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Only show a personal pin after a real GPS fix. The map's
+                    // neutral (0, 0) center is never a reported location.
+                    final userPoint = _currentUserLatLng;
+                    if (!userHasSessionMarker && userPoint != null) {
+                      final isSelected = _selectedMember?['uid'] == myUid;
+                      markers.add(
+                        Marker(
+                          point: userPoint,
+                          width: 56,
+                          height: 62,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedMember = {
+                                  'uid': myUid,
+                                  'name': '$myRawName (You)',
+                                  'lat': userPoint.latitude,
+                                  'lng': userPoint.longitude,
+                                };
+                              });
+                            },
+                            child: _buildPin(
+                              uid: myUid ?? '',
+                              name: myRawName,
+                              label: 'You',
+                              isSelected: isSelected,
+                              isMe: true,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(22),
+                      child: Container(
+                        height: media.size.height * .52,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8E5DF),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: const Color(0xFFE5E2DA),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Stack(
+                          children: [
+                            StewardieMap(
+                              controller: _mapController,
+                              center: _lastKnownCenter,
+                              zoom: _currentUserLatLng == null ? 5 : 15,
+                              markers: markers,
+                              style: _style,
+                              onUserInteraction: () => _allowAutoCenter = false,
+                              onReady: () {
+                                _mapReady = true;
+                                if (_allowAutoCenter &&
+                                    _currentUserLatLng != null) {
+                                  _mapController.move(_currentUserLatLng!, 15);
+                                }
+                              },
+                            ),
+                            // Recenter button
+                            Positioned(
+                              bottom: 12,
+                              right: 12,
+                              child: Material(
+                                color: const Color(0xFFFFFEFB),
+                                shape: const CircleBorder(),
+                                elevation: 3,
+                                child: InkWell(
+                                  onTap: _recenterOnUser,
+                                  customBorder: const CircleBorder(),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(10),
+                                    child: Icon(
+                                      Icons.my_location_rounded,
+                                      color: Color(0xFF244BFF),
+                                      size: 20,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ],
-                        );
-                      },
+                        ),
+                      ),
                     );
-                  }
-
-                  return Column(
-                    children: [
-                      Row(
-                        children: [
-                          for (final d in [15, 30, 60])
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                child: ChoiceChip(
-                                  label: Center(
-                                    child: Text(
-                                      '${d}m',
-                                      style: TextStyle(
-                                        fontFamily: 'NunitoSans',
-                                        fontSize: 13,
-                                        fontWeight: _selectedDuration == d
-                                            ? FontWeight.w700
-                                            : FontWeight.w500,
-                                        color: _selectedDuration == d
-                                            ? Colors.white
-                                            : const Color(0xFF202633),
-                                      ),
-                                    ),
-                                  ),
-                                  selected: _selectedDuration == d,
-                                  selectedColor: const Color(0xFF244BFF),
-                                  backgroundColor: const Color(0xFFFFFEFB),
-                                  side: BorderSide(
-                                    color: _selectedDuration == d
-                                        ? const Color(0xFF244BFF)
-                                        : const Color(0xFFE5E2DA),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  onSelected: (val) {
-                                    if (val) {
-                                      setState(() => _selectedDuration = d);
-                                    }
-                                  },
-                                ),
+                  },
+                ),
+                if (_selectedMember != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFEFB),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE5E2DA)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedMember!['name'] as String? ?? 'Member',
+                              style: const TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF202633),
                               ),
                             ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: FilledButton(
-                          onPressed: _starting ? null : _startSharing,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF244BFF),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                            Text(
+                              _memberLocationStatus(_selectedMember!),
+                              style: const TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 12,
+                                color: Color(0xFF596171),
+                              ),
                             ),
+                          ],
+                        )),
+                        TextButton(
+                          onPressed: () {
+                            final lat = (_selectedMember!['lat'] as num?)
+                                ?.toDouble();
+                            final lng = (_selectedMember!['lng'] as num?)
+                                ?.toDouble();
+                            ExternalLauncher.openMapDirections(
+                              context,
+                              query: 'Member location',
+                              lat: lat,
+                              lng: lng,
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF244BFF),
                           ),
-                          child: Text(
-                            _starting ? 'Starting…' : 'Start sharing',
+                          child: const Text(
+                            'Directions',
                             style: TextStyle(
                               fontFamily: 'NunitoSans',
-                              fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _error!,
-                          style: const TextStyle(color: Color(0xFFD32F2F)),
-                        ),
                       ],
-                    ],
-                  );
-                },
-              ),
-            ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                ValueListenableBuilder<bool>(
+                  valueListenable: locationService.isSharing,
+                  builder: (context, sharing, _) {
+                    if (sharing) {
+                      return ValueListenableBuilder<int>(
+                        valueListenable: locationService.remainingMinutes,
+                        builder: (context, remaining, _) {
+                          return Column(
+                            children: [
+                              Text(
+                                'Sharing your live location (${remaining}m left)',
+                                style: const TextStyle(
+                                  fontFamily: 'NunitoSans',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF202633),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: OutlinedButton(
+                                  onPressed: () =>
+                                      locationService.stopSharing(),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFFD32F2F),
+                                    side: const BorderSide(
+                                      color: Color(0xFFD32F2F),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Stop sharing',
+                                    style: TextStyle(
+                                      fontFamily: 'NunitoSans',
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        Row(
+                          children: [
+                            for (final d in [15, 30, 60])
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  child: ChoiceChip(
+                                    label: Center(
+                                      child: Text(
+                                        '${d}m',
+                                        style: TextStyle(
+                                          fontFamily: 'NunitoSans',
+                                          fontSize: 13,
+                                          fontWeight: _selectedDuration == d
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: _selectedDuration == d
+                                              ? Colors.white
+                                              : const Color(0xFF202633),
+                                        ),
+                                      ),
+                                    ),
+                                    selected: _selectedDuration == d,
+                                    selectedColor: const Color(0xFF244BFF),
+                                    backgroundColor: const Color(0xFFFFFEFB),
+                                    side: BorderSide(
+                                      color: _selectedDuration == d
+                                          ? const Color(0xFF244BFF)
+                                          : const Color(0xFFE5E2DA),
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    onSelected: (val) {
+                                      if (val) {
+                                        setState(() => _selectedDuration = d);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: _starting ? null : _startSharing,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF244BFF),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: Text(
+                              _starting ? 'Starting…' : 'Start sharing',
+                              style: TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            _error!,
+                            style: const TextStyle(color: Color(0xFFD32F2F)),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  String _memberLocationStatus(Map<String, dynamic> member) {
+    final updated = member['updatedAt'];
+    if (updated is! Timestamp) return 'Current device location · not shared';
+    final age = DateTime.now().difference(updated.toDate());
+    final ageLabel = age.inMinutes < 1 ? 'just now' : '${age.inMinutes}m ago';
+    final accuracy = member['accuracy'] is num
+        ? ' · ±${(member['accuracy'] as num).round()} m' : '';
+    return '${age > const Duration(minutes: 2) ? 'Stale · ' : ''}Updated $ageLabel$accuracy';
+  }
+
   Widget _buildPin({
-    required String initial,
+    required String uid,
+    required String name,
     required String label,
     required bool isSelected,
     required bool isMe,
   }) {
-    final bgColor = isMe
-        ? const Color(0xFF244BFF)
-        : (isSelected ? const Color(0xFF244BFF) : const Color(0xFFFFFEFB));
-    final textColor = (isMe || isSelected)
-        ? Colors.white
-        : const Color(0xFF202633);
-    final borderColor = (isMe || isSelected)
-        ? Colors.white
-        : const Color(0xFF244BFF);
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: bgColor,
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: isMe
-                    ? const Color(0xFF244BFF).withValues(alpha: 0.45)
-                    : Colors.black.withValues(alpha: 0.15),
-                blurRadius: isMe ? 8 : 6,
-                spreadRadius: isMe ? 1.5 : 0,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Text(
-              initial,
-              style: TextStyle(
-                fontFamily: 'NunitoSans',
-                fontWeight: FontWeight.w800,
-                fontSize: 16,
-                color: textColor,
-              ),
-            ),
-          ),
-        ),
+        MemberAvatar(uid: uid, name: name, radius: 19, selected: isSelected),
         Container(
           margin: const EdgeInsets.only(top: 2),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
@@ -736,99 +690,5 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
         ),
       ],
     );
-  }
-}
-
-class _ClayRadarPainter extends CustomPainter {
-  const _ClayRadarPainter({required this.sessions});
-  final List<Map<String, dynamic>> sessions;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final maxRadius = size.width / 2;
-
-    // Pastel concentric clay rings
-    final ringColors = [
-      const Color(0xFFF8E7B0).withValues(alpha: 0.35),
-      const Color(0xFFA9CDE8).withValues(alpha: 0.35),
-      const Color(0xFFEAB8C5).withValues(alpha: 0.35),
-    ];
-
-    for (var i = 3; i >= 1; i--) {
-      final r = maxRadius * (i / 3);
-      final fillPaint = Paint()
-        ..color = ringColors[i - 1]
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(center, r, fillPaint);
-
-      final strokePaint = Paint()
-        ..color = const Color(0xFFE5E2DA)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
-      canvas.drawCircle(center, r, strokePaint);
-    }
-
-    // Crosshairs
-    final linePaint = Paint()
-      ..color = const Color(0xFFD4D0C8)
-      ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(center.dx, 0),
-      Offset(center.dx, size.height),
-      linePaint,
-    );
-    canvas.drawLine(
-      Offset(0, center.dy),
-      Offset(size.width, center.dy),
-      linePaint,
-    );
-
-    // Center home dot
-    final centerPaint = Paint()..color = const Color(0xFF244BFF);
-    canvas.drawCircle(center, 5, centerPaint);
-
-    // Member avatar pins
-    for (var i = 0; i < sessions.length; i++) {
-      final angle = (i * (2 * pi / max(1, sessions.length))) - (pi / 2);
-      final dist = maxRadius * 0.65;
-      final pinPos = Offset(
-        center.dx + cos(angle) * dist,
-        center.dy + sin(angle) * dist,
-      );
-
-      final pinBg = Paint()..color = const Color(0xFF202633);
-      canvas.drawCircle(pinPos, 14, pinBg);
-
-      final borderPaint = Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      canvas.drawCircle(pinPos, 14, borderPaint);
-
-      final s = sessions[i];
-      final name = s['name'] as String? ?? 'M';
-      final letter = name.isNotEmpty ? name[0].toUpperCase() : 'M';
-      final tp = TextPainter(
-        text: TextSpan(
-          text: letter,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(
-        canvas,
-        Offset(pinPos.dx - tp.width / 2, pinPos.dy - tp.height / 2),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ClayRadarPainter oldDelegate) {
-    return oldDelegate.sessions != sessions;
   }
 }

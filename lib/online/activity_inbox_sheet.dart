@@ -8,18 +8,20 @@ class ActivityInboxSheet extends StatelessWidget {
   const ActivityInboxSheet({
     super.key,
     required this.backend,
-    required this.spaceId,
+    required this.spaceNames,
+    this.onOpenSpace,
     this.requests = const [],
   });
 
   final OnlineBackend backend;
-  final String spaceId;
+  final Map<String, String> spaceNames;
+  final ValueChanged<String>? onOpenSpace;
   final List<Widget> requests;
 
   static Future<void> show(
     BuildContext context, {
     required OnlineBackend backend,
-    required String spaceId,
+    required Map<String, String> spaceNames,
     List<Widget> requests = const [],
   }) => showModalBottomSheet<void>(
     context: context,
@@ -29,7 +31,7 @@ class ActivityInboxSheet extends StatelessWidget {
     isScrollControlled: true,
     builder: (_) => ActivityInboxSheet(
       backend: backend,
-      spaceId: spaceId,
+      spaceNames: spaceNames,
       requests: requests,
     ),
   );
@@ -43,21 +45,21 @@ class ActivityInboxSheet extends StatelessWidget {
       height: MediaQuery.sizeOf(context).height * .65,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: collection
-            .where('spaceId', isEqualTo: spaceId)
             .orderBy('createdAt', descending: true)
             .limit(60)
             .snapshots(),
         builder: (context, snapshot) {
           final items = (snapshot.data?.docs ?? [])
-              .where(
-                (doc) =>
-                    doc.data()['pushState'] != 'cancelled',
-              )
+              .where((doc) => doc.data()['pushState'] != 'cancelled' &&
+                  spaceNames.containsKey(doc.data()['spaceId']))
               .toList();
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             children: [
-              Text('Inbox', style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'Notifications',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               if (snapshot.hasError)
                 const ListTile(
                   title: Text('Could not load activity. Try again later.'),
@@ -71,25 +73,70 @@ class ActivityInboxSheet extends StatelessWidget {
                   !snapshot.hasError &&
                   snapshot.hasData)
                 const ListTile(title: Text('You’re all caught up.')),
-              for (final doc in items)
-                ListTile(
-                  leading: Icon(
-                    doc.data()['readAt'] == null
-                        ? Icons.notifications_active_rounded
-                        : Icons.notifications_none_rounded,
-                  ),
-                  title: Text(doc.data()['title'] as String? ?? 'Activity'),
-                  subtitle: Text(doc.data()['body'] as String? ?? ''),
-                  onTap: doc.data()['readAt'] == null
-                      ? () => doc.reference.update({
-                          'readAt': FieldValue.serverTimestamp(),
-                        })
-                      : null,
-                ),
+              for (final doc in items) _historyItem(context, doc, uid),
             ],
           );
         },
       ),
     );
   }
+
+  Widget _historyItem(BuildContext context,
+      QueryDocumentSnapshot<Map<String, dynamic>> doc, String uid) {
+    final data = doc.data();
+    final spaceId = data['spaceId'] as String?;
+    final kind = data['kind'];
+    if (spaceId != null && (kind == 'taskAssigned' || kind == 'action') && data['taskId'] is String) {
+      return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: backend.firestore.doc('spaces/$spaceId/tasks/${data['taskId']}').snapshots(),
+        builder: (context, snapshot) {
+          final task = snapshot.data?.data();
+          final pending = task != null &&
+              ((task['status'] == 'requested' && task['requestedUid'] == uid) ||
+               (task['offeredUid'] != null && task['ownerUid'] == uid));
+          return pending ? const SizedBox.shrink() : _historyTile(context, doc);
+        },
+      );
+    }
+    if (spaceId != null && kind == 'ownershipOffered') {
+      return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: backend.firestore.doc('spaces/$spaceId').snapshots(),
+        builder: (context, snapshot) => snapshot.data?.data()?['pendingOwnerUid'] == uid
+            ? const SizedBox.shrink() : _historyTile(context, doc),
+      );
+    }
+    return _historyTile(context, doc);
+  }
+
+  Widget _historyTile(BuildContext context,
+      QueryDocumentSnapshot<Map<String, dynamic>> doc) => ListTile(
+                  leading: Icon(
+                    doc.data()['readAt'] == null
+                        ? Icons.notifications_active_rounded
+                        : Icons.notifications_none_rounded,
+                  ),
+                  title: Text(doc.data()['title'] as String? ?? 'Activity'),
+                  subtitle: Text(
+                    [
+                      spaceNames[doc.data()['spaceId']] ?? 'Space',
+                      doc.data()['body'] as String? ?? '',
+                      if (doc.data()['createdAt'] is Timestamp)
+                        TimeOfDay.fromDateTime(
+                          (doc.data()['createdAt'] as Timestamp)
+                              .toDate()
+                              .toLocal(),
+                        ).format(context),
+                    ].where((text) => text.isNotEmpty).join(' · '),
+                  ),
+                  onTap: () async {
+                    if (doc.data()['readAt'] == null) {
+                      await doc.reference.update({
+                        'readAt': FieldValue.serverTimestamp(),
+                      });
+                    }
+                    final spaceId = doc.data()['spaceId'] as String?;
+                    if (spaceId != null && spaceNames.containsKey(spaceId))
+                      onOpenSpace?.call(spaceId);
+                  },
+                );
 }

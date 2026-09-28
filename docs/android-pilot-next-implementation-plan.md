@@ -1,6 +1,6 @@
 # Stewardie Android pilot: next implementation plan
 
-Status: Phase 1 completed September 28, 2026. Phase 2 has a private cleanup tool, operator procedure, and tighter safety rules; the disposable live-account test, external page, and public retention policy remain open. Real account/device behavior is still to verify. This plan does not authorize a paid service or public release. Use [pilot completion status](pilot-completion-verification.md) for the exact implementation and checks; older planning documents describe earlier states of the app.
+Status: Phase 1 completed September 28, 2026. Phase 2 has a private cleanup tool, operator procedure, tighter safety rules, and one successful disposable live-account cleanup; the external page and public retention policy remain open. Physical-device behavior is still to verify. This plan does not authorize a paid service or public release. Use [pilot completion status](pilot-completion-verification.md) for the exact implementation and checks; older planning documents describe earlier states of the app.
 
 ## Goal and boundaries
 

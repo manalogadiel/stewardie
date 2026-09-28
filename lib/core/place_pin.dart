@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'theme.dart';
+import 'stewardie_map.dart';
 
 /// A fixed, explicitly shared place. It never represents a live session.
 class PlacePin {
@@ -35,6 +36,7 @@ class PlacePin {
     if (raw is! Map) return null;
     final lat = raw['lat'], lng = raw['lng'];
     if (lat is! num || lng is! num) return null;
+    if (!lat.isFinite || !lng.isFinite || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
     return PlacePin(
       lat: lat.toDouble(),
       lng: lng.toDouble(),
@@ -47,16 +49,14 @@ class PlacePin {
   }
 }
 
-Future<PlacePin?> showPlacePicker(
-  BuildContext context, {
-  PlacePin? initial,
-}) => showModalBottomSheet<PlacePin>(
-  context: context,
-  useRootNavigator: true,
-  useSafeArea: true,
-  isScrollControlled: true,
-  builder: (_) => _PlacePicker(initial: initial),
-);
+Future<PlacePin?> showPlacePicker(BuildContext context, {PlacePin? initial}) =>
+    showModalBottomSheet<PlacePin>(
+      context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (_) => _PlacePicker(initial: initial),
+    );
 
 class _PlacePicker extends StatefulWidget {
   const _PlacePicker({this.initial});
@@ -71,6 +71,7 @@ class _PlacePickerState extends State<_PlacePicker> {
   late final note = TextEditingController(text: widget.initial?.note);
   LatLng? point;
   String? error;
+  StewardieMapStyle style = StewardieMapStyle.satellite;
 
   @override
   void initState() {
@@ -107,7 +108,10 @@ class _PlacePickerState extends State<_PlacePicker> {
       setState(() => point = LatLng(fix.latitude, fix.longitude));
       controller.move(point!, 15);
     } catch (_) {
-      if (mounted) setState(() => error = 'Could not find your location. Tap the map instead.');
+      if (mounted)
+        setState(
+          () => error = 'Could not find your location. Tap the map instead.',
+        );
     }
   }
 
@@ -115,43 +119,65 @@ class _PlacePickerState extends State<_PlacePicker> {
   Widget build(BuildContext context) {
     final p = point;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        8,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       child: SizedBox(
         height: MediaQuery.sizeOf(context).height * .77,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Choose a place', style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Choose a place',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 4),
-            const Text('Tap the map to place a fixed pin. This will be visible to your space.'),
+            const Text(
+              'Tap the map to place a fixed pin. This will be visible to your space.',
+            ),
             const SizedBox(height: 12),
             Expanded(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                child: FlutterMap(
-                  mapController: controller,
-                  options: MapOptions(
-                    initialCenter: p ?? const LatLng(0, 0),
-                    initialZoom: p == null ? 2 : 14,
-                    onTap: (_, position) => setState(() => point = position),
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'dev.stewardie.app',
-                    ),
+                child: StewardieMap(
+                  controller: controller,
+                  center: p ?? const LatLng(12, 122),
+                  zoom: p == null ? 5 : 14,
+                  style: style,
+                  onTap: (_, position) => setState(() => point = position),
+                  markers: [
                     if (p != null)
-                      MarkerLayer(markers: [
-                        Marker(
-                          point: p,
-                          width: 48,
-                          height: 48,
-                          child: const Icon(Icons.place_rounded, color: SoftPop.blue, size: 42),
+                      Marker(
+                        point: p,
+                        width: 48,
+                        height: 48,
+                        child: const Icon(
+                          Icons.place_rounded,
+                          color: SoftPop.blue,
+                          size: 42,
                         ),
-                      ]),
+                      ),
                   ],
                 ),
               ),
+            ),
+            SegmentedButton<StewardieMapStyle>(
+              segments: const [
+                ButtonSegment(
+                  value: StewardieMapStyle.satellite,
+                  label: Text('Satellite'),
+                ),
+                ButtonSegment(
+                  value: StewardieMapStyle.streets,
+                  label: Text('Streets'),
+                ),
+              ],
+              selected: {style},
+              onSelectionChanged: (value) =>
+                  setState(() => style = value.first),
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -169,22 +195,30 @@ class _PlacePickerState extends State<_PlacePicker> {
             TextField(
               controller: note,
               maxLength: 180,
-              decoration: const InputDecoration(labelText: 'Location note (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Location note (optional)',
+              ),
             ),
-            if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
+            if (error != null)
+              Text(error!, style: const TextStyle(color: Colors.red)),
             FilledButton(
-              onPressed: p == null ? null : () {
-                if (label.text.trim().isEmpty) {
-                  setState(() => error = 'Name this place.');
-                  return;
-                }
-                Navigator.pop(context, PlacePin(
-                  lat: p.latitude,
-                  lng: p.longitude,
-                  label: label.text.trim(),
-                  note: note.text.trim(),
-                ));
-              },
+              onPressed: p == null
+                  ? null
+                  : () {
+                      if (label.text.trim().isEmpty) {
+                        setState(() => error = 'Name this place.');
+                        return;
+                      }
+                      Navigator.pop(
+                        context,
+                        PlacePin(
+                          lat: p.latitude,
+                          lng: p.longitude,
+                          label: label.text.trim(),
+                          note: note.text.trim(),
+                        ),
+                      );
+                    },
               child: const Text('Use this place'),
             ),
           ],

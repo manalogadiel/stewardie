@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../core/clay.dart';
 import '../../core/demo_state.dart';
 import '../../core/theme.dart';
+import '../../core/stewardie_map.dart';
 import '../timeline/domain/models.dart';
 import 'media_library.dart';
 import 'photo_composer.dart';
@@ -98,6 +101,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                 ),
               ),
             ),
+            if (widget.photo.pin != null) _photoLocation(context),
             if (saving) const LinearProgressIndicator(),
             if (message != null)
               Padding(
@@ -112,6 +116,93 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _photoLocation(BuildContext context) {
+    final pin = widget.photo.pin!;
+    final point = LatLng(pin.lat, pin.lng);
+    final subtitle = pin.source == 'capture' ? 'Taken here' : 'Place tag';
+    final details = [
+      subtitle,
+      pin.label,
+      if (pin.locatedAt != null)
+        MaterialLocalizations.of(context)
+            .formatMediumDate(pin.locatedAt!.toLocal()),
+      if (pin.accuracy != null) '±${pin.accuracy!.round()} m',
+    ].join(' · ');
+    Widget map(double height) => SizedBox(
+      height: height,
+      child: StewardieMap(
+        center: point,
+        zoom: 15,
+        markers: [
+          Marker(
+            point: point,
+            width: 56,
+            height: 56,
+            child: ClipOval(
+              child: Image.memory(
+                widget.photo.photo.thumbnail,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(details, style: const TextStyle(color: Colors.white)),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                showDragHandle: true,
+                builder: (sheet) => SafeArea(
+                  child: SizedBox(
+                    height: MediaQuery.sizeOf(sheet).height * .8,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(details),
+                        ),
+                        Expanded(
+                          child: StewardieMap(
+                            center: point,
+                            zoom: 16,
+                            markers: [
+                              Marker(
+                                point: point,
+                                width: 72,
+                                height: 72,
+                                child: ClipOval(
+                                  child: Image.memory(
+                                    widget.photo.photo.thumbnail,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              child: map(150),
+            ),
+          ),
+        ],
       ),
     );
   }

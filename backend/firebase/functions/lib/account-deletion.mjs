@@ -96,6 +96,13 @@ async function clearMedia(sb, uid, spaces, soloSpaceIds) {
 
 async function scrubSharedSpace(db, space, uid) {
   const ref = space.ref;
+  for (const event of (await ref.collection('events').get()).docs) {
+    if ([event.get('actorUid'), event.get('targetUid')].includes(uid)) {
+      await event.ref.delete();
+    } else if (event.get('recipientUids')?.includes(uid)) {
+      await event.ref.update({ recipientUids: FieldValue.arrayRemove(uid) });
+    }
+  }
   for (const task of (await ref.collection('tasks').get()).docs) {
     const patch = anonymizeTask(task.data(), uid);
     if (Object.keys(patch).length) await task.ref.update(patch);
@@ -204,6 +211,10 @@ async function hasHistoricalData(space, uid) {
   for (const routine of (await ref.collection('routines').get()).docs) {
     if ([routine.get('creatorUid'), routine.get('assignedUid')].includes(uid)) return true;
   }
+  for (const event of (await ref.collection('events').get()).docs) {
+    if ([event.get('actorUid'), event.get('targetUid')].includes(uid) ||
+        event.get('recipientUids')?.includes(uid)) return true;
+  }
   for (const moment of (await ref.collection('moments').get()).docs) {
     const data = moment.data();
     if ([data.uid, data.creatorUid, data.uploaderUid].includes(uid) ||
@@ -306,9 +317,12 @@ export async function processDeletion({ db, auth, sb, uid, apply = false }) {
       for (const item of (await account.ref.collection('activity').get()).docs) {
         const activitySpaceId = item.get('spaceId');
         const planId = item.get('planId');
+        const eventId = item.get('eventId');
         const affected = spaces.some((space) => space.id === activitySpaceId) ||
           soloSpaceIds.has(activitySpaceId);
         if (soloSpaceIds.has(activitySpaceId) ||
+            (affected && typeof eventId === 'string' &&
+              !(await db.doc(`spaces/${activitySpaceId}/events/${eventId}`).get()).exists) ||
             (affected && item.get('kind') === 'plan' &&
               typeof planId === 'string' &&
               !(await db.doc(`spaces/${activitySpaceId}/plans/${planId}`).get()).exists)) {

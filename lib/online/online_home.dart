@@ -7,6 +7,7 @@ import '../core/clay.dart';
 import '../core/invite_links.dart';
 import '../core/theme.dart';
 import '../core/top_controls.dart';
+import '../core/member_avatar.dart';
 import 'account_settings_sheet.dart';
 import 'activity_inbox_sheet.dart';
 import 'safety_sheet.dart';
@@ -58,7 +59,6 @@ class _OnlineHomeState extends State<OnlineHome> {
   final _moreDone = <Map<String, dynamic>>[];
   String? _moreCursor;
   bool _loadingMore = false;
-
 
   @override
   void initState() {
@@ -258,10 +258,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                               onPressed: selected == null
                                   ? null
                                   : () => SpaceMapSheet.show(
-                                        context,
-                                        backend: widget.backend,
-                                        spaceId: selected,
-                                      ),
+                                      context,
+                                      backend: widget.backend,
+                                      spaceId: selected,
+                                    ),
                               icon: const Icon(
                                 Icons.map_outlined,
                                 color: SoftPop.ink,
@@ -277,9 +277,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                                   shape: const StadiumBorder(),
                                   minimumSize: const Size(48, 48),
                                 ),
-                                onPressed: refs.isEmpty
-                                    ? _showSpaceActions
-                                    : () => _chooseSpace(refs, selected),
+                                onPressed: () => _chooseSpace(refs, selected),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -307,15 +305,13 @@ class _OnlineHomeState extends State<OnlineHome> {
                           SizedBox(
                             width: 48,
                             child: IconButton(
-                              tooltip: 'Inbox',
+                              tooltip: 'Notifications',
                               style: IconButton.styleFrom(
                                 backgroundColor: SoftPop.surface,
                                 shape: const CircleBorder(),
                               ),
-                              onPressed: selected == null
-                                  ? null
-                                  : () => _showInbox(selected),
-                              icon: const Icon(Icons.inbox_outlined),
+                              onPressed: () => _showInbox(refs),
+                              icon: _notificationBell(refs),
                             ),
                           ),
                         ],
@@ -392,13 +388,8 @@ class _OnlineHomeState extends State<OnlineHome> {
         ),
         const SizedBox(height: 18),
         FilledButton(
-          onPressed: _createSpace,
-          child: const Text('Create a space'),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: _joinSpace,
-          child: const Text('Join with a code'),
+          onPressed: () => _chooseSpace(const [], null),
+          child: const Text('Choose a space'),
         ),
       ]);
     }
@@ -456,10 +447,14 @@ class _OnlineHomeState extends State<OnlineHome> {
                 final allDone = [...firstPage, ..._moreDone];
                 final done = _personId == null
                     ? allDone
-                    : allDone.where((data) =>
-                        data['ownerUid'] == _personId ||
-                        data['requestedUid'] == _personId ||
-                        data['creatorUid'] == _personId).toList();
+                    : allDone
+                          .where(
+                            (data) =>
+                                data['ownerUid'] == _personId ||
+                                data['requestedUid'] == _personId ||
+                                data['creatorUid'] == _personId,
+                          )
+                          .toList();
                 final count = doneSnapshot.data?['totalCount'] as int?;
                 final nextCursor = _moreDone.isEmpty
                     ? (doneSnapshot.data?['nextCursorId'] as String?)
@@ -590,17 +585,15 @@ class _OnlineHomeState extends State<OnlineHome> {
             child: Builder(
               builder: (context) {
                 final scale = MediaQuery.textScalerOf(context).scale(16);
-                final topClearance = MediaQuery.paddingOf(context).top +
+                final topClearance =
+                    MediaQuery.paddingOf(context).top +
                     (scale > 22 ? 116.0 : 68.0);
                 return ClayPanel(
                   color: SoftPop.today,
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    topClearance,
-                    16,
-                    12,
+                  padding: EdgeInsets.fromLTRB(20, topClearance, 16, 12),
+                  radius: const BorderRadius.vertical(
+                    bottom: Radius.circular(28),
                   ),
-                  radius: const BorderRadius.vertical(bottom: Radius.circular(28)),
                   child: Row(
                     children: [
                       Expanded(
@@ -797,13 +790,14 @@ class _OnlineHomeState extends State<OnlineHome> {
         showCheckmark: false,
         avatar: id == null
             ? null
-            : CircleAvatar(
+            : MemberAvatar(
+                uid: id,
+                name: id == widget.user.uid
+                    ? (widget.user.displayName?.trim().isNotEmpty == true
+                          ? widget.user.displayName!
+                          : widget.user.email?.split('@').first ?? 'Member')
+                    : label,
                 radius: 13,
-                backgroundColor: SoftPop.sky,
-                child: Text(
-                  label.substring(0, 1).toUpperCase(),
-                  style: const TextStyle(color: SoftPop.ink),
-                ),
               ),
         label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         selected: _personId == id,
@@ -851,7 +845,9 @@ class _OnlineHomeState extends State<OnlineHome> {
       _ => null,
     };
     final subtasks = List<Map<String, dynamic>>.from(
-      (task['subtasks'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+      (task['subtasks'] as List? ?? []).map(
+        (e) => Map<String, dynamic>.from(e as Map),
+      ),
     );
     final hasSubtasks = subtasks.isNotEmpty;
     final doneSubtasks = subtasks.where((s) => s['done'] == true).length;
@@ -875,7 +871,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                   Expanded(child: Text(label)),
                   if (hasSubtasks)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8EEFF),
                         borderRadius: BorderRadius.circular(10),
@@ -892,7 +891,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                   if (isHelpNeeded) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFEF3C7),
                         borderRadius: BorderRadius.circular(10),
@@ -1060,8 +1062,7 @@ class _OnlineHomeState extends State<OnlineHome> {
     QueryDocumentSnapshot<Map<String, dynamic>>? space,
   ) {
     final spaceName = space?.data()['name'] as String? ?? 'Your little corner';
-    final textScale =
-        MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
+    final textScale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
     final isLongName = spaceName.length > 16;
     final heroContentHeight = (isLongName ? 164.0 : 132.0) * textScale;
     final heroHeight = topControlsClearance(context) + heroContentHeight;
@@ -1097,226 +1098,227 @@ class _OnlineHomeState extends State<OnlineHome> {
             ),
           ),
         ),
-        _page(
-          [
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: widget.backend.account(widget.user.uid),
-              builder: (context, snapshot) {
-                final data = snapshot.data?.data();
-                final rawPlus = data?['tier'] == 'plus';
-                final isFounder = data?['founderGrant'] == true || data?['entitlementSource'] == 'founder';
-                final expiry = data?['subscriptionExpiresAt'];
-                DateTime? expiryDate;
-                if (expiry is Timestamp) {
-                  expiryDate = expiry.toDate();
-                } else if (expiry is String) {
-                  expiryDate = DateTime.tryParse(expiry);
-                }
-                final plus = rawPlus && (isFounder || (expiryDate != null && expiryDate.isAfter(DateTime.now())));
-                return ClayPanel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 28,
-                            backgroundColor: SoftPop.sky,
-                            child: Text(
-                              (widget.user.displayName?.trim().isNotEmpty == true
+        _page([
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: widget.backend.account(widget.user.uid),
+            builder: (context, snapshot) {
+              final data = snapshot.data?.data();
+              final rawPlus = data?['tier'] == 'plus';
+              final isFounder =
+                  data?['founderGrant'] == true ||
+                  data?['entitlementSource'] == 'founder';
+              final expiry = data?['subscriptionExpiresAt'];
+              DateTime? expiryDate;
+              if (expiry is Timestamp) {
+                expiryDate = expiry.toDate();
+              } else if (expiry is String) {
+                expiryDate = DateTime.tryParse(expiry);
+              }
+              final plus =
+                  rawPlus &&
+                  (isFounder ||
+                      (expiryDate != null &&
+                          expiryDate.isAfter(DateTime.now())));
+              return ClayPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        MemberAvatar(
+                          uid: widget.user.uid,
+                          name:
+                              widget.user.displayName?.trim().isNotEmpty == true
+                              ? widget.user.displayName!
+                              : widget.user.email?.split('@').first ?? 'Member',
+                          radius: 28,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final displayName =
+                                      widget.user.displayName
+                                              ?.trim()
+                                              .isNotEmpty ==
+                                          true
                                       ? widget.user.displayName!
-                                      : 'Me')
-                                  .characters
-                                  .first
-                                  .toUpperCase(),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final displayName = widget.user.displayName
-                                                ?.trim()
-                                                .isNotEmpty ==
-                                            true
-                                        ? widget.user.displayName!
-                                        : 'Your account';
-                                    final scale = MediaQuery.textScalerOf(context)
-                                        .scale(16);
-                                    final isLargeText = scale > 20;
+                                      : 'Your account';
+                                  final scale = MediaQuery.textScalerOf(context)
+                                      .scale(16);
+                                  final isLargeText = scale > 20;
 
-                                    final planLabel = Semantics(
-                                      label: plus ? 'Personal Plus' : 'Basic',
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: plus
-                                              ? const Color(0xFFFFF3D6)
-                                              : const Color(0xFFF1EFEA),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              '·',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: plus
-                                                    ? const Color(0xFF8A6200)
-                                                    : SoftPop.secondary,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            if (plus) ...[
-                                              const Icon(
-                                                Icons.auto_awesome_rounded,
-                                                size: 13,
-                                                color: Color(0xFF8A6200),
-                                              ),
-                                              const SizedBox(width: 3),
-                                            ],
-                                            Text(
-                                              plus ? 'Plus' : 'Basic',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                                color: plus
-                                                    ? const Color(0xFF8A6200)
-                                                    : SoftPop.secondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                  final planLabel = Semantics(
+                                    label: plus ? 'Personal Plus' : 'Basic',
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
                                       ),
-                                    );
-
-                                    if (isLargeText) {
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                      decoration: BoxDecoration(
+                                        color: plus
+                                            ? const Color(0xFFFFF3D6)
+                                            : const Color(0xFFF1EFEA),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Text(
-                                            displayName,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                            '·',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: plus
+                                                  ? const Color(0xFF8A6200)
+                                                  : SoftPop.secondary,
+                                            ),
                                           ),
-                                          const SizedBox(height: 4),
-                                          planLabel,
+                                          const SizedBox(width: 4),
+                                          if (plus) ...[
+                                            const Icon(
+                                              Icons.auto_awesome_rounded,
+                                              size: 13,
+                                              color: Color(0xFF8A6200),
+                                            ),
+                                            const SizedBox(width: 3),
+                                          ],
+                                          Text(
+                                            plus ? 'Plus' : 'Basic',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: plus
+                                                  ? const Color(0xFF8A6200)
+                                                  : SoftPop.secondary,
+                                            ),
+                                          ),
                                         ],
-                                      );
-                                    }
+                                      ),
+                                    ),
+                                  );
 
-                                    return Row(
-                                      mainAxisSize: MainAxisSize.min,
+                                  if (isLargeText) {
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Flexible(
-                                          child: Text(
-                                            displayName,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                                        Text(
+                                          displayName,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                        const SizedBox(width: 6),
-                                        InkWell(
-                                          onTap: () {
-                                            if (plus) {
-                                              _showSubscriptionDetails(context);
-                                            } else {
-                                              showSoftPopPaywall(context);
-                                            }
-                                          },
-                                          borderRadius: BorderRadius.circular(12),
-                                          child: planLabel,
-                                        ),
+                                        const SizedBox(height: 4),
+                                        planLabel,
                                       ],
                                     );
-                                  },
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  widget.user.email ?? '',
-                                  style: const TextStyle(
-                                    color: SoftPop.secondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (!plus) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton(
-                            onPressed: () => showSoftPopPaywall(context),
-                            style: TextButton.styleFrom(
-                              foregroundColor: SoftPop.blue,
-                              minimumSize: const Size(48, 48),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 10,
+                                  }
+
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          displayName,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleLarge,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      InkWell(
+                                        onTap: () {
+                                          if (plus) {
+                                            _showSubscriptionDetails(context);
+                                          } else {
+                                            showSoftPopPaywall(context);
+                                          }
+                                        },
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: planLabel,
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
-                              alignment: Alignment.centerLeft,
-                              tapTargetSize: MaterialTapTargetSize.padded,
-                            ),
-                            child: const Text('View Plus benefits'),
-                          ),
-                        ),
-                      ] else ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: () => _showSubscriptionDetails(context),
-                            icon: const Icon(Icons.stars_rounded, size: 18),
-                            label: const Text('Subscription details'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: SoftPop.blue,
-                              minimumSize: const Size(48, 48),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 10,
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.user.email ?? '',
+                                style: const TextStyle(
+                                  color: SoftPop.secondary,
+                                ),
                               ),
-                              alignment: Alignment.centerLeft,
-                              tapTargetSize: MaterialTapTargetSize.padded,
-                            ),
+                            ],
                           ),
                         ),
                       ],
-                      TextButton(
-                        onPressed: () {
-                          AccountSettingsSheet.show(
-                            context,
-                            backend: widget.backend,
-                              tier: plus ? 'Plus' : 'Basic',
-                              spaceId: spaceId,
-                            onSignedOut: () {
-                              RevenueCatService.instance.logOut();
-                            },
-                          );
-                        },
-                        child: const Text('Account settings'),
+                    ),
+                    if (!plus) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () => showSoftPopPaywall(context),
+                          style: TextButton.styleFrom(
+                            foregroundColor: SoftPop.blue,
+                            minimumSize: const Size(48, 48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
+                            alignment: Alignment.centerLeft,
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                          ),
+                          child: const Text('View Plus benefits'),
+                        ),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () => _showSubscriptionDetails(context),
+                          icon: const Icon(Icons.stars_rounded, size: 18),
+                          label: const Text('Subscription details'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: SoftPop.blue,
+                            minimumSize: const Size(48, 48),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 10,
+                            ),
+                            alignment: Alignment.centerLeft,
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                );
-              },
-            ),
+                    TextButton(
+                      onPressed: () {
+                        AccountSettingsSheet.show(
+                          context,
+                          backend: widget.backend,
+                          tier: plus ? 'Plus' : 'Basic',
+                          spaceId: spaceId,
+                          onSignedOut: () {
+                            RevenueCatService.instance.logOut();
+                          },
+                        );
+                      },
+                      child: const Text('Account settings'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 18),
           if (spaceId != null)
             StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -1344,60 +1346,80 @@ class _OnlineHomeState extends State<OnlineHome> {
                         for (final person
                             in members.data?.docs ??
                                 <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-                          if (person.data()['status'] == 'active') () {
-                            final isDependent = person.data()['isDependent'] == true;
-                            final familyRole = person.data()['familyRole'] as String?;
-                            final subtitleText = isDependent
-                                ? (familyRole != null ? '$familyRole • Dependent' : 'Dependent')
-                                : (person.id == owner
-                                    ? (familyRole != null ? '$familyRole • Owner' : 'Owner')
-                                    : (familyRole != null ? '$familyRole • Member' : 'Member'));
-                            return ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: CircleAvatar(
-                                backgroundColor: isDependent ? SoftPop.butter : SoftPop.rose,
-                                child: Text(
-                                  (person.data()['name'] as String? ?? 'M')
-                                          .characters
-                                          .firstOrNull ??
-                                      'M',
+                          if (person.data()['status'] == 'active')
+                            () {
+                              final isDependent =
+                                  person.data()['isDependent'] == true;
+                              final familyRole =
+                                  person.data()['familyRole'] as String?;
+                              final subtitleText = isDependent
+                                  ? (familyRole != null
+                                        ? '$familyRole • Dependent'
+                                        : 'Dependent')
+                                  : (person.id == owner
+                                        ? (familyRole != null
+                                              ? '$familyRole • Owner'
+                                              : 'Owner')
+                                        : (familyRole != null
+                                              ? '$familyRole • Member'
+                                              : 'Member'));
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: MemberAvatar(
+                                  uid: person.id,
+                                  name:
+                                      person.data()['name'] as String? ??
+                                      'Member',
                                 ),
-                              ),
-                              title: Text(
-                                '${person.data()['name'] ?? 'Member'}${person.id == widget.user.uid ? ' (you)' : ''}',
-                              ),
-                              subtitle: Text(subtitleText),
-                              trailing: person.id != widget.user.uid
-                                      ? PopupMenuButton<String>(
-                                          tooltip:
-                                              'Manage ${person.data()['name']}',
-                                          itemBuilder: (_) => [
-                                            if (owner == widget.user.uid) const PopupMenuItem(
+                                title: Text(
+                                  '${person.data()['name'] ?? 'Member'}${person.id == widget.user.uid ? ' (you)' : ''}',
+                                ),
+                                subtitle: Text(subtitleText),
+                                trailing: person.id != widget.user.uid
+                                    ? PopupMenuButton<String>(
+                                        tooltip:
+                                            'Manage ${person.data()['name']}',
+                                        itemBuilder: (_) => [
+                                          if (owner == widget.user.uid)
+                                            const PopupMenuItem(
                                               value: 'removeMember',
                                               child: Text('Remove from space'),
                                             ),
-                                            if (owner == widget.user.uid) const PopupMenuItem(
+                                          if (owner == widget.user.uid)
+                                            const PopupMenuItem(
                                               value: 'offerOwnership',
                                               child: Text('Offer ownership'),
                                             ),
-                                            const PopupMenuItem(value: 'safety', child: Text('Report or block')),
-                                          ],
-                                          onSelected: (action) => action == 'safety'
-                                            ? SafetySheet.member(context, widget.backend,
-                                                spaceId: spaceId, memberUid: person.id,
-                                                memberName: person.data()['name'] as String? ?? 'Member')
-                                            : _membershipAction(
-                                            action,
-                                            spaceId,
-                                            memberUid: person.id,
-                                            name:
-                                                person.data()['name'] as String? ??
-                                                'Member',
+                                          const PopupMenuItem(
+                                            value: 'safety',
+                                            child: Text('Report or block'),
                                           ),
-                                        )
-                                      : null,
-                            );
-                          }(),
+                                        ],
+                                        onSelected: (action) =>
+                                            action == 'safety'
+                                            ? SafetySheet.member(
+                                                context,
+                                                widget.backend,
+                                                spaceId: spaceId,
+                                                memberUid: person.id,
+                                                memberName:
+                                                    person.data()['name']
+                                                        as String? ??
+                                                    'Member',
+                                              )
+                                            : _membershipAction(
+                                                action,
+                                                spaceId,
+                                                memberUid: person.id,
+                                                name:
+                                                    person.data()['name']
+                                                        as String? ??
+                                                    'Member',
+                                              ),
+                                      )
+                                    : null,
+                              );
+                            }(),
                         if (pendingOwner == widget.user.uid) ...[
                           const SizedBox(height: 8),
                           FilledButton(
@@ -1427,17 +1449,25 @@ class _OnlineHomeState extends State<OnlineHome> {
                                 fontSize: 12,
                               ),
                             ),
-                            value: spaceSnapshot.data?.data()?['requireApproval'] == true,
+                            value:
+                                spaceSnapshot.data
+                                    ?.data()?['requireApproval'] ==
+                                true,
                             contentPadding: EdgeInsets.zero,
                             activeThumbColor: const Color(0xFF244BFF),
                             onChanged: (val) async {
                               try {
-                                await widget.backend.setJoinApprovalPolicy(spaceId, val);
+                                await widget.backend.setJoinApprovalPolicy(
+                                  spaceId,
+                                  val,
+                                );
                               } catch (e) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Could not update policy: $e'),
+                                      content: Text(
+                                        'Could not update policy: $e',
+                                      ),
                                       backgroundColor: const Color(0xFFD32F2F),
                                     ),
                                   );
@@ -1448,35 +1478,51 @@ class _OnlineHomeState extends State<OnlineHome> {
                           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                             stream: widget.backend.pendingJoins(spaceId),
                             builder: (context, pendingSnapshot) {
-                              final pendingDocs = (pendingSnapshot.data?.docs ?? [])
-                                  .where((doc) => doc.data()['status'] == 'pending').toList();
-                              if (pendingDocs.isEmpty) return const SizedBox.shrink();
+                              final pendingDocs =
+                                  (pendingSnapshot.data?.docs ?? [])
+                                      .where(
+                                        (doc) =>
+                                            doc.data()['status'] == 'pending',
+                                      )
+                                      .toList();
+                              if (pendingDocs.isEmpty)
+                                return const SizedBox.shrink();
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   const SizedBox(height: 8),
                                   Text(
                                     'Pending requests (${pendingDocs.length})',
-                                    style: Theme.of(context).textTheme.titleSmall,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall,
                                   ),
                                   const SizedBox(height: 6),
                                   for (final req in pendingDocs)
                                     Container(
                                       margin: const EdgeInsets.only(bottom: 6),
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFFEF3C7),
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: const Color(0xFFFDE68A)),
+                                        border: Border.all(
+                                          color: const Color(0xFFFDE68A),
+                                        ),
                                       ),
                                       child: Row(
                                         children: [
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Text(
-                                                  req.data()['name'] as String? ?? 'Member',
+                                                  req.data()['name']
+                                                          as String? ??
+                                                      'Member',
                                                   style: const TextStyle(
                                                     fontFamily: 'NunitoSans',
                                                     fontWeight: FontWeight.w700,
@@ -1484,7 +1530,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                                                   ),
                                                 ),
                                                 Text(
-                                                  req.data()['email'] as String? ?? '',
+                                                  req.data()['email']
+                                                          as String? ??
+                                                      '',
                                                   style: const TextStyle(
                                                     fontFamily: 'NunitoSans',
                                                     fontSize: 11,
@@ -1495,22 +1543,39 @@ class _OnlineHomeState extends State<OnlineHome> {
                                             ),
                                           ),
                                           TextButton(
-                                            onPressed: () => widget.backend.declineJoinRequest(spaceId, req.id),
+                                            onPressed: () => widget.backend
+                                                .declineJoinRequest(
+                                                  spaceId,
+                                                  req.id,
+                                                ),
                                             style: TextButton.styleFrom(
-                                              foregroundColor: const Color(0xFFD32F2F),
-                                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                                              foregroundColor: const Color(
+                                                0xFFD32F2F,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                  ),
                                             ),
                                             child: const Text('Decline'),
                                           ),
                                           FilledButton(
-                                            onPressed: () => widget.backend.approveJoinRequest(
-                                              spaceId,
-                                              req.id,
-                                              req.data()['name'] as String? ?? 'Member',
-                                            ),
+                                            onPressed: () => widget.backend
+                                                .approveJoinRequest(
+                                                  spaceId,
+                                                  req.id,
+                                                  req.data()['name']
+                                                          as String? ??
+                                                      'Member',
+                                                ),
                                             style: FilledButton.styleFrom(
-                                              backgroundColor: const Color(0xFF244BFF),
-                                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                                              backgroundColor: const Color(
+                                                0xFF244BFF,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                  ),
                                             ),
                                             child: const Text('Approve'),
                                           ),
@@ -1522,35 +1587,49 @@ class _OnlineHomeState extends State<OnlineHome> {
                             },
                           ),
                           const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: () => _invite(spaceId),
-                            child: const Text('Invite members'),
-                          ),
-                          const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: () {
-                              final memberList = (members.data?.docs ?? [])
-                                  .map((d) => {'uid': d.id, ...d.data()})
-                                  .toList();
-                              RoutinesSheet.show(
-                                context,
-                                backend: widget.backend,
-                                spaceId: spaceId,
-                                members: memberList,
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final invite = _spaceActionTile(
+                                Icons.person_add_alt_1_rounded,
+                                'Invite members',
+                                SoftPop.butter,
+                                () => _invite(spaceId),
+                              );
+                              final routines = _spaceActionTile(
+                                Icons.repeat_rounded,
+                                'Routines',
+                                SoftPop.sky,
+                                () {
+                                  final memberList = (members.data?.docs ?? [])
+                                      .map((d) => {'uid': d.id, ...d.data()})
+                                      .toList();
+                                  RoutinesSheet.show(
+                                    context,
+                                    backend: widget.backend,
+                                    spaceId: spaceId,
+                                    members: memberList,
+                                  );
+                                },
+                              );
+                              if (constraints.maxWidth < 310 ||
+                                  MediaQuery.textScalerOf(context).scale(16) >
+                                      21) {
+                                return Column(
+                                  children: [
+                                    invite,
+                                    const SizedBox(height: 12),
+                                    routines,
+                                  ],
+                                );
+                              }
+                              return Row(
+                                children: [
+                                  Expanded(child: invite),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: routines),
+                                ],
                               );
                             },
-                            child: const Text('Routines'),
-                          ),
-                          const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: () {
-                              SpaceMapSheet.show(
-                                context,
-                                backend: widget.backend,
-                                spaceId: spaceId,
-                              );
-                            },
-                            child: const Text('Space map'),
                           ),
                           const SizedBox(height: 8),
                           TextButton(
@@ -1572,17 +1651,6 @@ class _OnlineHomeState extends State<OnlineHome> {
                             child: const Text('Delete space'),
                           ),
                         ] else ...[
-                          OutlinedButton(
-                            onPressed: () {
-                              SpaceMapSheet.show(
-                                context,
-                                backend: widget.backend,
-                                spaceId: spaceId,
-                              );
-                            },
-                            child: const Text('Space map'),
-                          ),
-                          const SizedBox(height: 8),
                           TextButton(
                             onPressed: () => _membershipAction(
                               'leaveSpace',
@@ -1598,24 +1666,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                 );
               },
             ),
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _createSpace,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Create a space'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _joinSpace,
-            icon: const Icon(Icons.group_add_outlined),
-            label: const Text('Join with a code'),
-          ),
-        ],
-        topPadding: heroHeight + 12,
-      ),
-    ],
-  );
-}
+        ], topPadding: heroHeight + 12),
+      ],
+    );
+  }
 
   void _chooseSpace(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> refs,
@@ -1642,27 +1696,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                 setState(() => _destination = 0);
               },
             ),
+          const Divider(),
           ListTile(
-            leading: const Icon(Icons.add_rounded),
-            title: const Text('Create or join a space'),
-            onTap: () {
-              Navigator.pop(sheet);
-              _showSpaceActions();
-            },
-          ),
-        ],
-      ),
-    ),
-  );
-
-  void _showSpaceActions() => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheet) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
+            minVerticalPadding: 12,
             leading: const Icon(Icons.add_rounded),
             title: const Text('Create a space'),
             onTap: () {
@@ -1671,6 +1707,7 @@ class _OnlineHomeState extends State<OnlineHome> {
             },
           ),
           ListTile(
+            minVerticalPadding: 12,
             leading: const Icon(Icons.group_add_outlined),
             title: const Text('Join with a code'),
             onTap: () {
@@ -1683,39 +1720,169 @@ class _OnlineHomeState extends State<OnlineHome> {
     ),
   );
 
-  void _showInbox(String spaceId) => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheet) => SafeArea(
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: widget.backend.activeTasks(spaceId),
+  Widget _spaceActionTile(
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) => Material(
+    color: color,
+    elevation: 3,
+    shadowColor: SoftPop.ink.withValues(alpha: .16),
+    borderRadius: BorderRadius.circular(20),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 88),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: SoftPop.ink),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: SoftPop.ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _notificationBell(List<QueryDocumentSnapshot<Map<String, dynamic>>> refs) =>
+      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: widget.backend.firestore
+            .collection('accounts/${widget.user.uid}/activity')
+            .orderBy('createdAt', descending: true)
+            .limit(100)
+            .snapshots(),
         builder: (context, snapshot) {
-          final requests = (snapshot.data?.docs ?? [])
+          final unread = (snapshot.data?.docs ?? [])
               .where(
                 (doc) =>
-                    doc.data()['status'] == 'requested' &&
-                    doc.data()['requestedUid'] == widget.user.uid,
+            refs.any((ref) => ref.id == doc.data()['spaceId']) &&
+            doc.data()['readAt'] == null &&
+                    doc.data()['pushState'] != 'cancelled',
               )
-              .toList();
-          return ActivityInboxSheet(
-            backend: widget.backend,
-            spaceId: spaceId,
-            requests: [
-              for (final doc in requests) ListTile(
-                  title: Text(doc.data()['title'] as String? ?? 'Task'),
-                  subtitle: const Text('Awaiting your acceptance'),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    Navigator.pop(sheet);
-                    setState(() {
-                      _destination = 0;
-                      _showDone = false;
-                    });
-                  },
+              .length;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.notifications_none_rounded),
+              if (unread > 0)
+                Positioned(
+                  right: -8,
+                  top: -8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: SoftPop.blue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        unread > 9 ? '9+' : '$unread',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
             ],
           );
         },
+      );
+
+  void _showInbox(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> refs,
+  ) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheet) => SafeArea(
+      child: ActivityInboxSheet(
+        backend: widget.backend,
+        spaceNames: {
+          for (final ref in refs)
+            ref.id: ref.data()['name'] as String? ?? 'Space',
+        },
+        onOpenSpace: (spaceId) {
+          if (!refs.any((ref) => ref.id == spaceId)) return;
+          Navigator.pop(sheet);
+          _switchSpace(spaceId);
+          setState(() {
+            _destination = 0;
+            _showDone = false;
+          });
+        },
+        requests: [
+          for (final ref in refs) ...[
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: widget.backend.activeTasks(ref.id),
+              builder: (context, snapshot) => Column(
+                children: [
+                  for (final doc
+                      in snapshot.data?.docs ??
+                          <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                    if ((doc.data()['status'] == 'requested' &&
+                            doc.data()['requestedUid'] == widget.user.uid) ||
+                        (doc.data()['offeredUid'] != null &&
+                            doc.data()['ownerUid'] == widget.user.uid))
+                      ListTile(
+                        title: Text(
+                          doc.data()['title'] as String? ?? 'Task request',
+                        ),
+                        subtitle: Text(
+                          '${ref.data()['name'] ?? 'Space'} · Awaiting your answer',
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () {
+                          Navigator.pop(sheet);
+                          _switchSpace(ref.id);
+                          setState(() {
+                            _destination = 0;
+                            _showDone = false;
+                          });
+                        },
+                      ),
+                ],
+              ),
+            ),
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: widget.backend.firestore
+                  .doc('spaces/${ref.id}')
+                  .snapshots(),
+              builder: (context, snapshot) =>
+                  snapshot.data?.data()?['pendingOwnerUid'] == widget.user.uid
+                  ? ListTile(
+                      title: const Text('Ownership offer'),
+                      subtitle: Text(ref.data()['name'] as String? ?? 'Space'),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () {
+                        Navigator.pop(sheet);
+                        _switchSpace(ref.id);
+                        setState(() => _destination = 2);
+                      },
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ],
       ),
     ),
   );
@@ -1811,9 +1978,13 @@ class _OnlineHomeState extends State<OnlineHome> {
         final store = revenueCat.subscriptionStore;
         final expiry = revenueCat.subscriptionExpiry;
         final productId = revenueCat.subscriptionProductId;
-        final isTester = isFounder ||
+        final isTester =
+            isFounder ||
             RevenueCatService.environment == RevenueCatEnvironment.test ||
-            const bool.fromEnvironment('ENABLE_TEST_PURCHASES', defaultValue: false);
+            const bool.fromEnvironment(
+              'ENABLE_TEST_PURCHASES',
+              defaultValue: false,
+            );
 
         return Container(
           decoration: const BoxDecoration(
@@ -1862,7 +2033,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: SoftPop.secondary),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: SoftPop.secondary,
+                        ),
                         tooltip: 'Close',
                         onPressed: () => Navigator.of(sheetContext).pop(),
                       ),
@@ -1887,7 +2061,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _detailRow('Access tier', isFounder ? 'Founder Plus' : 'Plus Member'),
+                        _detailRow(
+                          'Access tier',
+                          isFounder ? 'Founder Plus' : 'Plus Member',
+                        ),
                         const Divider(height: 16, color: SoftPop.canvas),
                         _detailRow(
                           'Store subscription',
@@ -1897,7 +2074,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                         ),
                         if (store != null) ...[
                           const Divider(height: 16, color: SoftPop.canvas),
-                          _detailRow('Store', store == 'test_store' ? 'Test Store' : store),
+                          _detailRow(
+                            'Store',
+                            store == 'test_store' ? 'Test Store' : store,
+                          ),
                         ],
                         if (productId != null) ...[
                           const Divider(height: 16, color: SoftPop.canvas),
@@ -1924,7 +2104,11 @@ class _OnlineHomeState extends State<OnlineHome> {
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.build_circle_outlined, size: 18, color: SoftPop.blue),
+                              Icon(
+                                Icons.build_circle_outlined,
+                                size: 18,
+                                color: SoftPop.blue,
+                              ),
                               SizedBox(width: 8),
                               Text(
                                 'Tester Tools (Development)',
@@ -1939,7 +2123,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                           const SizedBox(height: 8),
                           const Text(
                             'Test purchases and subscription restoration in the development environment.',
-                            style: TextStyle(fontSize: 12, color: SoftPop.secondary),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: SoftPop.secondary,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           Row(
@@ -1965,21 +2152,26 @@ class _OnlineHomeState extends State<OnlineHome> {
                               Expanded(
                                 child: OutlinedButton(
                                   onPressed: () async {
-                                    final messenger = ScaffoldMessenger.of(context);
+                                    final messenger = ScaffoldMessenger.of(
+                                      context,
+                                    );
                                     Navigator.of(sheetContext).pop();
-                                    final ok = await RevenueCatService.instance.reconcileWithBackend();
+                                    final ok = await RevenueCatService.instance
+                                        .reconcileWithBackend();
                                     messenger.showSnackBar(
                                       SnackBar(
-                                        content: Text(ok
-                                            ? 'Subscription synchronized.'
-                                            : 'Synchronization failed. Try again.'),
+                                        content: Text(
+                                          ok ? 'Subscription synchronized.' : 'Synchronization failed. Try again.',
+                                        ),
                                         backgroundColor: SoftPop.blue,
                                       ),
                                     );
                                   },
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: SoftPop.ink,
-                                    side: const BorderSide(color: SoftPop.border),
+                                    side: const BorderSide(
+                                      color: SoftPop.border,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
                                     ),

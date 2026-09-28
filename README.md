@@ -27,7 +27,7 @@ flutter run
 
 The default `lib/main.dart` is the signed-in cloud app. `lib/main_online.dart` is an alias; `lib/main_fixture.dart` is the separate offline visual fixture (check the file name before using older commands). Firebase configuration is already present. Accounts must verify their email before shared access. No Blaze upgrade, Functions deployment, or store account is needed for the current trial.
 
-Tasks, memberships, moods, and calendar plans synchronize through Firestore. Personal Plus is protected server-side and reserved for the verified founder account; it never upgrades other members. Today and Moments retain the approved clay assets and interactions. New shared photos use private Supabase storage and member-checked access. Existing local photos require an explicit Share this photo to space action. Moments refreshes on entry, manually, and every 20 seconds while open. Remembered accounts store an email/name only; signing back in still requires secure authentication, with platform autofill where available.
+Tasks, memberships, moods, and calendar plans synchronize through Firestore. Personal Plus is protected server-side and reserved for the verified founder account; it never upgrades other members. Today and Moments retain the approved clay assets and interactions. New shared photos use private Supabase storage and member-checked access. Existing local photos require an explicit Share this photo to space action. Moments refreshes on entry, foreground resume, successful upload, and every 20 seconds while open. Remembered accounts store an email/name only; signing back in still requires secure authentication, with platform autofill where available.
 
 The Spark trial uses UTC boundaries for mood expiry and Basic Done-history access. Space-time-zone boundaries and trusted purchase synchronization require a later backend decision. Public purchases remain disabled. Camera orientation, gallery export, and real two-device behavior still need native-device checks by the owner.
 
@@ -35,6 +35,8 @@ See [cloud setup](docs/live-firebase-setup.md), [implementation record](docs/spa
 
 The Android pilot features for QR invites, calendar reminders, offline edits, and safety controls are staged locally. See [implementation status, backend deployment, and release gates](docs/pilot-completion-verification.md). The current Firestore rules/indexes and scheduled worker were deployed and checked on September 28; the deletion-request page is not public, and `flutter run` does not deploy backend changes.
 
-The private [account-deletion operator runbook](docs/account-deletion-operations.md) and dry-run-first cleanup tool are now in the repository. They have not been used on a disposable live account, so account deletion is still a pilot verification gate.
+The private [account-deletion operator runbook](docs/account-deletion-operations.md) and dry-run-first cleanup tool are now in the repository. One disposable live account passed cross-service cleanup on September 28; the external request page, retention-policy review, and wider device testing remain pilot gates.
 
 Location, calendar import, and scheduled reminders are staged in code; the current reminder worker is deployed, but real plan-reminder delivery has not been device-tested. OneSignal and Google OAuth remain optional and unconfigured. Follow [the rollout steps and device checks](docs/location-calendar-reminders-setup.md). Do not treat native background location, push, or Google access as verified by a Flutter build alone.
+
+The map and navigation refresh is staged locally; [pilot key setup and remaining map checks](docs/map-navigation-rollout.md) explains the free development key.

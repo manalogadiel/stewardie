@@ -10,6 +10,7 @@ import 'external_launcher.dart';
 import 'online_backend.dart';
 import '../core/clay.dart';
 import '../core/theme.dart';
+import '../core/member_avatar.dart';
 import '../features/media/camera_screen.dart';
 import '../features/media/media_library.dart';
 import '../features/media/photo_viewer.dart';
@@ -314,12 +315,18 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
                     onTap: () {
                       final place = photo.caption.split(' • ').last.trim();
                       if (place.isNotEmpty) {
-                        ExternalLauncher.openMapDirections(context, query: place);
+                        ExternalLauncher.openMapDirections(
+                          context,
+                          query: place,
+                        );
                       }
                     },
                     borderRadius: BorderRadius.circular(10),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8EEFF),
                         borderRadius: BorderRadius.circular(10),
@@ -367,9 +374,15 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
       showCheckmark: false,
       avatar: uid == null
           ? null
-          : CircleAvatar(
-              backgroundColor: SoftPop.sky,
-              child: Text(name.substring(0, 1).toUpperCase()),
+          : MemberAvatar(
+              uid: uid,
+              name: name == 'Me'
+                  ? (widget.backend?.auth.currentUser?.displayName ??
+                        widget.backend?.auth.currentUser?.email
+                            ?.split('@')
+                            .first ??
+                        'Member')
+                  : name,
             ),
       label: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
       selected: widget.personUid == uid,
