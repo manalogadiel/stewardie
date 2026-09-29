@@ -106,6 +106,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
       setState(() {
         _currentUserLatLng = latLng;
         _lastKnownCenter = latLng;
+        _locationStatus = 'Your private device location';
       });
       if (_allowAutoCenter && _mapReady) _mapController.move(latLng, 15);
     }
@@ -159,6 +160,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
       setState(() {
         _lastKnownCenter = userLatLng;
         _currentUserLatLng = userLatLng;
+        _locationStatus = 'Your private device location';
       });
       if (_mapReady) _mapController.move(userLatLng, 15.0);
     } else if (mounted) {

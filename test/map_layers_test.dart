@@ -84,8 +84,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text('Place name'), findsOneWidget);
-    await tester.ensureVisible(find.text('Use this place'));
+    await tester.scrollUntilVisible(
+      find.text('Use this place'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Use this place'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

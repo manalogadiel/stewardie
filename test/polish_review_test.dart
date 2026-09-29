@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sembast/sembast_memory.dart';
@@ -60,6 +61,15 @@ void main() {
   testWidgets('login illustration fits small phones and reduced motion', (
     tester,
   ) async {
+    await (FontLoader(
+      'Fredoka',
+    )..addFont(rootBundle.load('assets/fonts/fredoka.ttf'))).load();
+    await (FontLoader(
+      'NunitoSans',
+    )..addFont(rootBundle.load('assets/fonts/nunito-sans.ttf'))).load();
+    await (FontLoader('MaterialIcons')
+          ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf')))
+        .load();
     tester.view.physicalSize = const Size(360, 780);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -76,24 +86,28 @@ void main() {
           child: Scaffold(
             body: RepaintBoundary(
               key: key,
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    const LoginScene(),
-                    Text(
-                      'A little more together',
-                      style: SoftPop.theme.textTheme.headlineLarge,
-                    ),
-                    const SizedBox(height: 24),
-                    const TextField(
-                      decoration: InputDecoration(labelText: 'Email'),
-                    ),
-                    const SizedBox(height: 14),
-                    const TextField(
-                      decoration: InputDecoration(labelText: 'Password'),
-                    ),
-                  ],
+              child: LoginBackdrop(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const LoginScene(),
+                      const LoginHeadline(),
+                      const SizedBox(height: 24),
+                      const TextField(
+                        decoration: InputDecoration(labelText: 'Email'),
+                      ),
+                      const SizedBox(height: 14),
+                      const TextField(
+                        decoration: InputDecoration(labelText: 'Password'),
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: () {},
+                        child: const Text('Sign in'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -101,6 +115,18 @@ void main() {
         ),
       ),
     );
+    await tester.runAsync(() async {
+      for (final asset in [
+        'login-sky-front.png',
+        'login-butter-welcome.jpg',
+        'login-rose-peekaboo.jpg',
+      ]) {
+        await precacheImage(
+          AssetImage('assets/illustrations/$asset'),
+          key.currentContext!,
+        );
+      }
+    });
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     final boundary =

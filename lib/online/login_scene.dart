@@ -1,172 +1,113 @@
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// Rendered from one articulated 3D model. Every action shares its rest pose.
-class LoginScene extends StatefulWidget {
+/// Static front-facing clay artwork: no GIF decoder or idle timer.
+class LoginScene extends StatelessWidget {
   const LoginScene({super.key});
-  @override
-  State<LoginScene> createState() => _LoginSceneState();
-}
-
-class _LoginSceneState extends State<LoginScene> with WidgetsBindingObserver {
-  static const _actions = ['wave', 'look', 'bounce', 'peek', 'stretch'];
-  Timer? _timer;
-  int _action = 0, _cycle = 0;
-  bool _moving = false, _foreground = true, _enabled = false;
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _update();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    _foreground = state == AppLifecycleState.resumed;
-    _update();
-  }
-
-  void _update() {
-    final enabled =
-        _foreground &&
-        TickerMode.valuesOf(context).enabled &&
-        !MediaQuery.disableAnimationsOf(context) &&
-        MediaQuery.viewInsetsOf(context).bottom == 0;
-    if (enabled == _enabled) return;
-    _enabled = enabled;
-    _timer?.cancel();
-    if (enabled) {
-      _play();
-    } else {
-      setState(() => _moving = false);
-    }
-  }
-
-  void _play() {
-    if (!_enabled || !mounted) return;
-    setState(() {
-      _moving = true;
-      _cycle++;
-    });
-    _timer = Timer(const Duration(milliseconds: 3360), () {
-      if (!mounted) return;
-      setState(() => _moving = false);
-      _action = (_action + 1) % _actions.length;
-      _timer = Timer(const Duration(milliseconds: 2200), _play);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) => ExcludeSemantics(
     child: SizedBox(
-      height: 190,
-      child: Center(
-        child: AnimatedSwitcher(
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 160),
-          child: Image.asset(
-            _moving
-                ? 'assets/illustrations/login-3d-${_actions[_action]}.gif'
-                : 'assets/illustrations/login-3d-still.png',
-            key: ValueKey(_moving ? '${_actions[_action]}/$_cycle' : 'still'),
-            width: 190,
-            height: 190,
-            fit: BoxFit.contain,
-          ),
-        ),
+      height: MediaQuery.viewInsetsOf(context).bottom > 0 ? 112 : 196,
+      child: Image.asset(
+        'assets/illustrations/login-sky-front.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.medium,
       ),
     ),
   );
 }
 
-/// Original vector artwork used to render the bundled waving GIF. Gradients
-/// give the clay shape depth; no existing raster art is altered.
-class WelcomeWavePainter extends CustomPainter {
-  const WelcomeWavePainter(this.progress);
-  final double progress;
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 240, size.height / 240);
-    final bounce = math.sin(progress * math.pi * 2) * 2;
-    canvas.translate(0, bounce);
-    canvas.drawOval(
-      const Rect.fromLTWH(51, 209, 135, 13),
-      Paint()
-        ..color = const Color(0x18334656)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-    );
-    void clay(Rect rect, {double radius = 45}) {
-      final paint = Paint()
-        ..shader = const RadialGradient(
-          center: Alignment(-.55, -.7),
-          radius: 1.3,
-          colors: [Color(0xFFD0EDFB), Color(0xFFA9D5EE), Color(0xFF669CBF)],
-          stops: [0, .48, 1],
-        ).createShader(rect);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, Radius.circular(radius)),
-        paint,
-      );
-    }
-
-    clay(const Rect.fromLTWH(51, 80, 30, 96));
-    clay(const Rect.fromLTWH(65, 47, 115, 163), radius: 59);
-    // A separate shoulder joint makes the hand wave rather than rotating the body.
-    canvas.save();
-    canvas.translate(167, 119);
-    canvas.rotate(.35 + math.sin(progress * math.pi * 4) * .32);
-    clay(const Rect.fromLTWH(-12, -80, 30, 86), radius: 18);
-    canvas.restore();
-    clay(const Rect.fromLTWH(69, 177, 50, 42), radius: 24);
-    clay(const Rect.fromLTWH(126, 177, 50, 42), radius: 24);
-    final face = Paint()
-      ..color = SoftPop.ink
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    for (final x in [98.0, 139.0]) {
-      canvas.drawPath(
-        Path()
-          ..moveTo(x - 6, 103)
-          ..quadraticBezierTo(x, 93, x + 6, 103),
-        face,
-      );
-    }
-    canvas.drawPath(
-      Path()
-        ..moveTo(111, 116)
-        ..quadraticBezierTo(121, 128, 131, 116),
-      face,
-    );
-    final cheek = Paint()..color = SoftPop.rose.withValues(alpha: .6);
-    canvas.drawOval(const Rect.fromLTWH(85, 111, 13, 7), cheek);
-    canvas.drawOval(const Rect.fromLTWH(143, 111, 13, 7), cheek);
-    final sparkle = Paint()
-      ..color = SoftPop.butter
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(const Offset(37, 58), const Offset(37, 74), sparkle);
-    canvas.drawLine(const Offset(29, 66), const Offset(45, 66), sparkle);
-  }
+class LoginHeadline extends StatelessWidget {
+  const LoginHeadline({super.key});
 
   @override
-  bool shouldRepaint(WelcomeWavePainter oldDelegate) =>
-      oldDelegate.progress != progress;
+  Widget build(BuildContext context) => const Text.rich(
+    TextSpan(
+      children: [
+        TextSpan(text: 'A little more\n'),
+        TextSpan(
+          text: 'together',
+          style: TextStyle(color: SoftPop.blue),
+        ),
+      ],
+    ),
+    textAlign: TextAlign.center,
+    style: TextStyle(
+      fontFamily: 'Fredoka',
+      fontSize: 34,
+      fontWeight: FontWeight.w500,
+      height: 1.08,
+      color: SoftPop.ink,
+      letterSpacing: -.4,
+    ),
+  );
+}
+
+/// Decoration never intercepts form taps or enters the accessibility tree.
+class LoginBackdrop extends StatelessWidget {
+  const LoginBackdrop({super.key, required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF0F5FA), Color(0xFFFAF9F6), Color(0xFFFFF5E7)],
+          ),
+        ),
+      ),
+      Positioned.fill(
+        child: IgnorePointer(
+          child: ExcludeSemantics(
+            child: Opacity(
+              opacity: MediaQuery.highContrastOf(context) ? 0 : .085,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: -80,
+                    top: 48,
+                    child: _decoration('login-butter-welcome.jpg', -.18),
+                  ),
+                  Positioned(
+                    right: -90,
+                    bottom: 36,
+                    child: _decoration('login-rose-peekaboo.jpg', .16),
+                  ),
+                  const Positioned(
+                    right: 28,
+                    top: 76,
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 46,
+                      color: SoftPop.blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      child,
+    ],
+  );
+
+  Widget _decoration(String asset, double angle) => Transform.rotate(
+    angle: angle,
+    child: ClipOval(
+      child: Image.asset(
+        'assets/illustrations/$asset',
+        width: 240,
+        height: 240,
+        fit: BoxFit.cover,
+      ),
+    ),
+  );
 }

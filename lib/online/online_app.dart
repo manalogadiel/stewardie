@@ -96,7 +96,10 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     if (_register && !_adultConfirmed) {
-      setState(() => _error = 'Stewardie accounts are for adults. Confirm you are at least 18.');
+      setState(
+        () => _error =
+            'Stewardie accounts are for adults. Confirm you are at least 18.',
+      );
       return;
     }
     setState(() {
@@ -158,211 +161,220 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: AutofillGroup(
-              child: Form(
-                key: _form,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const LoginScene(),
-                    const SizedBox(height: 20),
-                    Text(
-                      'A little more together',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _resetPassword
-                          ? 'Reset your password'
-                          : _register
-                          ? 'Make your account'
-                          : 'Welcome back',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 28),
-                    if (_remembered != null &&
-                        !_register &&
-                        !_resetPassword) ...[
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.person_rounded),
-                        onPressed: _busy
-                            ? null
-                            : () {
-                                setState(
-                                  () => _email.text = _remembered!.email,
-                                );
-                                _passwordFocus.requestFocus();
-                              },
-                        label: Text(
-                          'Continue as ${_remembered!.name.isEmpty ? _remembered!.email : _remembered!.name}',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const Text(
-                        'Use your saved password to sign in securely.',
+    body: LoginBackdrop(
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: AutofillGroup(
+                child: Form(
+                  key: _form,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const LoginScene(),
+                      const SizedBox(height: 12),
+                      const LoginHeadline(),
+                      const SizedBox(height: 12),
+                      Text(
+                        _resetPassword
+                            ? 'Reset your password'
+                            : _register
+                            ? 'Make your account'
+                            : 'Welcome back',
                         textAlign: TextAlign.center,
                       ),
-                      TextButton(
-                        onPressed: _busy
-                            ? null
-                            : () async {
-                                await RememberedAccount.forget(widget.database);
-                                if (mounted) {
-                                  setState(() {
-                                    _remembered = null;
-                                    _remember = false;
-                                    _email.clear();
-                                    _password.clear();
-                                  });
-                                }
-                              },
-                        child: const Text(
-                          'Forget account / Use another account',
+                      const SizedBox(height: 28),
+                      if (_remembered != null &&
+                          !_register &&
+                          !_resetPassword) ...[
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.person_rounded),
+                          onPressed: _busy
+                              ? null
+                              : () {
+                                  setState(
+                                    () => _email.text = _remembered!.email,
+                                  );
+                                  _passwordFocus.requestFocus();
+                                },
+                          label: Text(
+                            'Continue as ${_remembered!.name.isEmpty ? _remembered!.email : _remembered!.name}',
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (_register && !_resetPassword) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Use your saved password to sign in securely.',
+                          textAlign: TextAlign.center,
+                        ),
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  await RememberedAccount.forget(
+                                    widget.database,
+                                  );
+                                  if (mounted) {
+                                    setState(() {
+                                      _remembered = null;
+                                      _remember = false;
+                                      _email.clear();
+                                      _password.clear();
+                                    });
+                                  }
+                                },
+                          child: const Text(
+                            'Forget account / Use another account',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (_register && !_resetPassword) ...[
+                        TextFormField(
+                          controller: _name,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Your name',
+                          ),
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Enter your name'
+                              : null,
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                       TextFormField(
-                        controller: _name,
-                        textCapitalization: TextCapitalization.words,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'Your name',
-                        ),
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        autofillHints: const [AutofillHints.email],
+                        textInputAction: _resetPassword
+                            ? TextInputAction.done
+                            : TextInputAction.next,
+                        onFieldSubmitted: _resetPassword && !_busy
+                            ? (_) => _submit()
+                            : null,
+                        decoration: const InputDecoration(labelText: 'Email'),
                         validator: (value) =>
-                            value == null || value.trim().isEmpty
-                            ? 'Enter your name'
+                            value == null || !value.contains('@')
+                            ? 'Enter a valid email'
                             : null,
                       ),
                       const SizedBox(height: 14),
-                    ],
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      textInputAction: _resetPassword
-                          ? TextInputAction.done
-                          : TextInputAction.next,
-                      onFieldSubmitted: _resetPassword && !_busy
-                          ? (_) => _submit()
-                          : null,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) =>
-                          value == null || !value.contains('@')
-                          ? 'Enter a valid email'
-                          : null,
-                    ),
-                    const SizedBox(height: 14),
-                    if (!_resetPassword)
-                      TextFormField(
-                        controller: _password,
-                        focusNode: _passwordFocus,
-                        obscureText: true,
-                        autofillHints: [
-                          _register
-                              ? AutofillHints.newPassword
-                              : AutofillHints.password,
-                        ],
-                        onFieldSubmitted: (_) => _busy ? null : _submit(),
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
+                      if (!_resetPassword)
+                        TextFormField(
+                          controller: _password,
+                          focusNode: _passwordFocus,
+                          obscureText: true,
+                          autofillHints: [
+                            _register
+                                ? AutofillHints.newPassword
+                                : AutofillHints.password,
+                          ],
+                          onFieldSubmitted: (_) => _busy ? null : _submit(),
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                          ),
+                          validator: (value) =>
+                              value == null ||
+                                  (_register ? value.length < 8 : value.isEmpty)
+                              ? _register
+                                    ? 'Use at least 8 characters'
+                                    : 'Enter your password'
+                              : null,
                         ),
-                        validator: (value) =>
-                            value == null ||
-                                (_register ? value.length < 8 : value.isEmpty)
-                            ? _register
-                                  ? 'Use at least 8 characters'
-                                  : 'Enter your password'
-                            : null,
-                      ),
-                    if (_register && !_resetPassword)
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text('I am at least 18 years old'),
-                        value: _adultConfirmed,
-                        onChanged: _busy ? null : (value) =>
-                          setState(() => _adultConfirmed = value ?? false),
-                      ),
-                    if (!_resetPassword && widget.database != null)
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text(
-                          'Remember this account on this device',
+                      if (_register && !_resetPassword)
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text('I am at least 18 years old'),
+                          value: _adultConfirmed,
+                          onChanged: _busy
+                              ? null
+                              : (value) => setState(
+                                  () => _adultConfirmed = value ?? false,
+                                ),
                         ),
-                        value: _remember,
-                        onChanged: _busy
-                            ? null
-                            : (value) =>
-                                  setState(() => _remember = value ?? false),
+                      if (!_resetPassword && widget.database != null)
+                        CheckboxListTile(
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: const Text(
+                            'Remember this account on this device',
+                          ),
+                          value: _remember,
+                          onChanged: _busy
+                              ? null
+                              : (value) =>
+                                    setState(() => _remember = value ?? false),
+                        ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
+                      if (_message != null) ...[
+                        const SizedBox(height: 12),
+                        Text(_message!),
+                      ],
+                      const SizedBox(height: 20),
+                      FilledButton(
+                        onPressed: _busy ? null : _submit,
+                        child: _busy
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                _resetPassword
+                                    ? 'Send reset link'
+                                    : _register
+                                    ? 'Create account'
+                                    : 'Sign in',
+                              ),
                       ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 12),
-                      Text(_error!, style: const TextStyle(color: Colors.red)),
-                    ],
-                    if (_message != null) ...[
-                      const SizedBox(height: 12),
-                      Text(_message!),
-                    ],
-                    const SizedBox(height: 20),
-                    FilledButton(
-                      onPressed: _busy ? null : _submit,
-                      child: _busy
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(
-                              _resetPassword
-                                  ? 'Send reset link'
-                                  : _register
-                                  ? 'Create account'
-                                  : 'Sign in',
-                            ),
-                    ),
-                    if (!_register && !_resetPassword)
+                      if (!_register && !_resetPassword)
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () => setState(() {
+                                  _resetPassword = true;
+                                  _error = null;
+                                  _message = null;
+                                }),
+                          child: const Text('Forgot password?'),
+                        ),
+                      const SizedBox(height: 8),
                       TextButton(
                         onPressed: _busy
                             ? null
                             : () => setState(() {
-                                _resetPassword = true;
+                                if (_resetPassword) {
+                                  _resetPassword = false;
+                                } else {
+                                  _register = !_register;
+                                }
                                 _error = null;
                                 _message = null;
                               }),
-                        child: const Text('Forgot password?'),
+                        child: Text(
+                          _resetPassword
+                              ? 'Back to sign in'
+                              : _register
+                              ? 'I already have an account'
+                              : 'Create an account',
+                        ),
                       ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: _busy
-                          ? null
-                          : () => setState(() {
-                              if (_resetPassword) {
-                                _resetPassword = false;
-                              } else {
-                                _register = !_register;
-                              }
-                              _error = null;
-                              _message = null;
-                            }),
-                      child: Text(
-                        _resetPassword
-                            ? 'Back to sign in'
-                            : _register
-                            ? 'I already have an account'
-                            : 'Create an account',
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

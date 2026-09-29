@@ -153,9 +153,8 @@ class ActivityInboxSheet extends StatelessWidget {
           spaceNames[doc.data()['spaceId']] ?? 'Space',
           doc.data()['body'] as String? ?? '',
           if (doc.data()['createdAt'] is Timestamp)
-            TimeOfDay.fromDateTime(
-              (doc.data()['createdAt'] as Timestamp).toDate().toLocal(),
-            ).format(context),
+            '${MaterialLocalizations.of(context).formatMediumDate((doc.data()['createdAt'] as Timestamp).toDate().toLocal())} '
+                '${TimeOfDay.fromDateTime((doc.data()['createdAt'] as Timestamp).toDate().toLocal()).format(context)}',
         ].where((text) => text.isNotEmpty).join(' · '),
       ),
       onTap: () async {
