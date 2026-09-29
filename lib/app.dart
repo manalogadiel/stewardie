@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'core/backend_provider.dart';
 import 'core/demo_state.dart';
 import 'core/theme.dart';
+import 'core/soft_pop_backdrop.dart';
 import 'features/spaces/space_screen.dart';
 import 'features/moments/moments_screen.dart';
 import 'features/timeline/domain/models.dart';
@@ -59,9 +60,21 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(demoProvider), repo = ref.read(repositoryProvider);
-    final space = repo.spaces.where((s) => s.id == state.spaceId).firstOrNull;
+    final availableSpaces = repo.spaces;
+    final space =
+        availableSpaces.where((s) => s.id == state.spaceId).firstOrNull ??
+        availableSpaces.firstOrNull;
     if (space == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: Text('Your spaces are loading…')),
+      );
+    }
+    if (space.id != state.spaceId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          ref.read(demoProvider.notifier).switchSpace(space.id);
+        }
+      });
     }
     final index = path == '/moments'
         ? 1
@@ -74,6 +87,7 @@ class AppShell extends ConsumerWidget {
         extendBody: true,
         body: Stack(
           children: [
+            const Positioned.fill(child: SoftPopBackdrop()),
             Positioned.fill(
               child: SafeArea(top: false, bottom: false, child: child),
             ),
@@ -377,8 +391,8 @@ class GlassDock extends StatelessWidget {
                         key: i == 1
                             ? TutorialTargetRegistry.momentsTabTarget
                             : (i == 2
-                                ? TutorialTargetRegistry.spaceTabTarget
-                                : null),
+                                  ? TutorialTargetRegistry.spaceTabTarget
+                                  : null),
                         padding: EdgeInsets.symmetric(
                           horizontal: largeText ? 2 : 4,
                           vertical: 10,

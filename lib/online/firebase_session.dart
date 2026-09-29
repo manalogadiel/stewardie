@@ -12,6 +12,7 @@ import '../features/subscription/revenuecat_service.dart';
 import '../core/backend_provider.dart';
 import '../core/demo_state.dart';
 import '../core/theme.dart';
+import '../core/profile_photo.dart';
 import '../features/calendar/calendar_state.dart';
 import '../features/calendar/google_calendar_import.dart';
 import '../features/media/media_library.dart';
@@ -51,7 +52,9 @@ class _FirebaseSessionAppState extends State<FirebaseSessionApp> {
           title: 'Stewardie',
           debugShowCheckedModeBanner: false,
           theme: SoftPop.theme,
-          home: const Scaffold(body: Center(child: CircularProgressIndicator())),
+          home: const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          ),
         );
       }
       if (user == null) {
@@ -81,17 +84,17 @@ class _FirebaseSessionAppState extends State<FirebaseSessionApp> {
         );
       }
       return FutureBuilder<bool>(
-        future: OnboardingStore(widget.database).isCompleted(
-          user.uid,
-          backend: widget.backend,
-        ),
+        future: OnboardingStore(widget.database)
+            .isCompleted(user.uid, backend: widget.backend),
         builder: (context, completedSnapshot) {
           if (completedSnapshot.connectionState == ConnectionState.waiting) {
             return MaterialApp(
               title: 'Stewardie',
               debugShowCheckedModeBanner: false,
               theme: SoftPop.theme,
-              home: const Scaffold(body: Center(child: CircularProgressIndicator())),
+              home: const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              ),
             );
           }
           final completed = completedSnapshot.data ?? false;
@@ -135,8 +138,13 @@ class _SignedInApp extends StatefulWidget {
   State<_SignedInApp> createState() => _SignedInAppState();
 }
 
-class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver {
-  late final outbox = EditOutbox(widget.database, widget.backend, widget.user.uid);
+class _SignedInAppState extends State<_SignedInApp>
+    with WidgetsBindingObserver {
+  late final outbox = EditOutbox(
+    widget.database,
+    widget.backend,
+    widget.user.uid,
+  );
   late final timeline = FirebaseTimelineRepository(
     widget.backend,
     widget.user.uid,
@@ -153,7 +161,16 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
     WidgetsBinding.instance.addObserver(this);
     LiveLocationService.instance.init(widget.backend);
     unawaited(LiveLocationService.instance.restore());
-    PushService.instance.init(widget.user.uid);
+    unawaited(PushService.instance.init(widget.user.uid).catchError((_) {}));
+    unawaited(
+      () async {
+        final store = OnboardingStore(widget.database);
+        final pending = await store.pendingAvatar(widget.user.uid);
+        if (pending == null) return;
+        await ProfilePhoto.save(pending);
+        await store.clearPendingAvatar(widget.user.uid);
+      }().catchError((_) {}),
+    );
     unawaited(outbox.start());
     timeline.start();
     unawaited(() async {
@@ -163,7 +180,10 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
       if (await GoogleCalendarImport.instance.restore()) {
         for (final space in timeline.spaces) {
           try {
-            await GoogleCalendarImport.instance.refreshSpace(widget.backend, space.id);
+            await GoogleCalendarImport.instance.refreshSpace(
+              widget.backend,
+              space.id,
+            );
           } catch (_) {
             // Calendar remains usable; the member can reconnect on opening it.
           }
@@ -184,9 +204,9 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
     final token = InviteLinks.sanitize(
       kIsWeb
           ? (Uri.base.queryParameters['invite'] ??
-              Uri.base.queryParameters['token'] ??
-              Uri.base.queryParameters['code'] ??
-              '')
+                Uri.base.queryParameters['token'] ??
+                Uri.base.queryParameters['code'] ??
+                '')
           : '',
     );
     if (token.isEmpty) return;
@@ -194,8 +214,9 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!context.mounted) return;
       try {
-        final preview =
-            await widget.backend.call('previewInvite', {'token': token});
+        final preview = await widget.backend.call('previewInvite', {
+          'token': token,
+        });
         if (!context.mounted) return;
         final spaceName = preview['spaceName'] as String? ?? 'this space';
         final shouldJoin = await showDialog<bool>(
@@ -220,24 +241,29 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
           await widget.user.getIdToken(true);
           if (preview['requireApproval'] == true) {
             final approved = await widget.backend.requestJoinSpace(
-              preview['spaceId'] as String, token,
+              preview['spaceId'] as String,
+              token,
             );
             if (!approved) {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Request sent. Open the invite again after approval.'),
-                ));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Request sent. Open the invite again after approval.',
+                    ),
+                  ),
+                );
               }
               return;
             }
           }
-          final result =
-              await widget.backend.call('redeemInvite', {'token': token});
+          final result = await widget.backend.call('redeemInvite', {
+            'token': token,
+          });
           final joinedSpaceId = result['spaceId'] as String?;
           if (joinedSpaceId != null && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Joined $spaceName!')),
-            );
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Joined $spaceName!')));
           }
         }
       } catch (_) {}
@@ -283,7 +309,7 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(LiveLocationService.instance.stopSharing());
-    PushService.instance.logOut();
+    unawaited(PushService.instance.logOut());
     unawaited(timeline.dispose());
     outbox.close();
     _loadedLibrary?.dispose();
@@ -314,7 +340,9 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
             );
           }
           if (!photoSnapshot.hasData || timeline.loading) {
-            return _standalone(const Center(child: CircularProgressIndicator()));
+            return _standalone(
+              const Center(child: CircularProgressIndicator()),
+            );
           }
           if (timeline.spaces.isEmpty) {
             return MaterialApp(

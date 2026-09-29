@@ -4,7 +4,12 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Public tile key supplied at build time. The free key is not an account secret.
-const mapTilerKey = String.fromEnvironment('MAPTILER_KEY');
+// MapTiler client keys are public. Keep the pilot key as the plain flutter run
+// default; release builds can override it with --dart-define=MAPTILER_KEY=... .
+const mapTilerKey = String.fromEnvironment(
+  'MAPTILER_KEY',
+  defaultValue: '7uwMZ6Idub8CZM4AXzAR',
+);
 
 enum StewardieMapStyle { satellite, streets }
 

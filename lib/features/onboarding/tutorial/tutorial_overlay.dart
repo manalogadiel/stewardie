@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
 import '../mascot_stage.dart';
-import 'tutorial_example_card.dart';
 import 'tutorial_state.dart';
 import 'tutorial_target_registry.dart';
 
@@ -213,8 +212,16 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                           ],
                         ),
 
-                        // Visual Example preview
-                        TutorialExampleCard(stopId: stop.id),
+                        // The highlighted control is the real app UI. Avoid a
+                        // miniature copy that drifts as the screens change.
+                        if (targetRect == null)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 10),
+                            child: Text(
+                              'This feature appears after you join or create a space.',
+                              style: TextStyle(color: SoftPop.secondary),
+                            ),
+                          ),
 
                         const SizedBox(height: 12),
 

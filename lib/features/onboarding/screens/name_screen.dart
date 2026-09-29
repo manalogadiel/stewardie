@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/profile_photo.dart';
 import '../mascot_stage.dart';
 import '../staggered_entrance.dart';
 
@@ -12,10 +13,14 @@ class NameScreen extends StatefulWidget {
   const NameScreen({
     super.key,
     required this.initialName,
+    this.initialAvatarBase64,
+    this.onAvatarChanged,
     required this.onContinue,
   });
 
   final String initialName;
+  final String? initialAvatarBase64;
+  final ValueChanged<String>? onAvatarChanged;
   final ValueChanged<String> onContinue;
 
   @override
@@ -26,11 +31,13 @@ class _NameScreenState extends State<NameScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   final _focusNode = FocusNode();
+  String? _avatar;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialName);
+    _avatar = widget.initialAvatarBase64;
   }
 
   @override
@@ -44,6 +51,22 @@ class _NameScreenState extends State<NameScreen> {
     if (!_formKey.currentState!.validate()) return;
     final trimmed = _nameController.text.trim();
     widget.onContinue(trimmed);
+  }
+
+  Future<void> _chooseAvatar() async {
+    try {
+      final chosen = await ProfilePhoto.choose(context);
+      if (chosen == null || !mounted) return;
+      setState(() => _avatar = chosen);
+      widget.onAvatarChanged?.call(chosen);
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not use that photo. Try another.'),
+          ),
+        );
+    }
   }
 
   @override
@@ -89,6 +112,29 @@ class _NameScreenState extends State<NameScreen> {
                   ),
                 ),
                 const SizedBox(height: 28),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _chooseAvatar,
+                    icon: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: SoftPop.blueSoft,
+                      backgroundImage: switch (ProfilePhoto.decode(_avatar)) {
+                        final bytes? => MemoryImage(bytes),
+                        null => null,
+                      },
+                      child: _avatar == null
+                          ? const Icon(
+                              Icons.add_a_photo_rounded,
+                              color: SoftPop.blue,
+                            )
+                          : null,
+                    ),
+                    label: Text(
+                      _avatar == null ? 'Add photo (optional)' : 'Change photo',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 StaggeredEntrance(
                   order: 3,
                   child: Column(

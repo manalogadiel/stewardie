@@ -47,8 +47,15 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(demoProvider);
     final repo = ref.read(repositoryProvider);
-    final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
-    final currentScope = '${space.id}/${state.personId}';
+    final availableSpaces = repo.spaces;
+    final space =
+        availableSpaces.where((s) => s.id == state.spaceId).firstOrNull ??
+        availableSpaces.firstOrNull;
+    if (space == null) {
+      return const Center(child: Text('Your spaces are loading…'));
+    }
+    final personId = space.id == state.spaceId ? state.personId : null;
+    final currentScope = '${space.id}/$personId';
     if (scope != currentScope) {
       scope = currentScope;
       showDone = false;
@@ -60,7 +67,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           (t) =>
               t.spaceId == space.id &&
               !t.isEvent &&
-              t.matchesPerson(state.personId) &&
+              t.matchesPerson(personId) &&
               repo.canView(t),
         )
         .toList();
@@ -104,10 +111,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         )
         .length;
     final large = MediaQuery.textScalerOf(context).scale(16) > 22;
-    final moodSubject =
-        state.personId == null || state.personId == repo.currentUserId
+    final moodSubject = personId == null || personId == repo.currentUserId
         ? repo.currentUserId
-        : state.personId!;
+        : personId;
     final isMyMood = moodSubject == repo.currentUserId;
     final mood = repo.checkIn(space.id, moodSubject);
     final moodCard = ClayPanel(
@@ -135,22 +141,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 style: Theme.of(context).textTheme.labelLarge,
               ),
               Center(
-                child: mood == null && !isMyMood
-                    ? const SizedBox(
-                        height: 92,
-                        child: Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 56,
-                          color: SoftPop.secondary,
-                        ),
-                      )
-                    : ClayArt(
-                        moodArtName(
-                          mood?.mood ?? Mood.calm,
-                          mood?.color ?? MoodColor.sky,
-                        ),
-                        height: 92,
-                      ),
+                child: mood == null
+                    ? const ClayArt('mood-gray-question', height: 92)
+                    : ClayArt(moodArtName(mood.mood, mood.color), height: 92),
               ),
               Text(
                 mood?.mood.label ??
@@ -197,16 +190,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   Builder(
                     builder: (context) {
                       final scale = MediaQuery.textScalerOf(context).scale(16);
-                      final topClearance = MediaQuery.paddingOf(context).top +
+                      final topClearance =
+                          MediaQuery.paddingOf(context).top +
                           (scale > 22 ? 140.0 : 68.0);
                       return ClayPanel(
                         color: SoftPop.today,
-                        padding: EdgeInsets.fromLTRB(
-                          20,
-                          topClearance,
-                          16,
-                          12,
-                        ),
+                        padding: EdgeInsets.fromLTRB(20, topClearance, 16, 12),
                         radius: const BorderRadius.vertical(
                           bottom: Radius.circular(28),
                         ),
@@ -218,7 +207,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                                 children: [
                                   Text(
                                     'Today',
-                                    style: Theme.of(context).textTheme.headlineLarge
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineLarge
                                         ?.copyWith(fontSize: 32),
                                   ),
                                   const SizedBox(height: 4),
@@ -232,7 +223,11 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                               ),
                             ),
                             if (!large && scale <= 22)
-                              const ClayArt('greeting', height: 96, width: 132),
+                              SpaceMascotArt(
+                                space.kind,
+                                height: 96,
+                                width: 132,
+                              ),
                           ],
                         ),
                       );
@@ -452,7 +447,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   Widget _empty(String title, String subtitle) => ClayPanel(
     child: Column(
       children: [
-        const ClayArt('celebrate', height: 130),
+        const ClayArt('empty-breathing-room', height: 130),
         Text(
           title,
           style: Theme.of(context).textTheme.titleLarge,

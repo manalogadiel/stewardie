@@ -227,7 +227,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
           const ClayPanel(
             child: Column(
               children: [
-                ClayArt('celebrate', height: 160),
+                ClayArt('moments-selfie-group', height: 160),
                 SizedBox(height: 16),
                 Text('Room for the good bits'),
                 SizedBox(height: 8),

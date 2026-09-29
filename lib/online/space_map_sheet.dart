@@ -15,6 +15,7 @@ class SpaceMapSheet extends StatefulWidget {
   const SpaceMapSheet({
     super.key,
     required this.backend,
+
     /// When null the map opens in private mode: tiles, location, recenter, and
     /// satellite/streets toggle work, but session subscription, other members,
     /// and sharing are all disabled.
@@ -24,6 +25,7 @@ class SpaceMapSheet extends StatefulWidget {
 
   final OnlineBackend backend;
   final String? spaceId;
+
   /// Called when the user taps the Create/Join prompt in private-map mode.
   final VoidCallback? onJoinSpace;
 
@@ -232,7 +234,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
       );
       if (approved != true) return;
       await LiveLocationService.instance.startSharing(
-        spaceId: widget.spaceId,
+        spaceId: widget.spaceId!,
         durationMinutes: _selectedDuration,
       );
     } catch (error) {
@@ -515,7 +517,10 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                 if (widget.spaceId == null) ...[
                   const SizedBox(height: 20),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF6F5F0),
                       borderRadius: BorderRadius.circular(16),
@@ -526,7 +531,11 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.group_outlined, color: Color(0xFF596171), size: 18),
+                            Icon(
+                              Icons.group_outlined,
+                              color: Color(0xFF596171),
+                              size: 18,
+                            ),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -715,7 +724,6 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
         ),
       ),
     );
-  }
   }
 
   String _memberLocationStatus(Map<String, dynamic> member) {

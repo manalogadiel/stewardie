@@ -19,6 +19,34 @@ class ClayArt extends StatelessWidget {
   );
 }
 
+/// Choose a consistent illustration for a space's persisted type.
+class SpaceMascotArt extends StatelessWidget {
+  const SpaceMascotArt(this.kind, {super.key, this.height = 100, this.width});
+
+  final String? kind;
+  final double height;
+  final double? width;
+
+  String get _asset => switch (kind) {
+    'family' => 'mascot-family-cutout.png',
+    'friends' => 'mascot-friends-cutout.png',
+    'organization' => 'mascot-organization-cutout.png',
+    'couple' => 'mascot-couple.png',
+    _ => 'mascot-other.png',
+  };
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: Image.asset(
+      'assets/illustrations/$_asset',
+      height: height,
+      width: width,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+    ),
+  );
+}
+
 class ClayPanel extends StatelessWidget {
   const ClayPanel({
     super.key,

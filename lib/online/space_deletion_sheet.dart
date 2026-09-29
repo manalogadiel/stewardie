@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'online_backend.dart';
@@ -58,6 +60,13 @@ class _SpaceDeletionSheetState extends State<SpaceDeletionSheet> {
     setState(() => _busy = true);
     try {
       await widget.backend.call('deleteSpace', {'spaceId': widget.spaceId});
+      // Cron remains the durable fallback if this prompt drain fails/offlines.
+      unawaited(
+        widget.backend
+            .callSpaceAction('drainDeletion', widget.spaceId)
+            .then((_) {})
+            .catchError((_) {}),
+      );
       if (mounted) {
         setState(() {
           _busy = false;

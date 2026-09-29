@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../core/member_avatar.dart';
+import '../core/profile_photo.dart';
 import 'online_backend.dart';
 import 'live_location_service.dart';
 import 'push_service.dart';
@@ -36,6 +40,8 @@ class AccountSettingsSheet extends StatefulWidget {
   }) {
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: const Color(0xFFFAF9F6),
       shape: const RoundedRectangleBorder(
@@ -61,6 +67,38 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
   final FocusNode _nameFocus = FocusNode();
   bool _busy = false;
 
+  Future<void> _changePhoto() async {
+    try {
+      final photo = await ProfilePhoto.choose(context);
+      if (photo == null || !mounted) return;
+      setState(() => _busy = true);
+      await ProfilePhoto.save(photo);
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save your photo. Please retry.'),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    try {
+      setState(() => _busy = true);
+      await ProfilePhoto.remove();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not remove your photo.')),
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -71,7 +109,16 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
       if (!_nameFocus.hasFocus) {
         final newName = _nameController.text.trim();
         if (newName.isNotEmpty) {
-          widget.backend.updateProfileName(newName);
+          unawaited(
+            widget.backend.updateProfileName(newName).catchError((_) {
+              if (mounted)
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Could not save your name. Please retry.'),
+                  ),
+                );
+            }),
+          );
         }
       }
     });
@@ -104,7 +151,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
     );
     if (confirmed != true || !mounted) return;
     await LiveLocationService.instance.stopSharing();
-    PushService.instance.logOut();
+    await PushService.instance.logOut();
     if (!mounted) return;
     Navigator.of(context).pop();
     await widget.backend.auth.signOut();
@@ -167,9 +214,13 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
       if (mounted) {
         final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop();
-        messenger.showSnackBar(const SnackBar(
-          content: Text('Deletion request received. You can sign in until processing starts.'),
-        ));
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Deletion request received. You can sign in until processing starts.',
+            ),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -218,10 +269,31 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                   ],
                 ),
                 const SizedBox(height: 16),
+                Row(
+                  children: [
+                    MemberAvatar(
+                      uid: widget.backend.auth.currentUser!.uid,
+                      name:
+                          widget.backend.auth.currentUser!.displayName ??
+                          'Member',
+                      radius: 28,
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: _busy ? null : _changePhoto,
+                      child: const Text('Change photo'),
+                    ),
+                    TextButton(
+                      onPressed: _busy ? null : _removePhoto,
+                      child: const Text('Remove'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 12,
+                    vertical: 8,
                   ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFEFB),
@@ -250,6 +322,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                         ),
                         decoration: const InputDecoration(
                           border: InputBorder.none,
+                          isDense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
@@ -336,8 +409,12 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                     const SizedBox(height: 12),
                   ],
                   if (email.toLowerCase() == 'gadielmanalo19@gmail.com') ...[
-                    TextButton.icon(onPressed: () => OperatorReviewSheet.show(context, widget.backend),
-                      icon: const Icon(Icons.shield_outlined), label: const Text('Private review queue')),
+                    TextButton.icon(
+                      onPressed: () =>
+                          OperatorReviewSheet.show(context, widget.backend),
+                      icon: const Icon(Icons.shield_outlined),
+                      label: const Text('Private review queue'),
+                    ),
                     const SizedBox(height: 8),
                   ],
                   SizedBox(

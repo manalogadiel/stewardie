@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -60,7 +62,7 @@ String _firstName(String name) {
   return first.length > 12 ? '${first.substring(0, 11)}…' : first;
 }
 
-class _OnlineMoodCard extends StatelessWidget {
+class _OnlineMoodCard extends StatefulWidget {
   const _OnlineMoodCard({
     required this.backend,
     required this.spaceId,
@@ -76,12 +78,55 @@ class _OnlineMoodCard extends StatelessWidget {
   final int memberCount;
 
   @override
+  State<_OnlineMoodCard> createState() => _OnlineMoodCardState();
+}
+
+class _OnlineMoodCardState extends State<_OnlineMoodCard> {
+  Timer? _expiryTimer;
+  DateTime? _scheduledExpiry;
+  late Stream<DocumentSnapshot<Map<String, dynamic>>> _checkInStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInStream = widget.backend.checkIn(widget.spaceId, widget.subject);
+  }
+
+  @override
+  void didUpdateWidget(_OnlineMoodCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.spaceId != widget.spaceId ||
+        oldWidget.subject != widget.subject ||
+        oldWidget.backend != widget.backend) {
+      _expiryTimer?.cancel();
+      _scheduledExpiry = null;
+      _checkInStream = widget.backend.checkIn(widget.spaceId, widget.subject);
+    }
+  }
+
+  @override
+  void dispose() {
+    _expiryTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) =>
       StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: backend.checkIn(spaceId, subject),
+        stream: _checkInStream,
         builder: (context, snapshot) {
           final data = snapshot.data?.data();
           final expires = data?['expiresAt'];
+          final expiry = expires is Timestamp ? expires.toDate() : null;
+          if (expiry != _scheduledExpiry) {
+            _expiryTimer?.cancel();
+            _scheduledExpiry = expiry;
+            if (expiry != null && expiry.isAfter(DateTime.now())) {
+              _expiryTimer = Timer(expiry.difference(DateTime.now()), () {
+                if (mounted) setState(() {});
+              });
+            }
+          }
           final current =
               data != null &&
               expires is Timestamp &&
@@ -105,12 +150,12 @@ class _OnlineMoodCard extends StatelessWidget {
                 isScrollControlled: true,
                 useSafeArea: true,
                 builder: (_) => _OnlineMoodSheet(
-                  backend: backend,
-                  spaceId: spaceId,
-                  spaceName: spaceName,
-                  name: name,
-                  memberCount: memberCount,
-                  me: me,
+                  backend: widget.backend,
+                  spaceId: widget.spaceId,
+                  spaceName: widget.spaceName,
+                  name: widget.name,
+                  memberCount: widget.memberCount,
+                  me: widget.me,
                   current: current ? data : null,
                 ),
               ),
@@ -121,35 +166,28 @@ class _OnlineMoodCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      me ? 'Your mood' : '${_firstName(name)}’s mood',
+                      widget.me
+                          ? 'Your mood'
+                          : '${_firstName(widget.name)}’s mood',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     Center(
-                      child: mood == null && !me
-                          ? const SizedBox(
-                              height: 92,
-                              child: Icon(
-                                Icons.chat_bubble_outline_rounded,
-                                size: 52,
-                                color: SoftPop.secondary,
-                              ),
-                            )
-                          : ClayArt(
-                              moodArtName(mood ?? Mood.calm, color),
-                              height: 92,
-                            ),
+                      child: mood == null
+                          ? const ClayArt('mood-gray-question', height: 92)
+                          : ClayArt(moodArtName(mood, color), height: 92),
                     ),
                     Text(
-                      mood?.label ?? (me ? 'How are you?' : 'No check-in yet'),
+                      mood?.label ??
+                          (widget.me ? 'How are you?' : 'No check-in yet'),
                     ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         Expanded(
                           child: Text(
-                            me
+                            widget.me
                                 ? mood == null
                                       ? 'Check in'
                                       : 'Update mood'
@@ -384,6 +422,7 @@ class OnlinePlan {
     }
     return DateTime.now();
   }
+
   DateTime get localStart => allDay
       ? DateTime.utc(start.toUtc().year, start.toUtc().month, start.toUtc().day)
       : start.toLocal();

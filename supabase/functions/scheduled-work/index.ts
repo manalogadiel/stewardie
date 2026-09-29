@@ -62,7 +62,7 @@ async function token(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const assertion = await new SignJWT({
     iss: email, sub: email, aud: 'https://oauth2.googleapis.com/token',
-    scope: 'https://www.googleapis.com/auth/datastore',
+    scope: 'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging',
   }).setProtectedHeader({ alg: 'RS256' }).setIssuedAt(now)
     .setExpirationTime(now + 3600).sign(key);
   const result = await fetch('https://oauth2.googleapis.com/token', {
@@ -358,6 +358,7 @@ async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc,
     removed: ['A member was removed', 'Your space membership changed.'],
     ownershipOffered: ['Ownership offer', 'Review the offer in your space.'],
     ownershipAccepted: ['Ownership transferred', 'Your space has a new owner.'],
+    spaceRenamed: ['Space renamed', 'Your space has a new name.'],
     taskAssigned: ['Task assigned', 'A task needs your response.'],
     helpRequested: ['Help requested', 'A member asked for help with a task.'],
     covered: ['Task covered', 'Someone is covering a task.'],
@@ -486,29 +487,55 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
   }
   const zone = String(global.timeZone ?? 'UTC');
   if (quiet(local(now, zone).minute, Number(global.quietStart ?? 1320), Number(global.quietEnd ?? 420))) return;
-  const appId = Deno.env.get('ONESIGNAL_APP_ID');
-  const apiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
-  if (!appId || !apiKey) {
-    // Never send a backlog of old alerts when push is configured later.
+  const devices = await list(`accounts/${uid}/pushDevices`);
+  if (devices.length === 0) {
+    // Never send a backlog of old alerts when the account enables push later.
     await update(path, { pushState: 'unavailable', pushLeaseUntil: null }, item.updateTime!);
     return;
   }
   if (!await update(path, {
     pushLeaseUntil: new Date(now.getTime() + 120000),
   }, item.updateTime!)) return;
-  const response = await fetch('https://api.onesignal.com/notifications', {
-    method: 'POST',
-    headers: { authorization: `Key ${apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ app_id: appId, include_aliases: { external_id: [uid] },
-      target_channel: 'push', headings: { en: 'Stewardie' },
-      contents: { en: 'You have a reminder in your space.' },
-      idempotency_key: data.pushId,
-    }),
-  });
-  if (!response.ok) throw new Error(`OneSignal delivery failed: ${response.status}`);
+  let sent = 0;
+  for (const device of devices) {
+    const devicePath = docPath(device);
+    const deviceToken = fields(device).token;
+    if (typeof deviceToken !== 'string' || !deviceToken) continue;
+    const response = await fetch(`https://fcm.googleapis.com/v1/projects/${project}/messages:send`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${await token()}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ message: {
+        token: deviceToken,
+        notification: { title: 'Stewardie', body: 'You have an update in your space.' },
+        data: { activityId: path.split('/').pop()!, spaceId },
+        android: { collapse_key: String(data.pushId ?? path).slice(0, 64) },
+        apns: { headers: { 'apns-collapse-id': String(data.pushId ?? path).slice(0, 64) } },
+      } }),
+    });
+    if (response.ok) {
+      sent++;
+      continue;
+    }
+    const failure = await response.text();
+    let fcmError: string | undefined;
+    try {
+      const parsed = JSON.parse(failure);
+      fcmError = parsed.error?.details?.find(
+        (detail: { '@type'?: string }) =>
+          detail['@type'] === 'type.googleapis.com/google.firebase.fcm.v1.FcmError',
+      )?.errorCode;
+    } catch { /* Preserve the HTTP error below. */ }
+    // An HTTP 404 can mean a wrong Firebase project/API, and a generic 400
+    // can mean a malformed payload. Neither proves this device token is bad.
+    if (fcmError === 'UNREGISTERED' || fcmError === 'INVALID_ARGUMENT') {
+      if (device.updateTime) await remove(devicePath, device.updateTime);
+      continue;
+    }
+    throw new Error(`FCM delivery failed: ${response.status}`);
+  }
   const leased = await get(path);
   if (leased?.updateTime) await update(path, {
-    pushState: 'sent', pushedAt: new Date(),
+    pushState: sent > 0 ? 'sent' : 'unavailable', pushedAt: sent > 0 ? new Date() : null,
     pushLeaseUntil: null,
   }, leased.updateTime);
 }

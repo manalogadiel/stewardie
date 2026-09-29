@@ -242,7 +242,7 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
               const ClayPanel(
                 child: Column(
                   children: [
-                    ClayArt('celebrate', height: 160),
+                    ClayArt('moments-selfie-group', height: 160),
                     SizedBox(height: 16),
                     Text('Room for the good bits'),
                     SizedBox(height: 8),
@@ -377,7 +377,8 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
           : MemberAvatar(
               uid: uid,
               name: name == 'Me'
-                  ? (widget.members[uid]?['name'] as String? ?? widget.backend?.auth.currentUser?.displayName ??
+                  ? (widget.members[uid]?['name'] as String? ??
+                        widget.backend?.auth.currentUser?.displayName ??
                         widget.backend?.auth.currentUser?.email
                             ?.split('@')
                             .first ??

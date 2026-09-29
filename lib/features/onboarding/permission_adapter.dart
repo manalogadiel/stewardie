@@ -4,11 +4,7 @@ import 'package:geolocator/geolocator.dart';
 
 import '../../online/push_service.dart';
 
-enum PermissionCapability {
-  camera,
-  location,
-  notifications,
-}
+enum PermissionCapability { camera, location, notifications }
 
 enum PermissionStatusState {
   notDetermined,
@@ -48,8 +44,7 @@ class PermissionAdapter {
           final permission = await Geolocator.checkPermission();
           return switch (permission) {
             LocationPermission.always ||
-            LocationPermission.whileInUse =>
-              PermissionStatusState.granted,
+            LocationPermission.whileInUse => PermissionStatusState.granted,
             LocationPermission.denied => PermissionStatusState.notDetermined,
             LocationPermission.deniedForever =>
               PermissionStatusState.permanentlyDenied,
@@ -97,8 +92,7 @@ class PermissionAdapter {
           final permission = await Geolocator.requestPermission();
           return switch (permission) {
             LocationPermission.always ||
-            LocationPermission.whileInUse =>
-              PermissionStatusState.granted,
+            LocationPermission.whileInUse => PermissionStatusState.granted,
             LocationPermission.denied => PermissionStatusState.denied,
             LocationPermission.deniedForever =>
               PermissionStatusState.permanentlyDenied,
@@ -114,8 +108,10 @@ class PermissionAdapter {
           return PermissionStatusState.unavailable;
         }
         try {
-          await PushService.instance.requestPermission();
-          return PermissionStatusState.granted;
+          final granted = await PushService.instance.requestPermission();
+          return granted
+              ? PermissionStatusState.granted
+              : PermissionStatusState.denied;
         } catch (_) {
           return PermissionStatusState.denied;
         }

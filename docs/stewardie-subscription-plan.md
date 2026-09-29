@@ -1,6 +1,6 @@
 # Stewardie — Subscription Plan v1
 
-Updated: September 22, 2026.
+Updated: September 30, 2026. Pricing and Plus history wording confirmed by the owner; see [public-testing completion plan](public-testing-completion-plan.md).
 Status: finalized product-planning baseline for the pilot. Not a deployed billing system or a public offer. The two tiers and pilot limits are approved; price is a launch target and the 5 GB allowance requires a cost check before public paid launch.
 
 This supersedes earlier Free/Plus/Pro and per-space subscription proposals.
@@ -10,9 +10,9 @@ This supersedes earlier Free/Plus/Pro and per-space subscription proposals.
 | Tier | Price | Coverage |
 |---|---|---|
 | Basic | Free | Individual account |
-| Personal Plus | Target US$3.99/month or US$34.99/year | One individual account across its authorized spaces |
+| Personal Plus | Target US$4.99/month or US$39.99/year | One individual account across its authorized spaces |
 
-Annual target pricing saves about 27% versus twelve monthly payments. Regional prices, taxes/store presentation, and final launch approval remain open. The earlier US$29.99 annual and per-space prices are superseded.
+Annual target pricing saves about 33% versus twelve monthly payments. Regional prices, taxes/store presentation, and final launch approval remain open. The earlier US$3.99 monthly, US$34.99/US$29.99 annual, and per-space prices are superseded. Updating this plan does not change RevenueCat or store product prices.
 
 One person subscribes once. Other members keep their own plans. Plus does not upgrade a space or its members and does not confer admin rights, guardianship, membership, or private-content access.
 
@@ -24,7 +24,7 @@ One person subscribes once. Other members keep their own plans. Plus does not up
 | Total space memberships | 20 | 50 | Per account, including owned spaces |
 | Members per space | 20 | 20 | Shared space total, including owner |
 | Active tasks per space | 300 | 300 | Shared, not multiplied by members |
-| Completed-task history | Today + previous 3 days | Full retained authorized history | Per viewer |
+| Completed-task history | Today + previous 3 days | Unlimited retained authorized history (no age cutoff) | Per viewer |
 | Photo storage | 100 MB | 5 GB, cost-check required | Per uploader account, pooled across spaces |
 | Photo uploads per day | 10 | 100 | Per uploader account |
 | Photos per task or moment | 1 | Up to 5 | Attachment rule below |

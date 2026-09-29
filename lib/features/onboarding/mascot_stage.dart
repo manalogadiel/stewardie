@@ -10,6 +10,9 @@ enum MascotPose {
   butterTask('assets/illustrations/onboarding-butter-task.png'),
   roseCamera('assets/illustrations/onboarding-rose-camera.png'),
   mintCalendar('assets/illustrations/onboarding-mint-calendar.png'),
+  shareEveryday('assets/illustrations/onboarding-share-everyday.png'),
+  keepMoments('assets/illustrations/onboarding-keep-moments.png'),
+  stayInLoop('assets/illustrations/onboarding-stay-in-loop.png'),
   done('assets/illustrations/onboarding-done.png'),
   skyFront('assets/illustrations/login-sky-front.png'),
   celebrate('assets/illustrations/celebrate.png');
@@ -66,19 +69,22 @@ class _MascotStageState extends State<MascotStage>
 
     // Subtle one-time entrance: gentle upward lift for celebration, or subtle settle for normal
     final beginOffset = widget.celebrating ? 10.0 : 4.0;
-    _slideAnimation = Tween<double>(begin: beginOffset, end: 0.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _fadeAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _slideAnimation = Tween<double>(
+      begin: beginOffset,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _fadeAnimation = Tween<double>(
+      begin: 0.85,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       if (_controller.isAnimating) {
         _controller.stop();
       }
@@ -139,10 +145,7 @@ class _MascotStageState extends State<MascotStage>
 
               return Transform.translate(
                 offset: Offset(0, _slideAnimation.value),
-                child: Opacity(
-                  opacity: _fadeAnimation.value,
-                  child: child,
-                ),
+                child: Opacity(opacity: _fadeAnimation.value, child: child),
               );
             },
             child: AnimatedSwitcher(

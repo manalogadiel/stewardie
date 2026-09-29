@@ -50,6 +50,7 @@ class OnboardingStore {
     required OnboardingStep step,
     String? name,
     String? email,
+    String? avatarBase64,
     int? featurePageIndex,
     Map<String, dynamic>? permissions,
   }) async {
@@ -64,8 +65,10 @@ class OnboardingStore {
     updated['stepIndex'] = step.index;
     if (name != null) updated['name'] = name.trim();
     if (email != null) updated['email'] = email.trim();
+    if (avatarBase64 != null) updated['avatarBase64'] = avatarBase64;
     updated.remove('adultConfirmed'); // Migrate legacy draft
-    if (featurePageIndex != null) updated['featurePageIndex'] = featurePageIndex;
+    if (featurePageIndex != null)
+      updated['featurePageIndex'] = featurePageIndex;
     if (permissions != null) updated['permissions'] = permissions;
     updated['updatedAt'] = DateTime.now().toUtc().toIso8601String();
 
@@ -88,6 +91,24 @@ class OnboardingStore {
     if (uid != null) {
       await _store.record(_draftKey(null)).delete(db);
     }
+  }
+
+  Future<void> savePendingAvatar(String uid, String avatarBase64) async {
+    if (database == null) return;
+    await _store.record('pending_avatar_$uid').put(database!, {
+      'image': avatarBase64,
+    });
+  }
+
+  Future<String?> pendingAvatar(String uid) async {
+    if (database == null) return null;
+    return (await _store.record('pending_avatar_$uid').get(database!))?['image']
+        as String?;
+  }
+
+  Future<void> clearPendingAvatar(String uid) async {
+    if (database != null)
+      await _store.record('pending_avatar_$uid').delete(database!);
   }
 
   /// Records email verification resend timestamp to enforce at least 30s cooldown.
@@ -121,10 +142,7 @@ class OnboardingStore {
 
   /// Checks if this user has already completed onboarding locally or on Firestore.
   /// Includes legacy user verification to avoid trapping users with existing spaces.
-  Future<bool> isCompleted(
-    String uid, {
-    OnlineBackend? backend,
-  }) async {
+  Future<bool> isCompleted(String uid, {OnlineBackend? backend}) async {
     if (uid.isEmpty) return false;
     final db = database;
     if (db != null) {
@@ -134,7 +152,10 @@ class OnboardingStore {
 
     if (backend != null) {
       try {
-        final doc = await backend.firestore.collection('accounts').doc(uid).get();
+        final doc = await backend.firestore
+            .collection('accounts')
+            .doc(uid)
+            .get();
         if (doc.exists && doc.data()?['onboardingCompleted'] == true) {
           if (db != null) {
             await markCompleted(uid);
@@ -163,10 +184,7 @@ class OnboardingStore {
   }
 
   /// Marks onboarding completed locally and attempts non-blocking Firestore sync.
-  Future<void> markCompleted(
-    String uid, {
-    OnlineBackend? backend,
-  }) async {
+  Future<void> markCompleted(String uid, {OnlineBackend? backend}) async {
     if (uid.isEmpty) return;
     final db = database;
     if (db != null) {

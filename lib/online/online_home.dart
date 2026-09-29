@@ -2,12 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'dart:async';
+
 import '../app.dart' show GlassDock;
 import '../core/clay.dart';
 import '../core/invite_links.dart';
 import '../core/theme.dart';
 import '../core/top_controls.dart';
 import '../core/member_avatar.dart';
+import '../core/soft_pop_backdrop.dart';
+import '../core/stewardie_action_icons.dart';
 import 'account_settings_sheet.dart';
 import 'activity_inbox_sheet.dart';
 import 'account_notification_bell.dart';
@@ -18,6 +22,7 @@ import 'online_backend.dart';
 import 'online_moments.dart';
 import 'online_task_detail_sheet.dart';
 import 'online_today_extras.dart';
+import 'push_service.dart';
 import 'qr_invite_sheet.dart';
 import 'qr_join_sheet.dart';
 import 'routines_sheet.dart';
@@ -72,12 +77,33 @@ class _OnlineHomeState extends State<OnlineHome> {
   bool _loadingMore = false;
   bool _entryPromptsStarted = false;
   bool _hasSpaces = false;
+  StreamSubscription<void>? _pushOpens;
 
   @override
   void initState() {
     super.initState();
     LiveLocationService.instance.init(widget.backend);
     RevenueCatService.instance.addListener(_onRevenueCatUpdate);
+    _pushOpens = PushService.instance.inboxOpens.listen((_) {
+      unawaited(_openInboxFromPush());
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && PushService.instance.takePendingInboxOpen()) {
+        unawaited(_openInboxFromPush());
+      }
+    });
+  }
+
+  Future<void> _openInboxFromPush() async {
+    try {
+      final refs = await widget.backend.spaces(widget.user.uid).first;
+      if (!mounted) return;
+      // The inbox owns navigation and verifies the current task/space before
+      // opening it; a stale notification is never treated as access.
+      _showInbox(refs.docs);
+    } catch (_) {
+      if (mounted) _message('Could not open activity. Try the bell again.');
+    }
   }
 
   Future<void> _runEntryPrompts() async {
@@ -109,8 +135,21 @@ class _OnlineHomeState extends State<OnlineHome> {
   @override
   void dispose() {
     RevenueCatService.instance.removeListener(_onRevenueCatUpdate);
+    _pushOpens?.cancel();
     LiveLocationService.instance.stopSharing();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(OnlineHome old) {
+    super.didUpdateWidget(old);
+    // When the parent changes the space via the spaceId prop (not via
+    // _switchSpace), reset the per-member filter so the old filter cannot
+    // bleed into the new space's task list.
+    if (old.spaceId != widget.spaceId && widget.spaceId != null) {
+      _personId = null;
+      _invalidateHistory();
+    }
   }
 
   void _onRevenueCatUpdate() {
@@ -274,6 +313,7 @@ class _OnlineHomeState extends State<OnlineHome> {
             extendBody: true,
             body: Stack(
               children: [
+                const Positioned.fill(child: SoftPopBackdrop()),
                 Positioned.fill(
                   child: SafeArea(
                     top: false,
@@ -299,7 +339,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                             width: 48,
                             child: IconButton(
                               key: TutorialTargetRegistry.mapButtonTarget,
-                              tooltip: selected == null ? 'Private map' : 'Space map',
+                              tooltip: selected == null
+                                  ? 'Private map'
+                                  : 'Space map',
                               style: IconButton.styleFrom(
                                 backgroundColor: SoftPop.surface,
                                 shape: const CircleBorder(),
@@ -424,12 +466,29 @@ class _OnlineHomeState extends State<OnlineHome> {
     AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> spaceSnapshot,
   ) {
     if (spaceSnapshot.hasError) {
-      return _page([
-        const Text('Could not open your spaces. Check your connection.'),
-      ]);
+      return _todayPage(
+        summary: [
+          const SizedBox(height: 16),
+          _emptyPanel(
+            'Could not open your spaces',
+            'Check your connection and try again.',
+          ),
+        ],
+        tabs: const SizedBox.shrink(),
+        tasks: const [],
+        showTabs: false,
+      );
     }
     if (!spaceSnapshot.hasData) {
-      return const Center(child: CircularProgressIndicator());
+      return _todayPage(
+        summary: const [
+          SizedBox(height: 24),
+          Center(child: CircularProgressIndicator()),
+        ],
+        tabs: const SizedBox.shrink(),
+        tasks: const [],
+        showTabs: false,
+      );
     }
     if (spaceId == null) {
       return _todayPage(
@@ -463,15 +522,26 @@ class _OnlineHomeState extends State<OnlineHome> {
         ],
         tabs: const SizedBox.shrink(),
         tasks: const [],
+        showTabs: false,
       );
     }
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: widget.backend.members(spaceId),
       builder: (context, peopleSnapshot) {
         if (peopleSnapshot.hasError) {
-          return _page([
-            const Text('Could not load the people in this space.'),
-          ]);
+          return _todayPage(
+            spaceId: spaceId,
+            summary: [
+              const SizedBox(height: 16),
+              _emptyPanel(
+                'Could not load this space',
+                'Check your connection and try again.',
+              ),
+            ],
+            tabs: const SizedBox.shrink(),
+            tasks: const [],
+            showTabs: false,
+          );
         }
         final members = <String, Map<String, dynamic>>{
           for (final doc in peopleSnapshot.data?.docs ?? [])
@@ -481,9 +551,21 @@ class _OnlineHomeState extends State<OnlineHome> {
           stream: widget.backend.activeTasks(spaceId),
           builder: (context, taskSnapshot) {
             if (taskSnapshot.hasError) {
-              return _page([
-                const Text('Could not load tasks. Try again when connected.'),
-              ]);
+              return _todayPage(
+                spaceId: spaceId,
+                summary: [
+                  const SizedBox(height: 16),
+                  _peopleFilters(members),
+                  const SizedBox(height: 16),
+                  _emptyPanel(
+                    'Could not load tasks',
+                    'Check your connection and try again.',
+                  ),
+                ],
+                tabs: const SizedBox.shrink(),
+                tasks: const [],
+                showTabs: false,
+              );
             }
             final all = taskSnapshot.data?.docs ?? [];
             final filtered = all.where((doc) {
@@ -538,6 +620,12 @@ class _OnlineHomeState extends State<OnlineHome> {
                         as String? ??
                     'Your space';
                 return _todayPage(
+                  spaceId: spaceId,
+                  spaceKind:
+                      spaceSnapshot.data!.docs
+                              .firstWhere((doc) => doc.id == spaceId)
+                              .data()['kind']
+                          as String?,
                   summary: [
                     const SizedBox(height: 16),
                     KeyedSubtree(
@@ -648,14 +736,20 @@ class _OnlineHomeState extends State<OnlineHome> {
   }
 
   Widget _todayPage({
+    String? spaceId,
+    String? spaceKind,
     required List<Widget> summary,
     required Widget tabs,
     required List<Widget> tasks,
+    bool showTabs = true,
   }) => Align(
     alignment: Alignment.topCenter,
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 680),
       child: CustomScrollView(
+        // The empty Moments page has the same widget shape. A distinct key
+        // prevents its scroll offset from carrying into Today on tab changes.
+        key: PageStorageKey<String>('online-today-${spaceId ?? 'none'}'),
         slivers: [
           SliverToBoxAdapter(
             child: Builder(
@@ -692,7 +786,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                         ),
                       ),
                       if (scale <= 22)
-                        const ClayArt('greeting', height: 96, width: 132),
+                        spaceId == null
+                            ? const ClayArt('greeting', height: 96, width: 132)
+                            : SpaceMascotArt(spaceKind, height: 96, width: 132),
                     ],
                   ),
                 );
@@ -708,16 +804,17 @@ class _OnlineHomeState extends State<OnlineHome> {
               ),
             ),
           ),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _OnlineTaskTabHeader(
-              height: 64,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: tabs,
+          if (showTabs)
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _OnlineTaskTabHeader(
+                height: 64,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: tabs,
+                ),
               ),
             ),
-          ),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(
               20,
@@ -759,6 +856,7 @@ class _OnlineHomeState extends State<OnlineHome> {
     String subtitle, {
     String? supportingLabel,
     int maxTitleLines = 2,
+    String? spaceKind,
   }) => Material(
     color: SoftPop.today,
     borderRadius: const BorderRadius.only(
@@ -800,7 +898,7 @@ class _OnlineHomeState extends State<OnlineHome> {
             ),
           ),
           const SizedBox(width: 8),
-          const ClayArt('greeting', height: 94, width: 104),
+          SpaceMascotArt(spaceKind, height: 118, width: 124),
         ],
       ),
     ),
@@ -1053,11 +1151,91 @@ class _OnlineHomeState extends State<OnlineHome> {
     QueryDocumentSnapshot<Map<String, dynamic>>? space,
   ) {
     if (spaceId == null) {
-      return _page([
-        _hero('Little moments', 'A space for the good bits.'),
-        const SizedBox(height: 20),
-        _emptyPanel('Make a space first', 'Your moments belong to a space.'),
-      ]);
+      return Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: CustomScrollView(
+            key: const PageStorageKey<String>('online-moments-empty'),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Builder(
+                  builder: (context) {
+                    final scale = MediaQuery.textScalerOf(context).scale(16);
+                    final topClearance =
+                        MediaQuery.paddingOf(context).top +
+                        (scale > 22 ? 116.0 : 68.0);
+                    return ClayPanel(
+                      color: SoftPop.today,
+                      padding: EdgeInsets.fromLTRB(20, topClearance, 16, 12),
+                      radius: const BorderRadius.vertical(
+                        bottom: Radius.circular(28),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Little moments',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineLarge
+                                      ?.copyWith(fontSize: 32),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text('A space for the good bits.'),
+                              ],
+                            ),
+                          ),
+                          if (scale <= 22)
+                            const ClayArt(
+                              'moments-selfie-group',
+                              height: 96,
+                              width: 132,
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 148),
+                sliver: SliverList.list(
+                  children: [
+                    _emptyPanel(
+                      'Make a space first',
+                      'Your moments belong to a space.',
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _createSpace,
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('Create a space'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _joinSpace,
+                            icon: const Icon(Icons.group_add_outlined),
+                            label: const Text('Join with a code'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     return FutureBuilder<OnlineMomentsStore>(
       future: _momentStore,
@@ -1143,6 +1321,65 @@ class _OnlineHomeState extends State<OnlineHome> {
     }
   }
 
+  void _openAccountSettings(String? spaceId, bool plus) {
+    AccountSettingsSheet.show(
+      context,
+      backend: widget.backend,
+      tier: plus ? 'Plus' : 'Basic',
+      spaceId: spaceId,
+      onSignedOut: () => RevenueCatService.instance.logOut(),
+      onTakeTour: () => TutorialCoordinator(widget.database).replayTour(
+        context,
+        uid: widget.user.uid,
+        onTabRequested: (tab) {
+          if (widget.onTabRequested != null) {
+            widget.onTabRequested!(tab);
+          } else if (mounted && _destination != tab) {
+            setState(() => _destination = tab);
+          }
+        },
+      ),
+      onAccountDeleted: () async {
+        await TutorialCoordinator(widget.database).clear(widget.user.uid);
+        await OnboardingStore(widget.database).clearDraft(widget.user.uid);
+      },
+    );
+  }
+
+  Future<void> _renameSpace(String spaceId, String currentName) async {
+    final controller = TextEditingController(text: currentName);
+    final updated = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Rename space'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 80,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(labelText: 'Space name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (updated == null || updated.isEmpty || updated == currentName) return;
+    try {
+      await widget.backend.callSpaceAction('rename', spaceId, name: updated);
+    } catch (_) {
+      _message('Could not rename this space. Please retry.');
+    }
+  }
+
   Widget _space(
     String? spaceId,
     QueryDocumentSnapshot<Map<String, dynamic>>? space,
@@ -1177,6 +1414,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                       '',
                       supportingLabel: 'Space',
                       maxTitleLines: 2,
+                      spaceKind: space?.data()['kind'] as String?,
                     ),
                   ),
                 ),
@@ -1253,16 +1491,6 @@ class _OnlineHomeState extends State<OnlineHome> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Text(
-                                            '·',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: plus
-                                                  ? const Color(0xFF8A6200)
-                                                  : SoftPop.secondary,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
                                           if (plus) ...[
                                             const Icon(
                                               Icons.auto_awesome_rounded,
@@ -1344,6 +1572,15 @@ class _OnlineHomeState extends State<OnlineHome> {
                             ],
                           ),
                         ),
+                        IconButton(
+                          tooltip: 'Account settings',
+                          onPressed: () => _openAccountSettings(spaceId, plus),
+                          icon: const Icon(Icons.settings_rounded),
+                          style: IconButton.styleFrom(
+                            backgroundColor: SoftPop.canvas,
+                            minimumSize: const Size(48, 48),
+                          ),
+                        ),
                       ],
                     ),
                     if (!plus) ...[
@@ -1386,39 +1623,6 @@ class _OnlineHomeState extends State<OnlineHome> {
                         ),
                       ),
                     ],
-                    TextButton(
-                      onPressed: () {
-                        AccountSettingsSheet.show(
-                          context,
-                          backend: widget.backend,
-                          tier: plus ? 'Plus' : 'Basic',
-                          spaceId: spaceId,
-                          onSignedOut: () {
-                            RevenueCatService.instance.logOut();
-                          },
-                          onTakeTour: () {
-                            TutorialCoordinator(widget.database).replayTour(
-                              context,
-                              uid: widget.user.uid,
-                              onTabRequested: (tab) {
-                                if (widget.onTabRequested != null) {
-                                  widget.onTabRequested!(tab);
-                                } else if (mounted && _destination != tab) {
-                                  setState(() => _destination = tab);
-                                }
-                              },
-                            );
-                          },
-                          onAccountDeleted: () async {
-                            await TutorialCoordinator(widget.database)
-                                .clear(widget.user.uid);
-                            await OnboardingStore(widget.database)
-                                .clearDraft(widget.user.uid);
-                          },
-                        );
-                      },
-                      child: const Text('Account settings'),
-                    ),
                   ],
                 ),
               );
@@ -1695,13 +1899,17 @@ class _OnlineHomeState extends State<OnlineHome> {
                           LayoutBuilder(
                             builder: (context, constraints) {
                               final invite = _spaceActionTile(
-                                Icons.person_add_alt_1_rounded,
+                                const StewardieInviteIcon(),
                                 'Invite members',
                                 SoftPop.butter,
                                 () => _invite(spaceId),
                               );
                               final routines = _spaceActionTile(
-                                Icons.repeat_rounded,
+                                const Icon(
+                                  Icons.autorenew_rounded,
+                                  color: SoftPop.ink,
+                                  size: 30,
+                                ),
                                 'Routines',
                                 SoftPop.sky,
                                 () {
@@ -1737,6 +1945,11 @@ class _OnlineHomeState extends State<OnlineHome> {
                             },
                           ),
                           const SizedBox(height: 16),
+                          TextButton.icon(
+                            onPressed: () => _renameSpace(spaceId, spaceName),
+                            icon: const Icon(Icons.edit_rounded),
+                            label: const Text('Rename space'),
+                          ),
                           TextButton(
                             onPressed: () {
                               SpaceDeletionSheet.show(
@@ -1801,32 +2014,6 @@ class _OnlineHomeState extends State<OnlineHome> {
                 setState(() => _destination = 0);
               },
             ),
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: widget.backend.firestore
-                .collection('spaceDeletionJobs')
-                .where('requestedBy', isEqualTo: widget.user.uid)
-                .limit(100)
-                .snapshots(),
-            builder: (context, snapshot) => Column(
-              children: [
-                for (final job
-                    in snapshot.data?.docs ??
-                        <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-                  if (job.data()['status'] != 'done')
-                    ListTile(
-                      leading: const Icon(Icons.hourglass_top_rounded),
-                      title: Text(
-                        'Deleting ${job.data()['spaceName'] ?? 'space'}',
-                      ),
-                      subtitle: Text(
-                        job.data()['status'] == 'failed'
-                            ? 'Cleanup will retry automatically'
-                            : 'Deletion pending',
-                      ),
-                    ),
-              ],
-            ),
-          ),
           const Divider(),
           ListTile(
             minVerticalPadding: 12,
@@ -1852,7 +2039,7 @@ class _OnlineHomeState extends State<OnlineHome> {
   );
 
   Widget _spaceActionTile(
-    IconData icon,
+    Widget icon,
     String label,
     Color color,
     VoidCallback onTap,
@@ -1871,7 +2058,7 @@ class _OnlineHomeState extends State<OnlineHome> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: SoftPop.ink),
+              icon,
               const SizedBox(height: 6),
               Text(
                 label,
@@ -2107,6 +2294,7 @@ class _OnlineHomeState extends State<OnlineHome> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: false,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final revenueCat = RevenueCatService.instance;
@@ -2423,6 +2611,11 @@ class _CreateSpaceDialogState extends State<_CreateSpaceDialog> {
               DropdownMenuItem(value: 'family', child: Text('Family')),
               DropdownMenuItem(value: 'housemates', child: Text('Housemates')),
               DropdownMenuItem(value: 'friends', child: Text('Friends')),
+              DropdownMenuItem(value: 'couple', child: Text('Couple')),
+              DropdownMenuItem(
+                value: 'organization',
+                child: Text('Organization'),
+              ),
               DropdownMenuItem(value: 'crew', child: Text('Crew')),
               DropdownMenuItem(value: 'custom', child: Text('Other')),
             ],

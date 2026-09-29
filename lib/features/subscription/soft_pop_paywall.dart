@@ -12,6 +12,7 @@ Future<bool?> showSoftPopPaywall(
 }) => showModalBottomSheet<bool>(
   context: context,
   isScrollControlled: true,
+  showDragHandle: false,
   backgroundColor: Colors.transparent,
   builder: (context) => SoftPopPaywall(onPurchased: onPurchased),
 );
@@ -29,10 +30,20 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
   bool _busy = false;
   String? _error;
   @override
-  void initState() { super.initState(); RevenueCatService.instance.addListener(_changed); }
-  void _changed() { if (mounted) setState(() {}); }
+  void initState() {
+    super.initState();
+    RevenueCatService.instance.addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
   @override
-  void dispose() { RevenueCatService.instance.removeListener(_changed); super.dispose(); }
+  void dispose() {
+    RevenueCatService.instance.removeListener(_changed);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,8 +56,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
     final monthlyPkg = currentOffering?.monthly;
 
     final annualPrice = annualPkg?.storeProduct.priceString ?? 'Unavailable';
-    final monthlyPrice =
-        monthlyPkg?.storeProduct.priceString ?? 'Unavailable';
+    final monthlyPrice = monthlyPkg?.storeProduct.priceString ?? 'Unavailable';
 
     return Container(
       decoration: const BoxDecoration(
@@ -142,8 +152,8 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                     _PerkRow(
                       icon: Icons.history_rounded,
                       color: SoftPop.sky,
-                      title: 'Full task completion history',
-                      subtitle: 'Keep records past Today + 3 days retained.',
+                      title: 'Unlimited task history',
+                      subtitle: 'Browse all retained task history in spaces you can access.',
                     ),
                     Divider(height: 20, color: SoftPop.canvas),
                     _PerkRow(
@@ -277,7 +287,9 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
       return;
     }
 
-    final result = await RevenueCatService.instance.purchasePackage(targetPackage);
+    final result = await RevenueCatService.instance.purchasePackage(
+      targetPackage,
+    );
 
     if (mounted) {
       setState(() => _busy = false);
@@ -309,7 +321,10 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
           ),
         );
       } else {
-        setState(() => _error = result.message ?? 'Purchase could not be completed. Try again.');
+        setState(
+          () => _error =
+              result.message ?? 'Purchase could not be completed. Try again.',
+        );
       }
     }
   }
@@ -340,7 +355,9 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
       } else if (result.status == RestoreStatus.noPurchases) {
         setState(() => _error = 'No previous purchases found.');
       } else {
-        setState(() => _error = result.message ?? 'Could not restore purchases.');
+        setState(
+          () => _error = result.message ?? 'Could not restore purchases.',
+        );
       }
     }
   }

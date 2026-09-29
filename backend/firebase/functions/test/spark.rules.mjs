@@ -45,10 +45,11 @@ test('Spark task acceptance is recipient-only and completion needs an atomic cou
  await assertFails(db('bob').doc('spaces/home/tasks/old').get());
  await assertSucceeds(db('alice').doc('spaces/home/tasks/old').get());
 });
-test('Spark moods persist with expiry; peers cannot overwrite them or plans',async()=>{
+test('moods require the trusted writer; members can read their space',async()=>{
  const utc=new Date();utc.setUTCHours(24,0,0,0);
  const mood={uid:'bob',mood:'happy',color:'sky',note:'Hello',updatedAt:now(),expiresAt:ClientTimestamp.fromDate(utc)};
- await assertSucceeds(db('bob').doc('spaces/home/checkIns/bob').set(mood));
+ await assertFails(db('bob').doc('spaces/home/checkIns/bob').set(mood));
+ await env.withSecurityRulesDisabled(async c=>c.firestore().doc('spaces/home/checkIns/bob').set(mood));
  await assertSucceeds(db('alice').doc('spaces/home/checkIns/bob').get());
  await assertFails(db('alice').doc('spaces/home/checkIns/bob').set(mood));
  await assertFails(db('bob').doc('spaces/home/checkIns/bob').update({expiresAt:ClientTimestamp.fromMillis(Date.now()+7*86400000)}));
@@ -237,4 +238,17 @@ test('Spark Basic history query and deterministic task creation work without fun
   tx.set(ref,{title:'A new task',creatorUid:'bob',requestedUid:'alice',ownerUid:null,offeredUid:null,status:'requested',scheduledLocalDate:'2026-09-24',version:1,completedAt:null,createdAt:now(),updatedAt:now()});
   tx.update(d.doc('spaces/home'),{activeTaskCount:parent.data().activeTaskCount+1,changedTaskId:'newtask'});
  }));
+});
+test('profile photos and push tokens stay account-scoped', async()=>{
+ const photo={imageBase64:'a'.repeat(512),updatedAt:now()};
+ await assertSucceeds(db('bob').doc('profiles/bob').set(photo));
+ await assertSucceeds(db('alice').doc('profiles/bob').get());
+ await assertFails(db('outsider').doc('profiles/bob').get());
+ await assertFails(db('alice').doc('profiles/bob').update(photo));
+ await assertSucceeds(db('bob').doc('spaces/home/members/bob').update({name:'Bobby'}));
+ await assertFails(db('alice').doc('spaces/home/members/bob').update({name:'Changed'}));
+ const device='a'.repeat(24);
+ await assertSucceeds(db('bob').doc(`accounts/bob/pushDevices/${device}`).set({token:'b'.repeat(42),platform:'android',updatedAt:now()}));
+ await assertFails(db('alice').doc(`accounts/bob/pushDevices/${device}`).get());
+ await assertFails(db('bob').doc(`accounts/alice/pushDevices/${device}`).set({token:'b'.repeat(42),platform:'android',updatedAt:now()}));
 });

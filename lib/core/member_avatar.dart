@@ -1,4 +1,11 @@
+import 'dart:typed_data';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+
+import 'profile_photo.dart';
 
 /// A stable identity chip: names may change, but color follows the account UID.
 class MemberAvatar extends StatelessWidget {
@@ -52,26 +59,40 @@ class MemberAvatar extends StatelessWidget {
           ? Border.all(color: const Color(0xFF244BFF), width: 2)
           : null,
     ),
-    child: CircleAvatar(
-      radius: radius,
-      backgroundColor: colorFor(uid),
-      child: SizedBox(
-        width: radius * 2,
-        height: radius * 2,
-        child: Center(
-          child: Text(
-            initialsFor(name),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF202633),
-              // height:1 prevents line-box misalignment at small sizes.
-              height: 1,
-              fontSize: radius.clamp(10.0, 18.0),
+    child: Firebase.apps.isEmpty || FirebaseAuth.instance.currentUser == null
+        ? _face(null)
+        : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.doc('profiles/$uid').snapshots(),
+            builder: (context, snapshot) => _face(
+              ProfilePhoto.decode(
+                snapshot.data?.data()?['imageBase64'] as String?,
+              ),
             ),
           ),
-        ),
-      ),
-    ),
+  );
+
+  Widget _face(Uint8List? bytes) => CircleAvatar(
+    radius: radius,
+    backgroundColor: colorFor(uid),
+    backgroundImage: bytes == null ? null : MemoryImage(bytes),
+    child: bytes == null
+        ? SizedBox(
+            width: radius * 2,
+            height: radius * 2,
+            child: Center(
+              child: Text(
+                initialsFor(name),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF202633),
+                  // height:1 prevents line-box misalignment at small sizes.
+                  height: 1,
+                  fontSize: radius.clamp(10.0, 18.0),
+                ),
+              ),
+            ),
+          )
+        : null,
   );
 }

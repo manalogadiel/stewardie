@@ -46,6 +46,7 @@ Future<bool?> showPhotoComposer(
   useSafeArea: true,
   isDismissible: false,
   enableDrag: false,
+  showDragHandle: false,
   backgroundColor: SoftPop.surface,
   constraints: const BoxConstraints(maxWidth: 640),
   shape: const RoundedRectangleBorder(

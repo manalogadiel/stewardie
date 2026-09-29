@@ -10,3 +10,11 @@ verify_jwt = false
 [functions.scheduled-work]
 # Supabase Cron sends STEW_WORKER_SECRET; no public/mobile caller is allowed.
 verify_jwt = false
+
+[functions.mood]
+# The function validates Firebase ID tokens and membership itself.
+verify_jwt = false
+
+[functions.space-actions]
+# Firebase ID tokens are verified in the function before privileged changes.
+verify_jwt = false

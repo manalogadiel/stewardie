@@ -4,6 +4,7 @@ import 'package:sembast/sembast.dart';
 
 import '../../online/login_scene.dart';
 import '../../online/online_backend.dart';
+import '../../core/profile_photo.dart';
 import 'mascot_stage.dart';
 import 'onboarding_progress.dart';
 import 'onboarding_store.dart';
@@ -59,6 +60,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   User? _currentUser;
   String _nameDraft = '';
   String _emailDraft = '';
+  String? _avatarDraft;
   int _featurePageIndex = 0;
   bool _initialEmailSent = true;
   bool _loaded = false;
@@ -79,8 +81,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     if (mounted) {
       setState(() {
         if (draft != null) {
-          _nameDraft = draft['name'] as String? ?? _currentUser?.displayName ?? '';
+          _nameDraft =
+              draft['name'] as String? ?? _currentUser?.displayName ?? '';
           _emailDraft = draft['email'] as String? ?? _currentUser?.email ?? '';
+          _avatarDraft = draft['avatarBase64'] as String?;
           _featurePageIndex = draft['featurePageIndex'] as int? ?? 0;
 
           // Reconcile saved step with authenticated state
@@ -161,6 +165,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       step: targetStep,
       name: _nameDraft,
       email: _emailDraft,
+      avatarBase64: _avatarDraft,
       featurePageIndex: _featurePageIndex,
     );
   }
@@ -199,9 +204,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
@@ -216,7 +219,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                 OnboardingProgressBar(
                   step: _step,
                   onBack: _onBack,
-                  canGoBack: _step != OnboardingStep.welcome &&
+                  canGoBack:
+                      _step != OnboardingStep.welcome &&
                       _step != OnboardingStep.permissions &&
                       _step != OnboardingStep.allSet,
                 ),
@@ -227,22 +231,28 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                     if (reduceMotion) {
                       return FadeTransition(opacity: animation, child: child);
                     }
-                    final isIncoming = (child.key as ValueKey?)?.value == _currentStepKey;
+                    final isIncoming =
+                        (child.key as ValueKey?)?.value == _currentStepKey;
                     // ~18 logical pixels subtle travel distance
                     const beginFrac = 18.0 / 380.0;
                     final offsetBegin = isIncoming
-                        ? (_navigatingForward ? const Offset(beginFrac, 0.0) : const Offset(-beginFrac, 0.0))
-                        : (_navigatingForward ? const Offset(-beginFrac, 0.0) : const Offset(beginFrac, 0.0));
+                        ? (_navigatingForward
+                              ? const Offset(beginFrac, 0.0)
+                              : const Offset(-beginFrac, 0.0))
+                        : (_navigatingForward
+                              ? const Offset(-beginFrac, 0.0)
+                              : const Offset(beginFrac, 0.0));
                     return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: offsetBegin,
-                        end: Offset.zero,
-                      ).animate(
-                        CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutCubic,
-                        ),
-                      ),
+                      position:
+                          Tween<Offset>(
+                            begin: offsetBegin,
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutCubic,
+                            ),
+                          ),
                       child: FadeTransition(
                         opacity: CurvedAnimation(
                           parent: animation,
@@ -305,6 +315,15 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           key: const ValueKey('name_screen'),
           child: NameScreen(
             initialName: _nameDraft,
+            initialAvatarBase64: _avatarDraft,
+            onAvatarChanged: (avatar) {
+              _avatarDraft = avatar;
+              _store.saveDraft(
+                uid: _currentUser?.uid,
+                step: OnboardingStep.name,
+                avatarBase64: avatar,
+              );
+            },
             onContinue: (name) {
               _nameDraft = name;
               _goToStep(OnboardingStep.account);
@@ -383,8 +402,16 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                 ? _nameDraft
                 : (_currentUser?.displayName ?? ''),
             onOpenApp: () async {
-              final uid = _currentUser?.uid ?? widget.backend.auth.currentUser?.uid;
+              final uid =
+                  _currentUser?.uid ?? widget.backend.auth.currentUser?.uid;
               if (uid != null) {
+                if (_avatarDraft case final avatar?) {
+                  try {
+                    await ProfilePhoto.save(avatar);
+                  } catch (_) {
+                    await _store.savePendingAvatar(uid, avatar);
+                  }
+                }
                 await _store.markCompleted(uid, backend: widget.backend);
                 TutorialCoordinator.markEligibleForFirstUsePrompt(uid);
               }

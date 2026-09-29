@@ -1,12 +1,15 @@
 import 'dart:math';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../core/invite_links.dart';
+import '../core/space_time.dart';
 import '../firebase_options.dart';
 part 'spark_backend.dart';
 
@@ -76,7 +79,9 @@ class OnlineBackend {
             ),
           );
         } else {
-          await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+          await Firebase.initializeApp(
+            options: DefaultFirebaseOptions.currentPlatform,
+          );
         }
       }
     }
@@ -113,6 +118,36 @@ class OnlineBackend {
       return result.data;
     }
     return SparkBackend(this).call(name, values);
+  }
+
+  Future<Map<String, dynamic>> callSpaceAction(
+    String action,
+    String spaceId, {
+    String? name,
+  }) async {
+    const endpoint = String.fromEnvironment(
+      'SPACE_ACTIONS_URL',
+      defaultValue:
+          'https://ulexhxfxatzlobabitpr.supabase.co/functions/v1/space-actions',
+    );
+    final identityToken = await auth.currentUser?.getIdToken();
+    if (identityToken == null) throw StateError('Sign in again.');
+    final response = await http.post(
+      Uri.parse(endpoint),
+      headers: {
+        'Authorization': 'Bearer $identityToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'action': action,
+        'spaceId': spaceId,
+        if (name != null) 'name': name,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('Could not update the space. Please retry.');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<void> register(String name, String email, String password) async {
@@ -199,15 +234,17 @@ class OnlineBackend {
         final ids = List<String>.from(
           space.data()?['memberUids'] as List? ?? const [],
         );
-        final docs = await Future.wait(ids.map((uid) async {
-          try {
-            return await firestore
-                .doc('spaces/$spaceId/locationSessions/$uid')
-                .get(const GetOptions(source: Source.server));
-          } catch (_) {
-            return null;
-          }
-        }));
+        final docs = await Future.wait(
+          ids.map((uid) async {
+            try {
+              return await firestore
+                  .doc('spaces/$spaceId/locationSessions/$uid')
+                  .get(const GetOptions(source: Source.server));
+            } catch (_) {
+              return null;
+            }
+          }),
+        );
         final now = DateTime.now().toUtc();
         yield [
           for (final doc in docs)
@@ -226,14 +263,13 @@ class OnlineBackend {
   Stream<QuerySnapshot<Map<String, dynamic>>> reactions(
     String spaceId,
     String momentId,
-  ) =>
-      firestore
-          .collection('spaces')
-          .doc(spaceId)
-          .collection('moments')
-          .doc(momentId)
-          .collection('reactions')
-          .snapshots();
+  ) => firestore
+      .collection('spaces')
+      .doc(spaceId)
+      .collection('moments')
+      .doc(momentId)
+      .collection('reactions')
+      .snapshots();
 
   Stream<QuerySnapshot<Map<String, dynamic>>> pendingJoins(String spaceId) =>
       firestore
@@ -246,12 +282,11 @@ class OnlineBackend {
     String spaceId,
     String taskId,
     List<Map<String, dynamic>> subtasks,
-  ) =>
-      call('setSubtasks', {
-        'spaceId': spaceId,
-        'taskId': taskId,
-        'subtasks': subtasks,
-      });
+  ) => call('setSubtasks', {
+    'spaceId': spaceId,
+    'taskId': taskId,
+    'subtasks': subtasks,
+  });
 
   Future<void> requestHelp(String spaceId, String taskId) =>
       call('requestHelp', {'spaceId': spaceId, 'taskId': taskId});
@@ -264,13 +299,12 @@ class OnlineBackend {
     required String name,
     required String familyRole,
     required String color,
-  }) =>
-      call('createDependentProfile', {
-        'spaceId': spaceId,
-        'name': name,
-        'familyRole': familyRole,
-        'color': color,
-      });
+  }) => call('createDependentProfile', {
+    'spaceId': spaceId,
+    'name': name,
+    'familyRole': familyRole,
+    'color': color,
+  });
 
   Future<void> updateDependentProfile(
     String spaceId,
@@ -278,20 +312,18 @@ class OnlineBackend {
     required String name,
     required String familyRole,
     required String color,
-  }) =>
-      call('updateDependentProfile', {
-        'spaceId': spaceId,
-        'memberId': memberId,
-        'name': name,
-        'familyRole': familyRole,
-        'color': color,
-      });
+  }) => call('updateDependentProfile', {
+    'spaceId': spaceId,
+    'memberId': memberId,
+    'name': name,
+    'familyRole': familyRole,
+    'color': color,
+  });
 
-  Future<void> deleteDependentProfile(String spaceId, String memberId) =>
-      call('deleteDependentProfile', {
-        'spaceId': spaceId,
-        'memberId': memberId,
-      });
+  Future<void> deleteDependentProfile(String spaceId, String memberId) => call(
+    'deleteDependentProfile',
+    {'spaceId': spaceId, 'memberId': memberId},
+  );
 
   Future<void> setJoinApprovalPolicy(String spaceId, bool requireApproval) =>
       call('setJoinApprovalPolicy', {
@@ -300,30 +332,48 @@ class OnlineBackend {
       });
 
   Future<bool> requestJoinSpace(String spaceId, String token) async =>
-      (await call('requestJoinSpace', {'spaceId': spaceId, 'token': token}))['approved'] == true;
+      (await call('requestJoinSpace', {
+        'spaceId': spaceId,
+        'token': token,
+      }))['approved'] ==
+      true;
 
   Future<void> approveJoinRequest(
     String spaceId,
     String targetUid,
     String targetName,
-  ) =>
-      call('approveJoinRequest', {
-        'spaceId': spaceId,
-        'targetUid': targetUid,
-        'targetName': targetName,
-      });
+  ) => call('approveJoinRequest', {
+    'spaceId': spaceId,
+    'targetUid': targetUid,
+    'targetName': targetName,
+  });
 
   Future<void> declineJoinRequest(String spaceId, String targetUid) =>
-      call('declineJoinRequest', {
-        'spaceId': spaceId,
-        'targetUid': targetUid,
-      });
+      call('declineJoinRequest', {'spaceId': spaceId, 'targetUid': targetUid});
 
   Future<void> updateProfileName(String newName) async {
     final user = auth.currentUser;
-    if (user != null) {
-      await user.updateDisplayName(newName.trim());
+    final name = newName.trim();
+    if (user == null || name.isEmpty || name.length > 60) return;
+    final account = await firestore.doc('accounts/${user.uid}').get();
+    final ids = List<String>.from(
+      account.data()?['spaceIds'] as List? ?? const [],
+    );
+    final batch = firestore.batch();
+    for (final id in ids) {
+      try {
+        final member = await firestore
+            .doc('spaces/$id/members/${user.uid}')
+            .get();
+        if (member.exists && member.data()?['status'] == 'active') {
+          batch.update(member.reference, {'name': name});
+        }
+      } catch (_) {
+        // A removed space is not a profile-name blocker.
+      }
     }
+    await batch.commit();
+    await user.updateDisplayName(name);
   }
 
   Future<void> requestAccountDeletion() async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import '../core/soft_pop_backdrop.dart';
 
 /// Static front-facing clay artwork: no GIF decoder or idle timer.
 class LoginScene extends StatelessWidget {
@@ -47,11 +48,7 @@ class LoginHeadline extends StatelessWidget {
 
 /// Decoration never intercepts form taps or enters the accessibility tree.
 class LoginBackdrop extends StatelessWidget {
-  const LoginBackdrop({
-    super.key,
-    required this.child,
-    this.variant = 0,
-  });
+  const LoginBackdrop({super.key, required this.child, this.variant = 0});
 
   final Widget child;
   final int variant;
@@ -61,25 +58,70 @@ class LoginBackdrop extends StatelessWidget {
     final highContrast = MediaQuery.highContrastOf(context);
 
     // Varied subtle peripheral silhouettes across screens (away from headings & controls):
-    final List<(String asset, Alignment alignment, Offset offset, double angle, double opacity)> decorations;
+    final List<
+      (
+        String asset,
+        Alignment alignment,
+        Offset offset,
+        double angle,
+        double opacity,
+      )
+    >
+    decorations;
     switch (variant % 3) {
       case 1:
         decorations = const [
-          ('assets/illustrations/login-sky-front.png', Alignment.topRight, Offset(60, -30), 0.12, 0.06),
-          ('assets/illustrations/onboarding-mint-calendar.png', Alignment.bottomLeft, Offset(-50, 40), -0.10, 0.05),
+          (
+            'assets/illustrations/login-sky-front.png',
+            Alignment.topRight,
+            Offset(60, -30),
+            0.12,
+            0.06,
+          ),
+          (
+            'assets/illustrations/onboarding-mint-calendar.png',
+            Alignment.bottomLeft,
+            Offset(-50, 40),
+            -0.10,
+            0.05,
+          ),
         ];
         break;
       case 2:
         decorations = const [
-          ('assets/illustrations/onboarding-make-it-yours.png', Alignment.topLeft, Offset(-45, -20), -0.12, 0.06),
-          ('assets/illustrations/onboarding-butter-task.png', Alignment.bottomRight, Offset(55, 30), 0.08, 0.05),
+          (
+            'assets/illustrations/onboarding-make-it-yours.png',
+            Alignment.topLeft,
+            Offset(-45, -20),
+            -0.12,
+            0.06,
+          ),
+          (
+            'assets/illustrations/onboarding-butter-task.png',
+            Alignment.bottomRight,
+            Offset(55, 30),
+            0.08,
+            0.05,
+          ),
         ];
         break;
       case 0:
       default:
         decorations = const [
-          ('assets/illustrations/onboarding-butter-welcome.png', Alignment.topLeft, Offset(-50, -20), -0.14, 0.06),
-          ('assets/illustrations/onboarding-rose-camera.png', Alignment.bottomRight, Offset(60, 40), 0.12, 0.05),
+          (
+            'assets/illustrations/onboarding-butter-welcome.png',
+            Alignment.topLeft,
+            Offset(-50, -20),
+            -0.14,
+            0.06,
+          ),
+          (
+            'assets/illustrations/onboarding-rose-camera.png',
+            Alignment.bottomRight,
+            Offset(60, 40),
+            0.12,
+            0.05,
+          ),
         ];
         break;
     }
@@ -96,13 +138,12 @@ class LoginBackdrop extends StatelessWidget {
             ),
           ),
         ),
+        const SoftPopBackdrop(),
         if (!highContrast) ...[
           const Positioned.fill(
             child: IgnorePointer(
               child: ExcludeSemantics(
-                child: CustomPaint(
-                  painter: _SoftWavyLinesPainter(),
-                ),
+                child: CustomPaint(painter: _SoftWavyLinesPainter()),
               ),
             ),
           ),

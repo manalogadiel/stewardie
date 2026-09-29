@@ -42,7 +42,8 @@ class SpaceScreen extends ConsumerWidget {
         },
       );
     }
-    final space = repo.spaces.where((s) => s.id == state.spaceId).firstOrNull ??
+    final space =
+        repo.spaces.where((s) => s.id == state.spaceId).firstOrNull ??
         repo.spaces.firstOrNull;
     if (space == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -50,7 +51,7 @@ class SpaceScreen extends ConsumerWidget {
     return PageBody(
       padding: EdgeInsets.fromLTRB(20, topControlsClearance(context), 20, 150),
       children: [
-        const ClayArt('greeting', height: 140),
+        SpaceMascotArt(space.kind, height: 160),
         Text(
           'Space',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -92,7 +93,8 @@ class SpaceScreen extends ConsumerWidget {
                       ? FilledButton.tonal(
                           onPressed: () => showSoftPopPaywall(
                             context,
-                            onPurchased: () => ref.read(demoProvider.notifier).refresh(),
+                            onPurchased: () =>
+                                ref.read(demoProvider.notifier).refresh(),
                           ),
                           style: FilledButton.styleFrom(
                             backgroundColor: SoftPop.blueSoft,
@@ -107,7 +109,8 @@ class SpaceScreen extends ConsumerWidget {
                     if (member.id == repo.currentUserId) {
                       showSoftPopPaywall(
                         context,
-                        onPurchased: () => ref.read(demoProvider.notifier).refresh(),
+                        onPurchased: () =>
+                            ref.read(demoProvider.notifier).refresh(),
                       );
                       return;
                     }

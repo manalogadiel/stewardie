@@ -294,7 +294,13 @@ class SparkBackend {
             .collection('tasks')
             .where('status', isEqualTo: 'completed');
         final now = DateTime.now().toUtc();
+        DateTime? localHistoryStart;
         if (!plus) {
+          final spaceData = (await space(id).get()).data();
+          localHistoryStart = SpaceTime.basicHistoryStart(
+            spaceData?['timeZone'] as String?,
+            now,
+          );
           query = query.where(
             'completedAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(
@@ -316,23 +322,45 @@ class SparkBackend {
         }
         final docs = (await query.get()).docs;
         return {
-          'tasks': docs.map((d) => {...d.data(), 'id': d.id}).toList(),
+          'tasks': docs
+              .where(
+                (d) =>
+                    plus ||
+                    ((d.data()['completedAt'] as Timestamp?)?.toDate().isBefore(
+                          localHistoryStart!,
+                        ) ==
+                        false),
+              )
+              .map((d) => {...d.data(), 'id': d.id})
+              .toList(),
           'todayLocalDate': day(now),
           'nextCursorId': docs.length == 50 ? docs.last.id : null,
         };
       case 'setCheckIn':
-        final now = DateTime.now().toUtc();
         final note = (v['note'] as String? ?? '').trim();
-        await space(id!).collection('checkIns').doc(uid).set({
-          'uid': uid,
-          'mood': v['mood'],
-          'color': v['color'],
-          'note': note.length > 180 ? note.substring(0, 180) : note,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'expiresAt': Timestamp.fromDate(
-            DateTime.utc(now.year, now.month, now.day + 1),
-          ),
-        });
+        const endpoint = String.fromEnvironment(
+          'MOOD_GATEWAY_URL',
+          defaultValue:
+              'https://ulexhxfxatzlobabitpr.supabase.co/functions/v1/mood',
+        );
+        final identityToken = await user.getIdToken();
+        if (identityToken == null) throw StateError('Sign in again.');
+        final response = await http.post(
+          Uri.parse(endpoint),
+          headers: {
+            'Authorization': 'Bearer $identityToken',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'spaceId': id,
+            'mood': v['mood'],
+            'color': v['color'],
+            'note': note.length > 180 ? note.substring(0, 180) : note,
+          }),
+        );
+        if (response.statusCode != 200) {
+          throw StateError('Could not save your mood. Please try again.');
+        }
         return {'ok': true};
       case 'removeCheckIn':
         await space(id!).collection('checkIns').doc(uid).delete();
@@ -405,7 +433,10 @@ class SparkBackend {
       case 'createInvite':
         final spaceRef = space(id!);
         final spaceSnap = await spaceRef.get();
-        final data = spaceSnap.data()!;
+        final data = spaceSnap.data();
+        if (data == null || data['ownerUid'] != uid) {
+          throw StateError('Only the space owner can invite members.');
+        }
         final forceNew = v['forceNew'] == true;
         final existingToken = data['activeInviteToken'] as String?;
 
@@ -424,13 +455,9 @@ class SparkBackend {
                 )) {
               return {'token': existingToken};
             }
-          } catch (_) {}
-        }
-
-        if (existingToken != null && existingToken.trim().isNotEmpty) {
-          try {
-            await db.doc('invites/$existingToken').update({'revoked': true});
-          } catch (_) {}
+          } on FirebaseException {
+            // A stale invite can be replaced below; do not reuse an unreadable one.
+          }
         }
 
         final random = Random.secure();
@@ -440,23 +467,29 @@ class SparkBackend {
           (_) => charset[random.nextInt(charset.length)],
         ).join();
 
-        await db.doc('invites/$token').set({
+        final batch = db.batch();
+        final oldInvite = existingToken == null || existingToken.trim().isEmpty
+            ? null
+            : db.doc('invites/$existingToken');
+        if (oldInvite != null && (await oldInvite.get()).exists) {
+          batch.update(oldInvite, {'revoked': true});
+        }
+        batch.set(db.doc('invites/$token'), {
           'spaceId': id,
           'spaceName': data['name'],
           'kind': data['kind'],
           'creatorUid': uid,
           'createdAt': FieldValue.serverTimestamp(),
           'expiresAt': Timestamp.fromDate(
-            DateTime.now().add(const Duration(days: 7)),
+            // Stay inside the server rule's seven-day limit even with clock skew.
+            DateTime.now().add(const Duration(days: 6)),
           ),
           'redeemedUid': null,
           'revoked': false,
           'requireApproval': data['requireApproval'] == true,
         });
-
-        try {
-          await spaceRef.update({'activeInviteToken': token});
-        } catch (_) {}
+        batch.update(spaceRef, {'activeInviteToken': token});
+        await batch.commit();
 
         return {'token': token};
       case 'previewInvite':

@@ -337,6 +337,7 @@ export async function processDeletion({ db, auth, sb, uid, apply = false }) {
       }
     }
     await db.recursiveDelete(db.doc(`accounts/${uid}`));
+    await db.doc(`profiles/${uid}`).delete();
     if (user) await auth.deleteUser(uid);
     if ((await db.collection('spaces').get()).docs.some((space) =>
       space.get('memberUids')?.includes(uid) || space.get('ownerUid') === uid)) {

@@ -43,17 +43,17 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
     FeatureItem(
       title: 'Share the everyday',
       body: 'See what needs help, who\'s covering it, and what\'s done.',
-      pose: MascotPose.butterTask,
+      pose: MascotPose.shareEveryday,
     ),
     FeatureItem(
       title: 'Keep the little moments',
       body: 'Share photos and celebrate things you finish together.',
-      pose: MascotPose.roseCamera,
+      pose: MascotPose.keepMoments,
     ),
     FeatureItem(
       title: 'Stay in the loop',
       body: 'Check moods and plans in each of your spaces.',
-      pose: MascotPose.mintCalendar,
+      pose: MascotPose.stayInLoop,
     ),
   ];
 
@@ -80,12 +80,14 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
         _pageController.jumpToPage(_currentPage + 1);
       } else {
         _isTransitioning = true;
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutCubic,
-        ).then((_) {
-          if (mounted) _isTransitioning = false;
-        });
+        _pageController
+            .nextPage(
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+            )
+            .then((_) {
+              if (mounted) _isTransitioning = false;
+            });
       }
     } else {
       widget.onLetsGo();
@@ -131,7 +133,7 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        MascotStage(pose: item.pose, compact: true),
+                        MascotStage(pose: item.pose),
                         const SizedBox(height: 12),
                         Text(
                           item.title,
