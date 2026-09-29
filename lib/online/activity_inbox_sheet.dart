@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'online_backend.dart';
 import '../core/member_avatar.dart';
+import '../core/theme.dart';
 
 /// Task requests remain visible even if scheduled notifications are unavailable.
 class ActivityInboxSheet extends StatelessWidget {
@@ -18,7 +19,7 @@ class ActivityInboxSheet extends StatelessWidget {
 
   final OnlineBackend backend;
   final Map<String, String> spaceNames;
-  final ValueChanged<String>? onOpenSpace;
+  final Future<void> Function(String spaceId)? onOpenSpace;
   final Future<void> Function(String spaceId, String taskId)? onOpenTask;
   final Future<void> Function(String spaceId)? onOpenOwnership;
   final List<Widget> requests;
@@ -108,6 +109,8 @@ class ActivityInboxSheet extends StatelessWidget {
           final task = snapshot.data?.data();
           final pending =
               task != null &&
+              (data['taskVersion'] == null ||
+                  data['taskVersion'] == task['version']) &&
               ((task['status'] == 'requested' && task['requestedUid'] == uid) ||
                   (task['offeredUid'] != null && task['ownerUid'] == uid));
           return pending ? const SizedBox.shrink() : _historyTile(context, doc);
@@ -129,37 +132,65 @@ class ActivityInboxSheet extends StatelessWidget {
   Widget _historyTile(
     BuildContext context,
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) => ListTile(
-    leading: _eventAvatar(doc.data()),
-    title: Text(doc.data()['title'] as String? ?? 'Activity'),
-    subtitle: Text(
-      [
-        spaceNames[doc.data()['spaceId']] ?? 'Space',
-        doc.data()['body'] as String? ?? '',
-        if (doc.data()['createdAt'] is Timestamp)
-          TimeOfDay.fromDateTime(
-            (doc.data()['createdAt'] as Timestamp).toDate().toLocal(),
-          ).format(context),
-      ].where((text) => text.isNotEmpty).join(' · '),
+  ) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: ListTile(
+      leading: _eventAvatar(doc.data()),
+      tileColor: doc.data()['readAt'] == null
+          ? SoftPop.blueSoft.withValues(alpha: .45)
+          : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Text(
+        doc.data()['title'] as String? ?? 'Activity',
+        style: TextStyle(
+          fontWeight: doc.data()['readAt'] == null
+              ? FontWeight.w800
+              : FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(
+        [
+          spaceNames[doc.data()['spaceId']] ?? 'Space',
+          doc.data()['body'] as String? ?? '',
+          if (doc.data()['createdAt'] is Timestamp)
+            TimeOfDay.fromDateTime(
+              (doc.data()['createdAt'] as Timestamp).toDate().toLocal(),
+            ).format(context),
+        ].where((text) => text.isNotEmpty).join(' · '),
+      ),
+      onTap: () async {
+        if (doc.data()['readAt'] == null) {
+          try {
+            await doc.reference.update({
+              'readAt': FieldValue.serverTimestamp(),
+            });
+          } catch (_) {
+            // A temporary read-state sync failure must not block navigation.
+          }
+        }
+        final spaceId = doc.data()['spaceId'] as String?;
+        if (spaceId == null || !spaceNames.containsKey(spaceId)) return;
+        final kind = doc.data()['kind'] as String?;
+        final taskId =
+            (doc.data()['taskId'] ?? doc.data()['entityId']) as String?;
+        if (taskId != null &&
+            [
+              'taskAssigned',
+              'action',
+              'helpRequested',
+              'covered',
+              'completed',
+              'due',
+            ].contains(kind) &&
+            onOpenTask != null) {
+          await onOpenTask!(spaceId, taskId);
+        } else if (kind == 'ownershipOffered' && onOpenOwnership != null) {
+          await onOpenOwnership!(spaceId);
+        } else {
+          await onOpenSpace?.call(spaceId);
+        }
+      },
     ),
-    onTap: () async {
-      if (doc.data()['readAt'] == null) {
-        await doc.reference.update({'readAt': FieldValue.serverTimestamp()});
-      }
-      final spaceId = doc.data()['spaceId'] as String?;
-      if (spaceId == null || !spaceNames.containsKey(spaceId)) return;
-      final kind = doc.data()['kind'] as String?;
-      final taskId = (doc.data()['taskId'] ?? doc.data()['entityId']) as String?;
-      if (taskId != null &&
-          ['taskAssigned', 'action', 'helpRequested', 'covered', 'completed', 'due'].contains(kind) &&
-          onOpenTask != null) {
-        await onOpenTask!(spaceId, taskId);
-      } else if (kind == 'ownershipOffered' && onOpenOwnership != null) {
-        await onOpenOwnership!(spaceId);
-      } else {
-        onOpenSpace?.call(spaceId);
-      }
-    },
   );
 
   Widget _eventAvatar(Map<String, dynamic> item) {

@@ -1,6 +1,6 @@
 # Map and navigation completion plan
 
-Status: proposed follow-up to the approved map and navigation refresh. This document is a plan, not a record of completed work. Keep Today / Moments / Space, the existing Soft Pop palette, and the free private-pilot architecture. Do not activate billing or publish the app as part of this work.
+Status: implemented and deployed for the private pilot on September 29, 2026; physical-device and multi-account verification is still open. See [the verification record](map-navigation-completion-verification.md). Keep Today / Moments / Space, the existing Soft Pop palette, and the free private-pilot architecture. Do not activate billing or publish the app as part of this work.
 
 ## Current baseline
 

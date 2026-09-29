@@ -145,6 +145,19 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/spaces/$(id)/pendingJoins/$(request.auth.uid)).data.status == 'approved'
             && get(/databases/$(database)/documents/spaces/$(id)/pendingJoins/$(request.auth.uid)).data.token == token));
     }
+    match /spaceDeletionJobs/{id} {
+      allow read: if self(resource.data.requestedBy);
+      allow create: if owner(id)
+        && request.resource.data.keys().hasOnly(['requestedBy','spaceName','memberUids','status','requestedAt'])
+        && request.resource.data.keys().hasAll(['requestedBy','spaceName','memberUids','status','requestedAt'])
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.spaceName == sp(id).name
+        && request.resource.data.memberUids == sp(id).memberUids
+        && request.resource.data.status == 'pending'
+        && request.resource.data.requestedAt == request.time
+        && afterSpace(id).get('deletionStatus', '') == 'pending'
+        && afterSpace(id).memberUids == [];
+    }
     match /spaces/{id} {
       allow read: if member(id);
       allow create: if verified() && request.resource.data.keys().hasOnly(['name','kind','timeZone','ownerUid','memberUids','memberCount','activeTaskCount','createdAt'])
@@ -190,7 +203,18 @@ service cloud.firestore {
             || (exists(path) && !existsAfter(path) && d.routineCount ==
               (resource.data.get('routineCount', 0) > 0 ? resource.data.routineCount - 1 : 0)));
       }
+      function requestDeletion() {
+        let d = request.resource.data;
+        return owner(id) && !('deletionStatus' in resource.data)
+          && d.diff(resource.data).affectedKeys().hasOnly([
+            'memberUids','memberCount','ownerUid','deletionStatus','deletionRequestedAt'])
+          && d.memberUids == [] && d.memberCount == 0 && d.ownerUid == null
+          && d.deletionStatus == 'pending'
+          && d.deletionRequestedAt == request.time
+          && getAfter(/databases/$(database)/documents/spaceDeletionJobs/$(id)).data.requestedBy == request.auth.uid;
+      }
       allow update: if joining() || removing() || taskCount() || routineCount()
+        || requestDeletion()
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeInviteToken']))
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requireApproval']))
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && request.resource.data.pendingOwnerUid in resource.data.memberUids)
@@ -199,7 +223,8 @@ service cloud.firestore {
           && request.resource.data.ownerUid == request.auth.uid && request.resource.data.pendingOwnerUid == null
           && id in getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.ownedSpaceIds
           && !(id in getAfter(/databases/$(database)/documents/accounts/$(resource.data.ownerUid)).data.ownedSpaceIds));
-      allow delete: if owner(id);
+      // Space deletion is completed only by the trusted cleanup worker.
+      allow delete: if false;
       match /members/{uid} {
         allow read: if member(id);
         allow create, update: if (self(uid) && (!exists(/databases/$(database)/documents/spaces/$(id)/members/$(uid)) || resource.data.status == 'removed')
@@ -282,12 +307,27 @@ service cloud.firestore {
                     && afterSpace(id).ownerUid == request.auth.uid);
         }
         allow create: if verified()
-          && request.resource.data.keys().hasOnly(['type','actorUid','entityId','targetUid','recipientUids','createdAt'])
+          && request.resource.data.keys().hasOnly(['type','actorUid','entityId','targetUid','recipientUids','affectedUids','taskVersion','createdAt'])
           && request.resource.data.keys().hasAll(['type','actorUid','entityId','recipientUids','createdAt'])
           && request.resource.data.actorUid == request.auth.uid
           && request.resource.data.createdAt == request.time
           && shortText(request.resource.data.entityId, 160)
           && request.resource.data.recipientUids == afterSpace(id).memberUids
+          && (request.resource.data.type == 'taskAssigned'
+            ? request.resource.data.taskVersion == getAfter(taskPath()).data.version
+            : !('taskVersion' in request.resource.data))
+          && (request.resource.data.type in ['covered','completed']
+            ? ('affectedUids' in request.resource.data
+              && request.resource.data.affectedUids is list
+              && request.resource.data.affectedUids.size() <= 4
+              && request.resource.data.affectedUids.hasAll([getAfter(taskPath()).data.creatorUid])
+              && request.resource.data.affectedUids.hasOnly([
+                getAfter(taskPath()).data.creatorUid,
+                getAfter(taskPath()).data.ownerUid,
+                get(taskPath()).data.ownerUid,
+                get(taskPath()).data.requestedUid,
+                get(taskPath()).data.offeredUid]))
+            : !('affectedUids' in request.resource.data))
           && (taskEvent() || spaceEvent());
       }
       match /tasks/{task} {

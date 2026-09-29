@@ -772,8 +772,11 @@ class _OnlineHomeState extends State<OnlineHome> {
         child: Row(
           children: [
             _personChip(null, 'Everyone'),
-            _personChip(widget.user.uid, 'Me',
-                resolvedName: members[widget.user.uid]?['name'] as String?),
+            _personChip(
+              widget.user.uid,
+              'Me',
+              resolvedName: members[widget.user.uid]?['name'] as String?,
+            ),
             for (final entry in members.entries)
               if (entry.key != widget.user.uid)
                 _personChip(
@@ -784,7 +787,11 @@ class _OnlineHomeState extends State<OnlineHome> {
         ),
       );
 
-  Widget _personChip(String? id, String label, {String? resolvedName}) => Padding(
+  Widget _personChip(
+    String? id,
+    String label, {
+    String? resolvedName,
+  }) => Padding(
     padding: const EdgeInsets.only(right: 8),
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 180),
@@ -794,11 +801,13 @@ class _OnlineHomeState extends State<OnlineHome> {
             ? null
             : MemberAvatar(
                 uid: id,
-                name: resolvedName ?? (id == widget.user.uid
-                    ? (widget.user.displayName?.trim().isNotEmpty == true
-                          ? widget.user.displayName!
-                          : widget.user.email?.split('@').first ?? 'Member')
-                    : label),
+                name:
+                    resolvedName ??
+                    (id == widget.user.uid
+                        ? (widget.user.displayName?.trim().isNotEmpty == true
+                              ? widget.user.displayName!
+                              : widget.user.email?.split('@').first ?? 'Member')
+                        : label),
                 radius: 13,
               ),
         label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -1633,7 +1642,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                               );
                             },
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           TextButton(
                             onPressed: () {
                               SpaceDeletionSheet.show(
@@ -1698,6 +1707,32 @@ class _OnlineHomeState extends State<OnlineHome> {
                 setState(() => _destination = 0);
               },
             ),
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: widget.backend.firestore
+                .collection('spaceDeletionJobs')
+                .where('requestedBy', isEqualTo: widget.user.uid)
+                .limit(100)
+                .snapshots(),
+            builder: (context, snapshot) => Column(
+              children: [
+                for (final job
+                    in snapshot.data?.docs ??
+                        <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                  if (job.data()['status'] != 'done')
+                    ListTile(
+                      leading: const Icon(Icons.hourglass_top_rounded),
+                      title: Text(
+                        'Deleting ${job.data()['spaceName'] ?? 'space'}',
+                      ),
+                      subtitle: Text(
+                        job.data()['status'] == 'failed'
+                            ? 'Cleanup will retry automatically'
+                            : 'Deletion pending',
+                      ),
+                    ),
+              ],
+            ),
+          ),
           const Divider(),
           ListTile(
             minVerticalPadding: 12,
@@ -1760,12 +1795,13 @@ class _OnlineHomeState extends State<OnlineHome> {
     ),
   );
 
-  Widget _notificationBell(List<QueryDocumentSnapshot<Map<String, dynamic>>> refs) =>
-      AccountNotificationBell(
-        backend: widget.backend,
-        uid: widget.user.uid,
-        spaceIds: [for (final ref in refs) ref.id],
-      );
+  Widget _notificationBell(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> refs,
+  ) => AccountNotificationBell(
+    backend: widget.backend,
+    uid: widget.user.uid,
+    spaceIds: [for (final ref in refs) ref.id],
+  );
 
   Future<void> _openInboxTask(
     BuildContext sheet,
@@ -1774,12 +1810,16 @@ class _OnlineHomeState extends State<OnlineHome> {
   ) async {
     try {
       final space = await widget.backend.firestore.doc('spaces/$spaceId').get();
-      final members = List<String>.from(space.data()?['memberUids'] as List? ?? []);
-      if (!members.contains(widget.user.uid)) throw StateError('Space access ended.');
+      final members = List<String>.from(
+        space.data()?['memberUids'] as List? ?? [],
+      );
+      if (!members.contains(widget.user.uid))
+        throw StateError('Space access ended.');
       final task = await widget.backend.firestore
           .doc('spaces/$spaceId/tasks/$taskId')
           .get();
-      if (!task.exists || task.data() == null) throw StateError('Task unavailable.');
+      if (!task.exists || task.data() == null)
+        throw StateError('Task unavailable.');
       final people = await widget.backend.members(spaceId).first;
       if (!mounted || !sheet.mounted) return;
       Navigator.pop(sheet);
@@ -1794,13 +1834,19 @@ class _OnlineHomeState extends State<OnlineHome> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This task is no longer available to you.')),
+          const SnackBar(
+            content: Text('This task is no longer available to you.'),
+          ),
         );
       }
     }
   }
 
-  Future<void> _openInboxOwnership(BuildContext sheet, String spaceId) async {
+  Future<void> _openInboxSpace(
+    BuildContext sheet,
+    String spaceId, {
+    int destination = 2,
+  }) async {
     try {
       final space = await widget.backend.firestore.doc('spaces/$spaceId').get();
       if (!List<String>.from(space.data()?['memberUids'] as List? ?? [])
@@ -1810,11 +1856,13 @@ class _OnlineHomeState extends State<OnlineHome> {
       if (!mounted || !sheet.mounted) return;
       Navigator.pop(sheet);
       _switchSpace(spaceId);
-      setState(() => _destination = 2);
+      setState(() => _destination = destination);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This space is no longer available to you.')),
+          const SnackBar(
+            content: Text('This space is no longer available to you.'),
+          ),
         );
       }
     }
@@ -1832,19 +1880,10 @@ class _OnlineHomeState extends State<OnlineHome> {
           for (final ref in refs)
             ref.id: ref.data()['name'] as String? ?? 'Space',
         },
-        onOpenSpace: (spaceId) {
-          if (!refs.any((ref) => ref.id == spaceId)) return;
-          Navigator.pop(sheet);
-          _switchSpace(spaceId);
-          setState(() {
-            _destination = 0;
-            _showDone = false;
-          });
-        },
-        onOpenTask: (spaceId, taskId) =>
-            _openInboxTask(sheet, spaceId, taskId),
-        onOpenOwnership: (spaceId) =>
-            _openInboxOwnership(sheet, spaceId),
+        onOpenSpace: (spaceId) =>
+            _openInboxSpace(sheet, spaceId, destination: 0),
+        onOpenTask: (spaceId, taskId) => _openInboxTask(sheet, spaceId, taskId),
+        onOpenOwnership: (spaceId) => _openInboxSpace(sheet, spaceId),
         requests: [
           for (final ref in refs) ...[
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -1866,7 +1905,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                           '${ref.data()['name'] ?? 'Space'} · Awaiting your answer',
                         ),
                         trailing: const Icon(Icons.chevron_right_rounded),
-                         onTap: () => _openInboxTask(sheet, ref.id, doc.id),
+                        onTap: () => _openInboxTask(sheet, ref.id, doc.id),
                       ),
                 ],
               ),
@@ -1881,7 +1920,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                       title: const Text('Ownership offer'),
                       subtitle: Text(ref.data()['name'] as String? ?? 'Space'),
                       trailing: const Icon(Icons.chevron_right_rounded),
-                       onTap: () => _openInboxOwnership(sheet, ref.id),
+                      onTap: () => _openInboxSpace(sheet, ref.id),
                     )
                   : const SizedBox.shrink(),
             ),

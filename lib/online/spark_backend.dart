@@ -35,6 +35,7 @@ class SparkBackend {
     required List<String> recipients,
     String? targetUid,
     List<String>? affectedUids,
+    int? taskVersion,
   }) {
     tx.set(space(spaceId).collection('events').doc(eventId), {
       'type': type,
@@ -43,6 +44,7 @@ class SparkBackend {
       'targetUid': targetUid,
       'recipientUids': recipients,
       if (affectedUids != null) 'affectedUids': affectedUids,
+      if (taskVersion != null) 'taskVersion': taskVersion,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -145,10 +147,11 @@ class SparkBackend {
           if (v['requestedUid'] != null) {
             addSpaceEvent(
               tx,
-              id!,
+              id,
               'task_${ref.id}_1',
               type: 'taskAssigned',
               entityId: ref.id,
+              taskVersion: 1,
               targetUid: v['requestedUid'] as String,
               recipients: List<String>.from(
                 parent.data()?['memberUids'] as List? ?? [],
@@ -227,26 +230,27 @@ class SparkBackend {
           if (eventType != null) {
             addSpaceEvent(
               tx,
-              id!,
+              id,
               'task_${ref.id}_${changes['version']}',
               type: eventType,
               entityId: ref.id,
               targetUid: eventType == 'covered'
                   ? current['creatorUid'] as String?
                   : null,
-               recipients: List<String>.from(
-                 parent['memberUids'] as List? ?? [],
-               ),
-               if (eventType == 'covered' || eventType == 'completed')
-                 affectedUids: {
-                   for (final value in [
-                     current['creatorUid'],
-                     current['ownerUid'],
-                     current['requestedUid'],
-                     current['offeredUid'],
-                   ])
-                     if (value is String) value,
-                 }.toList(),
+              recipients: List<String>.from(
+                parent['memberUids'] as List? ?? [],
+              ),
+              affectedUids: eventType == 'covered' || eventType == 'completed'
+                  ? {
+                      for (final value in [
+                        current['creatorUid'],
+                        current['ownerUid'],
+                        current['requestedUid'],
+                        current['offeredUid'],
+                      ])
+                        if (value is String) value,
+                    }.toList()
+                  : null,
             );
           }
           tx.set(receipt, {
@@ -683,6 +687,13 @@ class SparkBackend {
           final memberUids = List<String>.from(
             (sData['memberUids'] as Iterable?) ?? [uid],
           );
+          tx.set(db.doc('spaceDeletionJobs/$id'), {
+            'requestedBy': uid,
+            'spaceName': sData['name'],
+            'memberUids': memberUids,
+            'status': 'pending',
+            'requestedAt': FieldValue.serverTimestamp(),
+          });
           for (final mUid in memberUids) {
             final accRef = db.doc('accounts/$mUid');
             tx.update(accRef, {
@@ -692,9 +703,15 @@ class SparkBackend {
             });
             tx.delete(accRef.collection('spaceRefs').doc(id));
           }
-          tx.delete(spaceRef);
+          tx.update(spaceRef, {
+            'memberUids': <String>[],
+            'memberCount': 0,
+            'ownerUid': null,
+            'deletionStatus': 'pending',
+            'deletionRequestedAt': FieldValue.serverTimestamp(),
+          });
         });
-        return {'ok': true};
+        return {'status': 'pending'};
       case 'updateTask':
         final taskId = v['taskId'] as String;
         final updates = <String, dynamic>{
@@ -754,6 +771,7 @@ class SparkBackend {
               assignmentEventId,
               type: 'taskAssigned',
               entityId: taskId,
+              taskVersion: updates['version'] as int,
               targetUid: nextRecipient,
               recipients: List<String>.from(
                 parent.data()?['memberUids'] as List? ?? [],

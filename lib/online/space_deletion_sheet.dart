@@ -27,6 +27,7 @@ class SpaceDeletionSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       backgroundColor: const Color(0xFFFAF9F6),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -47,6 +48,7 @@ class SpaceDeletionSheet extends StatefulWidget {
 class _SpaceDeletionSheetState extends State<SpaceDeletionSheet> {
   final TextEditingController _controller = TextEditingController();
   bool _busy = false;
+  bool _requested = false;
 
   bool get _canDelete => _controller.text.trim() == widget.spaceName.trim();
 
@@ -57,15 +59,18 @@ class _SpaceDeletionSheetState extends State<SpaceDeletionSheet> {
     try {
       await widget.backend.call('deleteSpace', {'spaceId': widget.spaceId});
       if (mounted) {
+        setState(() {
+          _busy = false;
+          _requested = true;
+        });
         widget.onDeleted();
-        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not delete space: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not delete space: $e')));
       }
     }
   }
@@ -109,7 +114,9 @@ class _SpaceDeletionSheetState extends State<SpaceDeletionSheet> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Type "${widget.spaceName}" to confirm deletion. This cannot be undone.',
+              _requested
+                  ? 'Members can no longer open this space. Shared photos and records are being removed.'
+                  : 'Type "${widget.spaceName}" to confirm deletion. This cannot be undone.',
               style: const TextStyle(
                 fontFamily: 'NunitoSans',
                 fontSize: 14,
@@ -118,38 +125,68 @@ class _SpaceDeletionSheetState extends State<SpaceDeletionSheet> {
               ),
             ),
             const SizedBox(height: 20),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              style: const TextStyle(
-                fontFamily: 'NunitoSans',
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF202633),
+            if (_requested)
+              StreamBuilder(
+                stream: widget.backend.firestore
+                    .doc('spaceDeletionJobs/${widget.spaceId}')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final status = snapshot.data?.data()?['status'] as String?;
+                  final label = status == 'done'
+                      ? 'Space deleted'
+                      : status == 'failed'
+                      ? 'Deletion needs attention. The cleanup worker will retry.'
+                      : 'Deletion pending';
+                  return Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  );
+                },
+              )
+            else
+              TextField(
+                controller: _controller,
+                autofocus: true,
+                style: const TextStyle(
+                  fontFamily: 'NunitoSans',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF202633),
+                ),
+                decoration: InputDecoration(
+                  hintText: widget.spaceName,
+                  hintStyle: const TextStyle(color: Color(0xFF8E95A5)),
+                  filled: true,
+                  fillColor: const Color(0xFFFFFEFB),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: Color(0xFFD32F2F)),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
               ),
-              decoration: InputDecoration(
-                hintText: widget.spaceName,
-                hintStyle: const TextStyle(color: Color(0xFF8E95A5)),
-                filled: true,
-                fillColor: const Color(0xFFFFFEFB),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: Color(0xFFD32F2F)),
-                ),
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
             const SizedBox(height: 24),
-            if (_busy)
+            if (_requested)
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              )
+            else if (_busy)
               const Center(child: CircularProgressIndicator())
             else
               SizedBox(

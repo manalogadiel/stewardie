@@ -402,22 +402,23 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                             ),
                             // Recenter button
                             Positioned(
-                              bottom: 12,
+                              bottom: 44,
                               right: 12,
                               child: Material(
                                 color: const Color(0xFFFFFEFB),
                                 shape: const CircleBorder(),
                                 elevation: 3,
-                                child: InkWell(
-                                  onTap: _recenterOnUser,
-                                  customBorder: const CircleBorder(),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(10),
-                                    child: Icon(
-                                      Icons.my_location_rounded,
-                                      color: Color(0xFF244BFF),
-                                      size: 20,
-                                    ),
+                                child: IconButton(
+                                  onPressed: _recenterOnUser,
+                                  tooltip: 'Recenter on me',
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 48,
+                                    height: 48,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.my_location_rounded,
+                                    color: Color(0xFF244BFF),
+                                    size: 22,
                                   ),
                                 ),
                               ),

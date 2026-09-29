@@ -1,4 +1,6 @@
 import { importPKCS8, SignJWT } from 'https://esm.sh/jose@5.9.6';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+import { eventInboxId, eventRecipients } from './event_delivery.mjs';
 
 // Invoked by Supabase Cron with a private shared secret. Firebase Admin REST
 // bypasses client rules; never expose this endpoint to an app or browser.
@@ -137,6 +139,107 @@ async function remove(path: string, updateTime: string): Promise<void> {
   }
 }
 
+async function collectionIds(path: string): Promise<string[]> {
+  const ids: string[] = [];
+  let page: string | undefined;
+  do {
+    const result = await request(`${path}:listCollectionIds`, {
+      method: 'POST',
+      body: JSON.stringify({ pageSize: 100, ...(page ? { pageToken: page } : {}) }),
+    });
+    if (!result.ok) throw new Error(`Firestore collection listing failed: ${result.status}`);
+    const body = await result.json();
+    ids.push(...(body.collectionIds ?? []));
+    page = body.nextPageToken;
+  } while (page);
+  return ids;
+}
+
+async function deleteTree(path: string): Promise<void> {
+  for (const collection of await collectionIds(path)) {
+    for (const child of await list(`${path}/${collection}`)) {
+      await deleteTree(docPath(child));
+    }
+  }
+  const doc = await get(path);
+  if (doc?.updateTime) await remove(path, doc.updateTime);
+  if (await get(path)) throw new Error(`Firestore document changed during deletion: ${path}`);
+}
+
+async function cleanupSpace(job: Doc): Promise<void> {
+  const spaceId = job.name.split('/').pop()!;
+  const rootDoc = await get(`spaces/${spaceId}`);
+  if (rootDoc && (fields(rootDoc).deletionStatus !== 'pending' ||
+      (fields(rootDoc).memberUids as string[] ?? []).length !== 0)) {
+    throw new Error('Space deletion was not confirmed by its owner');
+  }
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) throw new Error('Media cleanup credentials are missing');
+  const sb = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  while (true) {
+    const { data: rows, error } = await sb.from('media_items')
+      .select('id,uploader_uid').eq('space_id', spaceId).limit(100);
+    if (error) throw error;
+    if (!rows?.length) break;
+    for (const row of rows) {
+      const prefix = `${spaceId}/${row.uploader_uid}/${row.id}`;
+      const removed = await sb.storage.from('moments').remove([
+        `${prefix}/photo.jpg`, `${prefix}/thumb.jpg`,
+      ]);
+      if (removed.error) throw removed.error;
+      const deleted = await sb.from('media_items').delete().eq('id', row.id);
+      if (deleted.error) throw deleted.error;
+    }
+  }
+  const leftover = await sb.storage.from('moments').list(spaceId, { limit: 1 });
+  if (leftover.error || (leftover.data?.length ?? 0) > 0) {
+    throw new Error('Space media objects remain; operator review required');
+  }
+  // Former members can still have old activity after leaving a space.
+  for (const account of await list('accounts')) {
+    const uid = account.name.split('/').pop()!;
+    for (const item of await list(`accounts/${uid}/activity`)) {
+      if (fields(item).spaceId === spaceId) await deleteTree(docPath(item));
+    }
+    await deleteTree(`accounts/${uid}/spaceRefs/${spaceId}`);
+  }
+  if (await get(`spaces/${spaceId}`)) await deleteTree(`spaces/${spaceId}`);
+}
+
+async function cleanupRequestedSpaces(now: Date): Promise<number> {
+  let errors = 0;
+  for (const job of await list('spaceDeletionJobs')) {
+    const data = fields(job);
+    if (data.status === 'done' ||
+        (data.status === 'processing' && Date.parse(String(data.leaseUntil ?? '')) > now.getTime())) continue;
+    if (!job.updateTime) continue;
+    const path = docPath(job);
+    const acquired = await update(path, {
+      status: 'processing', leaseUntil: new Date(now.getTime() + 30 * 60000),
+      attempts: Number(data.attempts ?? 0) + 1,
+    }, job.updateTime);
+    if (!acquired) continue;
+    try {
+      await cleanupSpace(job);
+      const current = await get(path);
+      if (current?.updateTime) await update(path, {
+        status: 'done', completedAt: new Date(), leaseUntil: null,
+        lastError: null,
+      }, current.updateTime);
+    } catch (error) {
+      console.error('Space cleanup failed', path, error);
+      errors++;
+      const current = await get(path);
+      if (current?.updateTime) await update(path, {
+        status: 'failed', leaseUntil: null,
+        lastError: 'Cleanup failed; automatic retry scheduled.',
+      }, current.updateTime);
+    }
+  }
+  return errors;
+}
+
 function local(now: Date, zone: string): { date: string; weekday: string; minute: number } {
   let parts: Intl.DateTimeFormatPart[];
   try {
@@ -245,17 +348,10 @@ async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc,
   const type = String(e.type ?? '');
   const actor = String(e.actorUid ?? '');
   const entityId = String(e.entityId ?? '');
-  const current = new Set((space.memberUids as string[] ?? []));
-  const original = (e.recipientUids as string[] ?? []);
-  const target = typeof e.targetUid === 'string' ? e.targetUid : null;
   const task = ['taskAssigned', 'helpRequested', 'covered', 'completed'].includes(type)
     ? fields(await get(`spaces/${spaceId}/tasks/${entityId}`) ?? { name: '', fields: {} }) : {};
-  const recipients = original.filter((uid) => current.has(uid) && uid !== actor && (
-    type === 'ownershipOffered' || type === 'taskAssigned' ? uid === target
-    : type === 'covered' || type === 'completed' ?
-      uid === task.creatorUid || uid === task.ownerUid || uid === task.requestedUid || uid === task.offeredUid
-    : true
-  ));
+  const recipients = eventRecipients(e, (space.memberUids as string[] ?? []),
+    [task.creatorUid, task.ownerUid, task.requestedUid, task.offeredUid]) as string[];
   const labels: Record<string, [string, string]> = {
     joined: ['A member joined', 'Someone joined your space.'],
     left: ['A member left', 'Someone left your space.'],
@@ -270,8 +366,9 @@ async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc,
   const copy = labels[type];
   if (!copy) return;
   for (const uid of recipients) {
-    await create(`accounts/${uid}/activity/event_${spaceId}_${eventId}`, {
+    await create(`accounts/${uid}/activity/${eventInboxId(spaceId, eventId)}`, {
       spaceId, kind: type, eventId, entityId, actorUid: actor,
+      ...(typeof e.taskVersion === 'number' ? { taskVersion: e.taskVersion } : {}),
       ...(type.startsWith('task') || ['helpRequested', 'covered', 'completed'].includes(type) ? { taskId: entityId } : {}),
       title: copy[0], body: copy[1],
       createdAt: typeof e.createdAt === 'string' ? new Date(e.createdAt) : now,
@@ -418,11 +515,12 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
 
 async function run(): Promise<{ spaces: number; errors: number }> {
   const now = new Date();
-  let errors = 0;
+  let errors = await cleanupRequestedSpaces(now);
   const spaces = await list('spaces');
   for (const space of spaces) {
     try {
       const s = fields(space);
+      if (s.deletionStatus === 'pending') continue;
       const id = space.name.split('/').pop()!;
       const today = local(now, String(s.timeZone ?? 'UTC'));
       const routines = await list(`spaces/${id}/routines`);

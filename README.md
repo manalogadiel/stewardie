@@ -39,4 +39,4 @@ The private [account-deletion operator runbook](docs/account-deletion-operations
 
 Location, calendar import, and scheduled reminders are staged in code; the current reminder worker is deployed, but real plan-reminder delivery has not been device-tested. OneSignal and Google OAuth remain optional and unconfigured. Follow [the rollout steps and device checks](docs/location-calendar-reminders-setup.md). Do not treat native background location, push, or Google access as verified by a Flutter build alone.
 
-The map and navigation refresh is staged locally; [pilot key setup and remaining map checks](docs/map-navigation-rollout.md) explains the free development key.
+The map and navigation refresh is deployed for the private pilot. [Pilot key setup](docs/map-navigation-rollout.md) explains the free development key; the [completion verification record](docs/map-navigation-completion-verification.md) lists the native-device and multi-account checks still open.

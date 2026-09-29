@@ -244,6 +244,11 @@ export async function prepareDeletion({ db, auth, sb, uid }) {
     throw new Error('Auth user is missing for an unprocessed request.');
   }
   const allSpaces = (await db.collection('spaces').get()).docs;
+  const deletionJobs = (await db.collection('spaceDeletionJobs')
+    .where('requestedBy', '==', uid).get()).docs;
+  if (deletionJobs.some((job) => job.get('status') !== 'done')) {
+    throw new Error('Finish pending space deletion before deleting this account.');
+  }
   const account = await db.doc(`accounts/${uid}`).get();
   const listedSpaceIds = new Set(account.get('spaceIds') ?? []);
   const previousSpaceIds = new Set(request.get('spaceIds') ?? []);
@@ -268,7 +273,7 @@ export async function prepareDeletion({ db, auth, sb, uid }) {
   const soloMedia = [];
   for (const spaceId of soloSpaceIds) soloMedia.push(...await mediaRows(sb, 'space_id', spaceId));
   const mediaSpaceIds = new Set([...uploaded, ...soloMedia].map((row) => row.space_id));
-  return { request, user, spaces, soloSpaceIds, mediaSpaceIds,
+  return { request, user, spaces, soloSpaceIds, mediaSpaceIds, deletionJobs,
     summary: { sharedSpaces: spaces.filter((space) => !soloSpaceIds.has(space.id)).length,
       soloSpaces: soloSpaceIds.size,
       photos: new Set([...uploaded, ...soloMedia].map((row) => row.id)).size } };
@@ -277,7 +282,7 @@ export async function prepareDeletion({ db, auth, sb, uid }) {
 export async function processDeletion({ db, auth, sb, uid, apply = false }) {
   const inventory = await prepareDeletion({ db, auth, sb, uid });
   if (!apply) return { applied: false, ...inventory.summary };
-  const { request, user, spaces, soloSpaceIds, mediaSpaceIds } = inventory;
+  const { request, user, spaces, soloSpaceIds, mediaSpaceIds, deletionJobs } = inventory;
   try {
     await request.ref.set({ status: 'processing', processingAt: FieldValue.serverTimestamp(),
       spaceIds: spaces.map((space) => space.id), soloSpaceIds: [...soloSpaceIds],
@@ -298,6 +303,7 @@ export async function processDeletion({ db, auth, sb, uid, apply = false }) {
     for (const space of spaces) {
       if (soloSpaceIds.has(space.id)) await db.recursiveDelete(space.ref);
     }
+    for (const job of deletionJobs) await job.ref.delete();
     for (const invite of (await db.collection('invites').get()).docs) {
       const data = invite.data();
       if (data.creatorUid === uid || soloSpaceIds.has(data.spaceId)) {

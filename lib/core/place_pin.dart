@@ -60,6 +60,7 @@ Future<PlacePin?> showPlacePicker(BuildContext context, {PlacePin? initial}) =>
       context: context,
       useRootNavigator: true,
       useSafeArea: true,
+      showDragHandle: true,
       isScrollControlled: true,
       builder: (_) => _PlacePicker(initial: initial),
     );
@@ -73,6 +74,8 @@ class _PlacePicker extends StatefulWidget {
 
 class _PlacePickerState extends State<_PlacePicker> {
   final controller = MapController();
+  bool _mapReady = false;
+  bool _pendingCenter = false;
   late final label = TextEditingController(text: widget.initial?.label);
   late final note = TextEditingController(text: widget.initial?.note);
   LatLng? point;
@@ -113,8 +116,15 @@ class _PlacePickerState extends State<_PlacePicker> {
         ),
       );
       if (!mounted) return;
-      setState(() => point = LatLng(fix.latitude, fix.longitude));
-      controller.move(point!, 15);
+      setState(() {
+        point = LatLng(fix.latitude, fix.longitude);
+        error = null;
+      });
+      if (_mapReady) {
+        controller.move(point!, 15);
+      } else {
+        _pendingCenter = true;
+      }
     } catch (_) {
       if (mounted)
         setState(
@@ -126,17 +136,18 @@ class _PlacePickerState extends State<_PlacePicker> {
   @override
   Widget build(BuildContext context) {
     final p = point;
+    final media = MediaQuery.of(context);
+    final keyboardOpen = media.viewInsets.bottom > 0;
+    final height =
+        (media.size.height - media.viewInsets.bottom - media.padding.top - 56)
+            .clamp(0.0, media.size.height * .77)
+            .toDouble();
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        8,
-        20,
-        20 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + media.viewInsets.bottom),
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .77,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        height: height,
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
             Text(
               'Choose a place',
@@ -147,16 +158,30 @@ class _PlacePickerState extends State<_PlacePicker> {
               'Tap the map to place a fixed pin. This will be visible to your space.',
             ),
             const SizedBox(height: 12),
-            Expanded(
+            SizedBox(
+              height: keyboardOpen
+                  ? 160
+                  : (media.size.height * .38).clamp(180, 360).toDouble(),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
                 child: StewardieMap(
                   controller: controller,
+                  onReady: () {
+                    _mapReady = true;
+                    if (_pendingCenter && point != null) {
+                      controller.move(point!, 15);
+                      _pendingCenter = false;
+                    }
+                  },
                   center: p ?? const LatLng(12, 122),
                   zoom: p == null ? 5 : 14,
                   style: style,
                   onStyleChanged: (value) => setState(() => style = value),
-                  onTap: (_, position) => setState(() => point = position),
+                  onTap: (_, position) => setState(() {
+                    point = position;
+                    _pendingCenter = false;
+                    error = null;
+                  }),
                   markers: [
                     if (p != null)
                       Marker(

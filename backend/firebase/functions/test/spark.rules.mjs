@@ -60,7 +60,7 @@ test('Spark moods persist with expiry; peers cannot overwrite them or plans',asy
 test('space events require a matching atomic transition and inboxes stay server-owned', async()=>{
  const d=db('bob');
  const event={type:'covered',actorUid:'bob',entityId:'task',targetUid:'alice',
-  recipientUids:['alice','bob'],createdAt:now()};
+  recipientUids:['alice','bob'],affectedUids:['alice','bob'],createdAt:now()};
  await assertFails(d.doc('spaces/home/events/forged').set(event));
  await assertFails(db('outsider').doc('spaces/home/events/forged').set(event));
  await assertFails(d.doc('accounts/alice/activity/forged').set({title:'Fake'}));
@@ -80,13 +80,39 @@ test('a creator can reassign an unclaimed task with an atomic event', async()=>{
  batch.update(task,{status:'requested',requestedUid:'bob',version:2,updatedAt:now()});
  batch.set(d.doc('spaces/home/events/reassign-task'),{
   type:'taskAssigned',actorUid:'alice',entityId:'task',targetUid:'bob',
-  recipientUids:['alice','bob'],createdAt:now(),
+  recipientUids:['alice','bob'],taskVersion:2,createdAt:now(),
  });
  await assertSucceeds(batch.commit());
  await assertFails(db('bob').doc('spaces/home/events/forged-reassign').set({
   type:'taskAssigned',actorUid:'bob',entityId:'task',targetUid:'bob',
-  recipientUids:['alice','bob'],createdAt:now(),
+  recipientUids:['alice','bob'],taskVersion:2,createdAt:now(),
  }));
+});
+test('only an owner can request a transaction-bound space cleanup', async()=>{
+ const owner=db('alice'), outsider=db('bob');
+ await assertFails(outsider.doc('spaces/home').delete());
+ await assertFails(owner.doc('spaces/home').delete());
+ await assertFails(owner.doc('spaceDeletionJobs/home').set({
+  requestedBy:'alice',spaceName:'Home',memberUids:['alice','bob'],status:'pending',requestedAt:now(),
+ }));
+ const batch=owner.batch();
+ batch.set(owner.doc('spaceDeletionJobs/home'),{
+  requestedBy:'alice',spaceName:'Home',memberUids:['alice','bob'],status:'pending',requestedAt:now(),
+ });
+ batch.update(owner.doc('spaces/home'),{
+  memberUids:[],memberCount:0,ownerUid:null,deletionStatus:'pending',deletionRequestedAt:now(),
+ });
+ for(const uid of ['alice','bob']) {
+  batch.update(owner.doc(`accounts/${uid}`),{
+   spaceIds:[],ownedSpaceIds:[],changedSpaceId:'home',
+  });
+  batch.delete(owner.doc(`accounts/${uid}/spaceRefs/home`));
+ }
+ await assertSucceeds(batch.commit());
+ await assertSucceeds(owner.doc('spaceDeletionJobs/home').get());
+ await assertSucceeds(owner.collection('spaceDeletionJobs').where('requestedBy','==','alice').get());
+ await assertFails(outsider.doc('spaceDeletionJobs/home').get());
+ await assertFails(owner.doc('spaces/home').get());
 });
 test('location sessions restrict recipients and expire at the server',async()=>{
  const d=db('alice');

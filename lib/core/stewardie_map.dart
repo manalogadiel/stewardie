@@ -89,42 +89,11 @@ class _StewardieMapState extends State<StewardieMap> {
       ),
       if (widget.onStyleChanged != null)
         Positioned(
-          top: failed ? 72 : 12,
+          top: 12,
           right: 12,
-          child: PopupMenuButton<StewardieMapStyle>(
-            tooltip: 'Map layers',
-            onSelected: widget.onStyleChanged,
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: StewardieMapStyle.satellite,
-                enabled: mapTilerKey.isNotEmpty,
-                child: _styleOption(
-                  Icons.satellite_alt_outlined,
-                  mapTilerKey.isEmpty
-                      ? 'Satellite needs a map key'
-                      : 'Satellite',
-                  widget.style == StewardieMapStyle.satellite,
-                ),
-              ),
-              PopupMenuItem(
-                value: StewardieMapStyle.streets,
-                child: _styleOption(
-                  Icons.map_outlined,
-                  'Streets',
-                  widget.style == StewardieMapStyle.streets,
-                ),
-              ),
-            ],
-            child: Material(
-              color: const Color(0xFFFFFEFB),
-              elevation: 3,
-              borderRadius: BorderRadius.circular(16),
-              child: const SizedBox(
-                width: 48,
-                height: 48,
-                child: Icon(Icons.layers_rounded, semanticLabel: 'Map layers'),
-              ),
-            ),
+          child: MapLayersButton(
+            selected: widget.style,
+            onSelected: widget.onStyleChanged!,
           ),
         ),
       if (mapTilerKey.isNotEmpty)
@@ -187,26 +156,31 @@ class _StewardieMapState extends State<StewardieMap> {
         Positioned(
           top: 8,
           left: 8,
-          right: 8,
+          right: widget.onStyleChanged == null ? 8 : 72,
           child: Material(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'Map tiles unavailable. Check connection or try Streets.',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                  Text(
+                    satellite
+                        ? 'Satellite tiles unavailable. Try Streets or retry.'
+                        : 'Map tiles unavailable. Check connection and retry.',
+                    style: const TextStyle(fontSize: 12),
                   ),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      failed = false;
-                      retry++;
-                    }),
-                    child: const Text('Retry'),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => setState(() {
+                        failed = false;
+                        retry++;
+                      }),
+                      child: const Text('Retry'),
+                    ),
                   ),
                 ],
               ),
@@ -215,16 +189,66 @@ class _StewardieMapState extends State<StewardieMap> {
         ),
     ],
   );
+}
 
-  Widget _styleOption(IconData icon, String label, bool selected) => SizedBox(
-    height: 48,
-    child: Row(
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 12),
-        Expanded(child: Text(label)),
-        if (selected) const Icon(Icons.check_rounded, size: 20),
-      ],
+class MapLayersButton extends StatelessWidget {
+  const MapLayersButton({
+    super.key,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final StewardieMapStyle selected;
+  final ValueChanged<StewardieMapStyle> onSelected;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<StewardieMapStyle>(
+    tooltip: 'Map layers, ${selected.name} selected',
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    onSelected: onSelected,
+    itemBuilder: (context) => [
+      PopupMenuItem(
+        value: StewardieMapStyle.satellite,
+        enabled: mapTilerKey.isNotEmpty,
+        child: _styleOption(
+          Icons.satellite_alt_outlined,
+          mapTilerKey.isEmpty ? 'Satellite needs a map key' : 'Satellite',
+          selected == StewardieMapStyle.satellite,
+        ),
+      ),
+      PopupMenuItem(
+        value: StewardieMapStyle.streets,
+        child: _styleOption(
+          Icons.map_outlined,
+          'Streets',
+          selected == StewardieMapStyle.streets,
+        ),
+      ),
+    ],
+    child: Material(
+      color: const Color(0xFFFFFEFB),
+      elevation: 3,
+      borderRadius: BorderRadius.circular(16),
+      child: const SizedBox(
+        width: 48,
+        height: 48,
+        child: Icon(Icons.layers_rounded, semanticLabel: 'Map layers'),
+      ),
+    ),
+  );
+
+  Widget _styleOption(IconData icon, String label, bool selected) => Semantics(
+    selected: selected,
+    child: SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label)),
+          if (selected) const Icon(Icons.check_rounded, size: 20),
+        ],
+      ),
     ),
   );
 }

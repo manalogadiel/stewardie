@@ -4,14 +4,17 @@ import { test } from 'node:test';
 import { anonymizeTask, prepareDeletion, processDeletion } from '../lib/account-deletion.mjs';
 
 function fake(uid, { members = ['owner', uid], owner = 'owner', requestStatus = 'pending',
-  priorSpaces = [] } = {}) {
+  priorSpaces = [], deletionStatus = null } = {}) {
   const request = { exists: true, get: (field) => ({ uid, email: 'member@example.com',
     status: requestStatus, spaceIds: priorSpaces })[field] };
   const space = { id: 'home', get: (field) => ({ memberUids: members, ownerUid: owner })[field] };
   const db = {
     doc: (path) => ({ get: async () => path === `deletionRequests/${uid}` ? request :
       { get: () => undefined } }),
-    collection: () => ({ get: async () => ({ docs: [space] }) }),
+    collection: (path) => path === 'spaceDeletionJobs'
+      ? { where: () => ({ get: async () => ({ docs: deletionStatus
+        ? [{ get: () => deletionStatus }] : [] }) }) }
+      : { get: async () => ({ docs: [space] }) },
   };
   const auth = { getUser: async () => ({ uid, email: 'member@example.com' }) };
   const sb = { from: () => ({ select: () => ({ eq: () => ({ order: () => ({
@@ -41,6 +44,11 @@ test('owner of a shared space must transfer ownership first', async () => {
   await assert.rejects(prepareDeletion(fake('owner', {
     members: ['owner', 'member'], owner: 'owner',
   })), /Transfer ownership/);
+});
+
+test('account deletion waits for unfinished space cleanup', async () => {
+  await assert.rejects(prepareDeletion(fake('member', { deletionStatus: 'failed' })),
+    /Finish pending space deletion/);
 });
 
 test('a sole owner may proceed, but a missing request may not', async () => {
