@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stewardie/core/stewardie_map.dart';
+import 'package:stewardie/core/place_pin.dart';
 
 void main() {
   testWidgets('one Layers button opens map styles without changing the map', (
@@ -56,6 +57,35 @@ void main() {
     await tester.tap(find.byIcon(Icons.layers_rounded));
     await tester.pumpAndSettle();
     expect(find.text('Streets'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('place picker remains scrollable when the keyboard opens', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showPlacePicker(context),
+              child: const Text('Choose a place'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Choose a place'));
+    await tester.pump(const Duration(milliseconds: 250));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Place name'), findsOneWidget);
+    await tester.ensureVisible(find.text('Use this place'));
     expect(tester.takeException(), isNull);
   });
 }
