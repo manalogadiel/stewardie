@@ -17,13 +17,20 @@ class NotificationSettingsSheet extends StatefulWidget {
     BuildContext context,
     OnlineBackend backend,
     String spaceId,
-  ) => showModalBottomSheet<void>(
-    context: context,
-    useSafeArea: true,
-    isScrollControlled: true,
-    builder: (_) =>
-        NotificationSettingsSheet(backend: backend, spaceId: spaceId),
-  );
+  ) =>
+      showModalBottomSheet<void>(
+        // Use the root navigator so the sheet appears above the floating dock.
+        context: Navigator.of(context, rootNavigator: true).context,
+        useSafeArea: true,
+        isScrollControlled: true,
+        backgroundColor: const Color(0xFFFAF9F6),
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (_) =>
+            NotificationSettingsSheet(backend: backend, spaceId: spaceId),
+      );
 
   @override
   State<NotificationSettingsSheet> createState() =>
@@ -123,14 +130,20 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      20,
-      12,
-      20,
-      20 + MediaQuery.viewInsetsOf(context).bottom,
-    ),
-    child: SingleChildScrollView(
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: media.size.height * 0.85,
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          20 + media.viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -207,6 +220,8 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
           ),
         ],
       ),
-    ),
-  );
+        ),
+      ),
+    );
+  }
 }

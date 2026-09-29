@@ -24,8 +24,14 @@ import 'routines_sheet.dart';
 import 'space_deletion_sheet.dart';
 import 'space_map_sheet.dart';
 import 'task_completion_prompt_sheet.dart';
+
+import 'package:sembast/sembast.dart';
+
 import '../features/subscription/revenuecat_service.dart';
 import '../features/subscription/soft_pop_paywall.dart';
+import '../features/onboarding/tutorial/tutorial_coordinator.dart';
+import '../features/onboarding/tutorial/tutorial_target_registry.dart';
+import '../features/onboarding/onboarding_store.dart';
 
 class OnlineHome extends StatefulWidget {
   const OnlineHome({
@@ -35,12 +41,16 @@ class OnlineHome extends StatefulWidget {
     this.spaceOnly = false,
     this.spaceId,
     this.onSpaceSelected,
+    this.database,
+    this.onTabRequested,
   });
   final OnlineBackend backend;
   final User user;
   final bool spaceOnly;
   final String? spaceId;
   final ValueChanged<String?>? onSpaceSelected;
+  final Database? database;
+  final ValueChanged<int>? onTabRequested;
 
   @override
   State<OnlineHome> createState() => _OnlineHomeState();
@@ -60,12 +70,40 @@ class _OnlineHomeState extends State<OnlineHome> {
   final _moreDone = <Map<String, dynamic>>[];
   String? _moreCursor;
   bool _loadingMore = false;
+  bool _entryPromptsStarted = false;
+  bool _hasSpaces = false;
 
   @override
   void initState() {
     super.initState();
     LiveLocationService.instance.init(widget.backend);
     RevenueCatService.instance.addListener(_onRevenueCatUpdate);
+  }
+
+  Future<void> _runEntryPrompts() async {
+    try {
+      await TutorialCoordinator(widget.database).checkAndPromptTour(
+        context,
+        uid: widget.user.uid,
+        onTabRequested: (tab) {
+          if (mounted && _destination != tab) {
+            if (widget.onTabRequested != null) {
+              widget.onTabRequested!(tab);
+            } else {
+              setState(() => _destination = tab);
+            }
+          }
+        },
+      );
+    } catch (_) {
+      // An unavailable tutorial must not prevent the account from entering a space.
+    }
+    if (!mounted || _hasSpaces) return;
+    // Let the invitation or tour overlay finish removing before opening the sheet.
+    await Future<void>.delayed(Duration.zero);
+    if (mounted && !_hasSpaces) {
+      _chooseSpace(const [], null);
+    }
   }
 
   @override
@@ -215,6 +253,15 @@ class _OnlineHomeState extends State<OnlineHome> {
         stream: widget.backend.spaces(widget.user.uid),
         builder: (context, snapshot) {
           final refs = snapshot.data?.docs ?? [];
+          if (snapshot.hasData) {
+            _hasSpaces = refs.isNotEmpty;
+            if (!widget.spaceOnly && !_entryPromptsStarted) {
+              _entryPromptsStarted = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _runEntryPrompts();
+              });
+            }
+          }
           final requestedSpace = widget.spaceId ?? _spaceId;
           final selected = refs.any((doc) => doc.id == requestedSpace)
               ? requestedSpace
@@ -251,18 +298,20 @@ class _OnlineHomeState extends State<OnlineHome> {
                           SizedBox(
                             width: 48,
                             child: IconButton(
-                              tooltip: 'Space map',
+                              key: TutorialTargetRegistry.mapButtonTarget,
+                              tooltip: selected == null ? 'Private map' : 'Space map',
                               style: IconButton.styleFrom(
                                 backgroundColor: SoftPop.surface,
                                 shape: const CircleBorder(),
                               ),
-                              onPressed: selected == null
-                                  ? null
-                                  : () => SpaceMapSheet.show(
-                                      context,
-                                      backend: widget.backend,
-                                      spaceId: selected,
-                                    ),
+                              onPressed: () => SpaceMapSheet.show(
+                                context,
+                                backend: widget.backend,
+                                spaceId: selected,
+                                onJoinSpace: selected == null
+                                    ? () => _chooseSpace(refs, null)
+                                    : null,
+                              ),
                               icon: const Icon(
                                 Icons.map_outlined,
                                 color: SoftPop.ink,
@@ -273,6 +322,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                           Expanded(
                             child: Center(
                               child: TextButton(
+                                key: TutorialTargetRegistry.spaceSelectorTarget,
                                 style: TextButton.styleFrom(
                                   backgroundColor: SoftPop.surface,
                                   shape: const StadiumBorder(),
@@ -306,6 +356,8 @@ class _OnlineHomeState extends State<OnlineHome> {
                           SizedBox(
                             width: 48,
                             child: IconButton(
+                              key:
+                                  TutorialTargetRegistry.notificationBellTarget,
                               tooltip: 'Notifications',
                               style: IconButton.styleFrom(
                                 backgroundColor: SoftPop.surface,
@@ -380,19 +432,38 @@ class _OnlineHomeState extends State<OnlineHome> {
       return const Center(child: CircularProgressIndicator());
     }
     if (spaceId == null) {
-      return _page([
-        _hero('Today', 'A shared space starts here.'),
-        const SizedBox(height: 22),
-        _emptyPanel(
-          'Bring your people together',
-          'Create a space or join one you have been invited to.',
-        ),
-        const SizedBox(height: 18),
-        FilledButton(
-          onPressed: () => _chooseSpace(const [], null),
-          child: const Text('Choose a space'),
-        ),
-      ]);
+      return _todayPage(
+        summary: [
+          const SizedBox(height: 16),
+          _emptyPanel(
+            'Bring your people together',
+            'Create a space or join one you have been invited to.',
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _createSpace,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Create a space'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _joinSpace,
+                  icon: const Icon(Icons.group_add_outlined),
+                  label: const Text('Join with a code'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+        tabs: const SizedBox.shrink(),
+        tasks: const [],
+      );
     }
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: widget.backend.members(spaceId),
@@ -469,7 +540,10 @@ class _OnlineHomeState extends State<OnlineHome> {
                 return _todayPage(
                   summary: [
                     const SizedBox(height: 16),
-                    _peopleFilters(members),
+                    KeyedSubtree(
+                      key: TutorialTargetRegistry.dayTogetherTarget,
+                      child: _peopleFilters(members),
+                    ),
                     const SizedBox(height: 16),
                     OnlineTodayExtras(
                       backend: widget.backend,
@@ -508,6 +582,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                       Expanded(child: _taskTab('Done', count ?? 0, true)),
                       const SizedBox(width: 8),
                       IconButton.filled(
+                        key: TutorialTargetRegistry.tasksTarget,
                         tooltip: 'Add task',
                         onPressed: _creating
                             ? null
@@ -1320,6 +1395,25 @@ class _OnlineHomeState extends State<OnlineHome> {
                           spaceId: spaceId,
                           onSignedOut: () {
                             RevenueCatService.instance.logOut();
+                          },
+                          onTakeTour: () {
+                            TutorialCoordinator(widget.database).replayTour(
+                              context,
+                              uid: widget.user.uid,
+                              onTabRequested: (tab) {
+                                if (widget.onTabRequested != null) {
+                                  widget.onTabRequested!(tab);
+                                } else if (mounted && _destination != tab) {
+                                  setState(() => _destination = tab);
+                                }
+                              },
+                            );
+                          },
+                          onAccountDeleted: () async {
+                            await TutorialCoordinator(widget.database)
+                                .clear(widget.user.uid);
+                            await OnboardingStore(widget.database)
+                                .clearDraft(widget.user.uid);
                           },
                         );
                       },

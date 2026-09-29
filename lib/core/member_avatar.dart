@@ -55,10 +55,22 @@ class MemberAvatar extends StatelessWidget {
     child: CircleAvatar(
       radius: radius,
       backgroundColor: colorFor(uid),
-      foregroundColor: const Color(0xFF202633),
-      child: Text(
-        initialsFor(name),
-        style: const TextStyle(fontWeight: FontWeight.w800),
+      child: SizedBox(
+        width: radius * 2,
+        height: radius * 2,
+        child: Center(
+          child: Text(
+            initialsFor(name),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF202633),
+              // height:1 prevents line-box misalignment at small sizes.
+              height: 1,
+              fontSize: radius.clamp(10.0, 18.0),
+            ),
+          ),
+        ),
       ),
     ),
   );

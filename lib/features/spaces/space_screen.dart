@@ -24,6 +24,16 @@ class SpaceScreen extends ConsumerWidget {
         user: backend.auth.currentUser!,
         spaceOnly: true,
         spaceId: state.spaceId,
+        onTabRequested: (tab) {
+          switch (tab) {
+            case 0:
+              context.go('/today');
+            case 1:
+              context.go('/moments');
+            case 2:
+              context.go('/space');
+          }
+        },
         onSpaceSelected: (id) {
           if (id != null) {
             ref.read(demoProvider.notifier).switchSpace(id);

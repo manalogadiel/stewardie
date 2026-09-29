@@ -15,16 +15,23 @@ class SpaceMapSheet extends StatefulWidget {
   const SpaceMapSheet({
     super.key,
     required this.backend,
-    required this.spaceId,
+    /// When null the map opens in private mode: tiles, location, recenter, and
+    /// satellite/streets toggle work, but session subscription, other members,
+    /// and sharing are all disabled.
+    this.spaceId,
+    this.onJoinSpace,
   });
 
   final OnlineBackend backend;
-  final String spaceId;
+  final String? spaceId;
+  /// Called when the user taps the Create/Join prompt in private-map mode.
+  final VoidCallback? onJoinSpace;
 
   static Future<void> show(
     BuildContext context, {
     required OnlineBackend backend,
-    required String spaceId,
+    String? spaceId,
+    VoidCallback? onJoinSpace,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -34,7 +41,11 @@ class SpaceMapSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => SpaceMapSheet(backend: backend, spaceId: spaceId),
+      builder: (_) => SpaceMapSheet(
+        backend: backend,
+        spaceId: spaceId,
+        onJoinSpace: onJoinSpace,
+      ),
     );
   }
 
@@ -289,7 +300,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                 ),
                 const SizedBox(height: 16),
                 StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: widget.backend.locationSessions(widget.spaceId),
+                  stream: widget.spaceId == null
+                      ? const Stream.empty()
+                      : widget.backend.locationSessions(widget.spaceId!),
                   builder: (context, snapshot) {
                     final sessions =
                         snapshot.data ?? const <Map<String, dynamic>>[];
@@ -498,143 +511,211 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 20),
-                ValueListenableBuilder<bool>(
-                  valueListenable: locationService.isSharing,
-                  builder: (context, sharing, _) {
-                    if (sharing) {
-                      return ValueListenableBuilder<int>(
-                        valueListenable: locationService.remainingMinutes,
-                        builder: (context, remaining, _) {
-                          return Column(
-                            children: [
-                              Text(
-                                'Sharing your live location (${remaining}m left)',
-                                style: const TextStyle(
+                // -- Sharing controls --------------------------------------
+                if (widget.spaceId == null) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF6F5F0),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE5E2DA)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.group_outlined, color: Color(0xFF596171), size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Join a space to use location sharing',
+                                style: TextStyle(
                                   fontFamily: 'NunitoSans',
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: Color(0xFF202633),
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: OutlinedButton(
-                                  onPressed: () =>
-                                      locationService.stopSharing(),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFFD32F2F),
-                                    side: const BorderSide(
-                                      color: Color(0xFFD32F2F),
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    'Stop sharing',
-                                    style: TextStyle(
-                                      fontFamily: 'NunitoSans',
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    }
-
-                    return Column(
-                      children: [
-                        Row(
-                          children: [
-                            for (final d in [15, 30, 60])
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  child: ChoiceChip(
-                                    label: Center(
-                                      child: Text(
-                                        '${d}m',
-                                        style: TextStyle(
-                                          fontFamily: 'NunitoSans',
-                                          fontSize: 13,
-                                          fontWeight: _selectedDuration == d
-                                              ? FontWeight.w700
-                                              : FontWeight.w500,
-                                          color: _selectedDuration == d
-                                              ? Colors.white
-                                              : const Color(0xFF202633),
-                                        ),
-                                      ),
-                                    ),
-                                    selected: _selectedDuration == d,
-                                    selectedColor: const Color(0xFF244BFF),
-                                    backgroundColor: const Color(0xFFFFFEFB),
-                                    side: BorderSide(
-                                      color: _selectedDuration == d
-                                          ? const Color(0xFF244BFF)
-                                          : const Color(0xFFE5E2DA),
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    onSelected: (val) {
-                                      if (val) {
-                                        setState(() => _selectedDuration = d);
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: _starting ? null : _startSharing,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF244BFF),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'You can view and locate yourself privately without a space.',
+                          style: TextStyle(
+                            fontFamily: 'NunitoSans',
+                            fontSize: 12,
+                            color: Color(0xFF596171),
+                          ),
+                        ),
+                        if (widget.onJoinSpace != null) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              widget.onJoinSpace!();
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF244BFF),
+                              side: const BorderSide(color: Color(0xFF244BFF)),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: Text(
-                              _starting ? 'Starting…' : 'Start sharing',
+                            child: const Text(
+                              'Create or join a space',
                               style: TextStyle(
                                 fontFamily: 'NunitoSans',
-                                fontSize: 16,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
-                        ),
-                        if (_error != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _error!,
-                            style: const TextStyle(color: Color(0xFFD32F2F)),
-                          ),
                         ],
                       ],
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 20),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: locationService.isSharing,
+                    builder: (context, sharing, _) {
+                      if (sharing) {
+                        return ValueListenableBuilder<int>(
+                          valueListenable: locationService.remainingMinutes,
+                          builder: (context, remaining, _) {
+                            return Column(
+                              children: [
+                                Text(
+                                  'Sharing your live location (${remaining}m left)',
+                                  style: const TextStyle(
+                                    fontFamily: 'NunitoSans',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF202633),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: OutlinedButton(
+                                    onPressed: () =>
+                                        locationService.stopSharing(),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFFD32F2F),
+                                      side: const BorderSide(
+                                        color: Color(0xFFD32F2F),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Stop sharing',
+                                      style: TextStyle(
+                                        fontFamily: 'NunitoSans',
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
+
+                      return Column(
+                        children: [
+                          Row(
+                            children: [
+                              for (final d in [15, 30, 60])
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    child: ChoiceChip(
+                                      label: Center(
+                                        child: Text(
+                                          '${d}m',
+                                          style: TextStyle(
+                                            fontFamily: 'NunitoSans',
+                                            fontSize: 13,
+                                            fontWeight: _selectedDuration == d
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: _selectedDuration == d
+                                                ? Colors.white
+                                                : const Color(0xFF202633),
+                                          ),
+                                        ),
+                                      ),
+                                      selected: _selectedDuration == d,
+                                      selectedColor: const Color(0xFF244BFF),
+                                      backgroundColor: const Color(0xFFFFFEFB),
+                                      side: BorderSide(
+                                        color: _selectedDuration == d
+                                            ? const Color(0xFF244BFF)
+                                            : const Color(0xFFE5E2DA),
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      onSelected: (val) {
+                                        if (val) {
+                                          setState(() => _selectedDuration = d);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: FilledButton(
+                              onPressed: _starting ? null : _startSharing,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF244BFF),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: Text(
+                                _starting ? 'Starting�' : 'Start sharing',
+                                style: const TextStyle(
+                                  fontFamily: 'NunitoSans',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              _error!,
+                              style: const TextStyle(color: Color(0xFFD32F2F)),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
     );
+  }
   }
 
   String _memberLocationStatus(Map<String, dynamic> member) {

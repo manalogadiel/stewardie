@@ -2,6 +2,8 @@
 
 Status: proposed implementation plan, September 29, 2026. No application code or cloud configuration is changed by this document. The user confirmed **Firebase email/password with an email verification link**, rather than numeric codes or passwordless signup.
 
+The later [onboarding and tutorial correction plan](onboarding-gemini-correction-plan.md) governs transparent mascot art, removal of the age question, tutorial accuracy and first-use triggering, and motion refinements. The implementation below predates the reviewed Flutter onboarding code.
+
 Subsequent login-only visual implementation: [static front-facing mascot and playful headline](login-static-mascot-polish.md). The new `login-sky-front.png` is available for reuse; the seven-screen flow and post-login tutorial below remain unimplemented by that change.
 
 ## Outcome and boundaries

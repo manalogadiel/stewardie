@@ -118,8 +118,8 @@ void main() {
     await tester.runAsync(() async {
       for (final asset in [
         'login-sky-front.png',
-        'login-butter-welcome.jpg',
-        'login-rose-peekaboo.jpg',
+        'onboarding-butter-welcome.png',
+        'onboarding-rose-camera.png',
       ]) {
         await precacheImage(
           AssetImage('assets/illustrations/$asset'),

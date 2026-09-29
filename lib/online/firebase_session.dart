@@ -20,11 +20,12 @@ import '../features/media/picker_recovery.dart';
 import 'firebase_repository.dart';
 import 'edit_outbox.dart';
 import 'cloud_media_library.dart';
-import 'online_app.dart';
 import 'online_backend.dart';
 import 'online_home.dart';
 import 'live_location_service.dart';
 import 'push_service.dart';
+import '../features/onboarding/onboarding_flow.dart';
+import '../features/onboarding/onboarding_store.dart';
 
 class FirebaseSessionApp extends StatefulWidget {
   const FirebaseSessionApp({
@@ -45,30 +46,76 @@ class _FirebaseSessionAppState extends State<FirebaseSessionApp> {
     stream: widget.backend.auth.userChanges(),
     builder: (context, snapshot) {
       final user = widget.backend.auth.currentUser ?? snapshot.data;
-      if (user != null && user.emailVerified) {
-        return _SignedInApp(
-          key: ValueKey(user.uid),
-          backend: widget.backend,
-          user: user,
-          database: widget.database,
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return MaterialApp(
+          title: 'Stewardie',
+          debugShowCheckedModeBanner: false,
+          theme: SoftPop.theme,
+          home: const Scaffold(body: Center(child: CircularProgressIndicator())),
         );
       }
-      return MaterialApp(
-        title: 'Stewardie',
-        debugShowCheckedModeBanner: false,
-        theme: SoftPop.theme,
-        home: snapshot.connectionState == ConnectionState.waiting
-            ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-            : user == null
-            ? OnlineAccountEntry(
+      if (user == null) {
+        return MaterialApp(
+          title: 'Stewardie',
+          debugShowCheckedModeBanner: false,
+          theme: SoftPop.theme,
+          home: OnboardingFlow(
+            backend: widget.backend,
+            database: widget.database,
+            onCompleted: () => setState(() {}),
+          ),
+        );
+      }
+      if (!user.emailVerified) {
+        return MaterialApp(
+          title: 'Stewardie',
+          debugShowCheckedModeBanner: false,
+          theme: SoftPop.theme,
+          home: OnboardingFlow(
+            backend: widget.backend,
+            database: widget.database,
+            initialStep: OnboardingStep.verifyEmail,
+            initialUser: user,
+            onCompleted: () => setState(() {}),
+          ),
+        );
+      }
+      return FutureBuilder<bool>(
+        future: OnboardingStore(widget.database).isCompleted(
+          user.uid,
+          backend: widget.backend,
+        ),
+        builder: (context, completedSnapshot) {
+          if (completedSnapshot.connectionState == ConnectionState.waiting) {
+            return MaterialApp(
+              title: 'Stewardie',
+              debugShowCheckedModeBanner: false,
+              theme: SoftPop.theme,
+              home: const Scaffold(body: Center(child: CircularProgressIndicator())),
+            );
+          }
+          final completed = completedSnapshot.data ?? false;
+          if (!completed) {
+            return MaterialApp(
+              title: 'Stewardie',
+              debugShowCheckedModeBanner: false,
+              theme: SoftPop.theme,
+              home: OnboardingFlow(
                 backend: widget.backend,
                 database: widget.database,
-              )
-            : OnlineVerifyEmail(
-                backend: widget.backend,
-                user: user,
-                onRefresh: () => setState(() {}),
+                initialStep: OnboardingStep.permissions,
+                initialUser: user,
+                onCompleted: () => setState(() {}),
               ),
+            );
+          }
+          return _SignedInApp(
+            key: ValueKey(user.uid),
+            backend: widget.backend,
+            user: user,
+            database: widget.database,
+          );
+        },
       );
     },
   );
@@ -270,11 +317,15 @@ class _SignedInAppState extends State<_SignedInApp> with WidgetsBindingObserver 
             return _standalone(const Center(child: CircularProgressIndicator()));
           }
           if (timeline.spaces.isEmpty) {
-            return _standalone(
-              OnlineHome(
+            return MaterialApp(
+              title: 'Stewardie',
+              debugShowCheckedModeBanner: false,
+              theme: SoftPop.theme,
+              home: OnlineHome(
                 backend: widget.backend,
                 user: widget.user,
-                spaceOnly: true,
+                spaceOnly: false,
+                database: widget.database,
               ),
             );
           }

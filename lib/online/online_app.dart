@@ -7,12 +7,15 @@ import 'remembered_account.dart';
 import 'login_scene.dart';
 
 import '../core/theme.dart';
+import '../features/onboarding/onboarding_flow.dart';
+import '../features/onboarding/onboarding_store.dart';
 import 'online_backend.dart';
 import 'online_home.dart';
 
 class OnlineApp extends StatefulWidget {
-  const OnlineApp({super.key, required this.backend});
+  const OnlineApp({super.key, required this.backend, this.database});
   final OnlineBackend backend;
+  final Database? database;
 
   @override
   State<OnlineApp> createState() => _OnlineAppState();
@@ -33,15 +36,49 @@ class _OnlineAppState extends State<OnlineApp> {
           );
         }
         final user = snapshot.data;
-        if (user == null) return OnlineAccountEntry(backend: widget.backend);
-        if (!user.emailVerified) {
-          return OnlineVerifyEmail(
+        if (user == null) {
+          return OnboardingFlow(
             backend: widget.backend,
-            user: user,
-            onRefresh: () => setState(() {}),
+            database: widget.database,
+            onCompleted: () => setState(() {}),
           );
         }
-        return OnlineHome(backend: widget.backend, user: user);
+        if (!user.emailVerified) {
+          return OnboardingFlow(
+            backend: widget.backend,
+            database: widget.database,
+            initialStep: OnboardingStep.verifyEmail,
+            initialUser: user,
+            onCompleted: () => setState(() {}),
+          );
+        }
+        return FutureBuilder<bool>(
+          future: OnboardingStore(widget.database)
+              .isCompleted(user.uid, backend: widget.backend),
+          builder: (context, completedSnapshot) {
+            if (completedSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final completed = completedSnapshot.data ?? false;
+            if (!completed) {
+              return OnboardingFlow(
+                backend: widget.backend,
+                database: widget.database,
+                initialStep: OnboardingStep.permissions,
+                initialUser: user,
+                onCompleted: () => setState(() {}),
+              );
+            }
+            return OnlineHome(
+              key: ValueKey(user.uid),
+              backend: widget.backend,
+              user: user,
+              database: widget.database,
+            );
+          },
+        );
       },
     ),
   );
@@ -78,7 +115,6 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
   }
 
   bool _register = false;
-  bool _adultConfirmed = false;
   bool _resetPassword = false;
   bool _busy = false;
   String? _error;
@@ -95,13 +131,6 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
-    if (_register && !_adultConfirmed) {
-      setState(
-        () => _error =
-            'Stewardie accounts are for adults. Confirm you are at least 18.',
-      );
-      return;
-    }
     setState(() {
       _busy = true;
       _error = null;
@@ -285,18 +314,6 @@ class _OnlineAccountEntryState extends State<OnlineAccountEntry> {
                                     ? 'Use at least 8 characters'
                                     : 'Enter your password'
                               : null,
-                        ),
-                      if (_register && !_resetPassword)
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text('I am at least 18 years old'),
-                          value: _adultConfirmed,
-                          onChanged: _busy
-                              ? null
-                              : (value) => setState(
-                                  () => _adultConfirmed = value ?? false,
-                                ),
                         ),
                       if (!_resetPassword && widget.database != null)
                         CheckboxListTile(

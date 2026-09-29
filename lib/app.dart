@@ -16,6 +16,7 @@ import 'features/timeline/presentation/today_screen.dart';
 import 'online/space_map_sheet.dart';
 import 'online/live_location_pill.dart';
 import 'online/activity_inbox_sheet.dart';
+import 'features/onboarding/tutorial/tutorial_target_registry.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
@@ -373,6 +374,11 @@ class GlassDock extends StatelessWidget {
                         }
                       },
                       child: Container(
+                        key: i == 1
+                            ? TutorialTargetRegistry.momentsTabTarget
+                            : (i == 2
+                                ? TutorialTargetRegistry.spaceTabTarget
+                                : null),
                         padding: EdgeInsets.symmetric(
                           horizontal: largeText ? 2 : 4,
                           vertical: 10,

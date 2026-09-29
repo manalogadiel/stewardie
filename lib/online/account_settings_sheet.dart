@@ -14,12 +14,16 @@ class AccountSettingsSheet extends StatefulWidget {
     required this.tier,
     required this.spaceId,
     required this.onSignedOut,
+    this.onTakeTour,
+    this.onAccountDeleted,
   });
 
   final OnlineBackend backend;
   final String tier;
   final String? spaceId;
   final VoidCallback onSignedOut;
+  final VoidCallback? onTakeTour;
+  final Future<void> Function()? onAccountDeleted;
 
   static Future<void> show(
     BuildContext context, {
@@ -27,6 +31,8 @@ class AccountSettingsSheet extends StatefulWidget {
     required String tier,
     required String? spaceId,
     required VoidCallback onSignedOut,
+    VoidCallback? onTakeTour,
+    Future<void> Function()? onAccountDeleted,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -40,6 +46,8 @@ class AccountSettingsSheet extends StatefulWidget {
         tier: tier,
         spaceId: spaceId,
         onSignedOut: onSignedOut,
+        onTakeTour: onTakeTour,
+        onAccountDeleted: onAccountDeleted,
       ),
     );
   }
@@ -155,6 +163,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
     setState(() => _busy = true);
     try {
       await widget.backend.requestAccountDeletion();
+      await widget.onAccountDeleted?.call();
       if (mounted) {
         final messenger = ScaffoldMessenger.of(context);
         Navigator.of(context).pop();
@@ -331,6 +340,35 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                       icon: const Icon(Icons.shield_outlined), label: const Text('Private review queue')),
                     const SizedBox(height: 8),
                   ],
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        widget.onTakeTour?.call();
+                      },
+                      icon: const Icon(
+                        Icons.explore_outlined,
+                        color: Color(0xFF202633),
+                      ),
+                      label: const Text(
+                        'Take a tour',
+                        style: TextStyle(
+                          fontFamily: 'NunitoSans',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF202633),
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFE5E2DA)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   SizedBox(
                     height: 50,
                     child: OutlinedButton(

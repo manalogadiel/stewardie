@@ -1,0 +1,194 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:sembast/sembast.dart' hide FieldValue;
+
+import '../../online/online_backend.dart';
+
+/// The 7 distinct steps in the welcome and account onboarding flow.
+enum OnboardingStep {
+  welcome(0.0),
+  name(1 / 6),
+  account(2 / 6),
+  verifyEmail(3 / 6),
+  permissions(4 / 6),
+  features(5 / 6),
+  allSet(1.0);
+
+  const OnboardingStep(this.progress);
+  final double progress;
+
+  static OnboardingStep fromIndex(int index) {
+    if (index < 0) return OnboardingStep.welcome;
+    if (index >= OnboardingStep.values.length) return OnboardingStep.allSet;
+    return OnboardingStep.values[index];
+  }
+}
+
+/// Manages draft persistence, cooldown timers, and completion records for Onboarding.
+///
+/// Security & Privacy:
+/// - Passwords and Firebase action tokens are NEVER persisted.
+/// - Pre-auth drafts are local to this device installation.
+/// - Post-auth drafts are bound strictly to the authenticated Firebase UID.
+/// - Completion records are versioned and UID-scoped.
+class OnboardingStore {
+  OnboardingStore(this.database);
+
+  final Database? database;
+
+  static const int currentSchemaVersion = 1;
+
+  static final _store = stringMapStoreFactory.store('onboarding_v1');
+
+  static String _draftKey(String? uid) =>
+      uid != null && uid.isNotEmpty ? 'draft_$uid' : 'draft_pre_auth';
+
+  static String _completionKey(String uid) => 'completed_$uid';
+
+  /// Saves the current progress and field drafts. Never stores passwords.
+  Future<void> saveDraft({
+    String? uid,
+    required OnboardingStep step,
+    String? name,
+    String? email,
+    int? featurePageIndex,
+    Map<String, dynamic>? permissions,
+  }) async {
+    final db = database;
+    if (db == null) return;
+
+    final key = _draftKey(uid);
+    final existing = await _store.record(key).get(db) ?? <String, dynamic>{};
+
+    final updated = Map<String, dynamic>.from(existing);
+    updated['schemaVersion'] = currentSchemaVersion;
+    updated['stepIndex'] = step.index;
+    if (name != null) updated['name'] = name.trim();
+    if (email != null) updated['email'] = email.trim();
+    updated.remove('adultConfirmed'); // Migrate legacy draft
+    if (featurePageIndex != null) updated['featurePageIndex'] = featurePageIndex;
+    if (permissions != null) updated['permissions'] = permissions;
+    updated['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+
+    await _store.record(key).put(db, updated);
+  }
+
+  /// Loads saved draft for the given user (or pre-auth device draft).
+  Future<Map<String, dynamic>?> loadDraft(String? uid) async {
+    final db = database;
+    if (db == null) return null;
+    final key = _draftKey(uid);
+    return await _store.record(key).get(db);
+  }
+
+  /// Clears the draft (e.g. upon completion or sign-out).
+  Future<void> clearDraft(String? uid) async {
+    final db = database;
+    if (db == null) return;
+    await _store.record(_draftKey(uid)).delete(db);
+    if (uid != null) {
+      await _store.record(_draftKey(null)).delete(db);
+    }
+  }
+
+  /// Records email verification resend timestamp to enforce at least 30s cooldown.
+  Future<void> recordResendTimestamp(String? uid) async {
+    final db = database;
+    if (db == null) return;
+    final key = _draftKey(uid);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final existing = await _store.record(key).get(db) ?? <String, dynamic>{};
+    final updated = Map<String, dynamic>.from(existing);
+    updated['lastResendEpochMs'] = now;
+    await _store.record(key).put(db, updated);
+  }
+
+  /// Returns remaining cooldown seconds (0 if allowed to resend now).
+  Future<int> getRemainingCooldownSeconds(String? uid) async {
+    final db = database;
+    if (db == null) return 0;
+    final draft = await loadDraft(uid);
+    final lastEpoch = draft?['lastResendEpochMs'] as int?;
+    if (lastEpoch == null) return 0;
+
+    final elapsedSeconds =
+        (DateTime.now().millisecondsSinceEpoch - lastEpoch) ~/ 1000;
+    const minCooldown = 30;
+    if (elapsedSeconds < minCooldown) {
+      return minCooldown - elapsedSeconds;
+    }
+    return 0;
+  }
+
+  /// Checks if this user has already completed onboarding locally or on Firestore.
+  /// Includes legacy user verification to avoid trapping users with existing spaces.
+  Future<bool> isCompleted(
+    String uid, {
+    OnlineBackend? backend,
+  }) async {
+    if (uid.isEmpty) return false;
+    final db = database;
+    if (db != null) {
+      final record = await _store.record(_completionKey(uid)).get(db);
+      if (record?['completed'] == true) return true;
+    }
+
+    if (backend != null) {
+      try {
+        final doc = await backend.firestore.collection('accounts').doc(uid).get();
+        if (doc.exists && doc.data()?['onboardingCompleted'] == true) {
+          if (db != null) {
+            await markCompleted(uid);
+          }
+          return true;
+        }
+
+        // Legacy safety: check if user already belongs to any spaces
+        final spacesSnap = await backend.firestore
+            .collection('spaces')
+            .where('members.$uid.role', isNull: false)
+            .limit(1)
+            .get();
+        if (spacesSnap.docs.isNotEmpty) {
+          if (db != null) {
+            await markCompleted(uid);
+          }
+          return true;
+        }
+      } catch (_) {
+        // Network/permission issues should not crash check
+      }
+    }
+
+    return false;
+  }
+
+  /// Marks onboarding completed locally and attempts non-blocking Firestore sync.
+  Future<void> markCompleted(
+    String uid, {
+    OnlineBackend? backend,
+  }) async {
+    if (uid.isEmpty) return;
+    final db = database;
+    if (db != null) {
+      await _store.record(_completionKey(uid)).put(db, {
+        'completed': true,
+        'version': currentSchemaVersion,
+        'completedAt': DateTime.now().toUtc().toIso8601String(),
+      });
+      await clearDraft(uid);
+    }
+
+    // Sync to Firestore accounts/{uid} if backend is provided (non-blocking)
+    if (backend != null) {
+      try {
+        await backend.firestore.collection('accounts').doc(uid).set({
+          'onboardingCompleted': true,
+          'onboardingVersion': currentSchemaVersion,
+          'onboardingCompletedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {
+        // Offline or permissions glitch must never block verified app access
+      }
+    }
+  }
+}
