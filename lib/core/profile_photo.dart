@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as image;
 import 'package:image_picker/image_picker.dart';
 
+import 'theme.dart';
+
 /// Small metadata-free square avatars fit safely in a single profile document.
 class ProfilePhoto {
   ProfilePhoto._();
@@ -85,6 +87,7 @@ class ProfilePhoto {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       await FirebaseFirestore.instance.doc('profiles/$uid').delete();
+    }
   }
 }
 
@@ -116,7 +119,8 @@ class _AvatarCropDialogState extends State<_AvatarCropDialog> {
     image.compositeImage(clean, crop);
     final bytes = Uint8List.fromList(image.encodeJpg(clean, quality: 75));
     return AlertDialog(
-      title: const Text('Choose your avatar crop'),
+      backgroundColor: SoftPop.surface,
+      title: Text('Your photo', style: Theme.of(context).textTheme.titleLarge),
       content: SizedBox(
         width: 360,
         child: SingleChildScrollView(
@@ -124,7 +128,7 @@ class _AvatarCropDialogState extends State<_AvatarCropDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                height: 230,
+                height: (MediaQuery.sizeOf(context).height * .3).clamp(120.0, 230.0),
                 width: double.infinity,
                 child: LayoutBuilder(
                   builder: (context, size) {
@@ -170,9 +174,13 @@ class _AvatarCropDialogState extends State<_AvatarCropDialog> {
                       'Avatar crop position ${(value * 100).round()} percent',
                 ),
               const SizedBox(height: 8),
-              const Text('Your profile preview'),
-              const SizedBox(height: 8),
-              CircleAvatar(radius: 42, backgroundImage: MemoryImage(bytes)),
+              Row(
+                children: [
+                  CircleAvatar(radius: 28, backgroundImage: MemoryImage(bytes)),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Profile preview')),
+                ],
+              ),
             ],
           ),
         ),

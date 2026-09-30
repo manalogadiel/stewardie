@@ -2137,6 +2137,7 @@ class _OnlineHomeState extends State<OnlineHome> {
       );
       if (!members.contains(widget.user.uid)) {
         throw StateError('Space access ended.');
+      }
       final result = await widget.backend.call('getTask', {
         'spaceId': spaceId,
         'taskId': taskId,
