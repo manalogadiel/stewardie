@@ -128,7 +128,10 @@ class _AvatarCropDialogState extends State<_AvatarCropDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                height: (MediaQuery.sizeOf(context).height * .3).clamp(120.0, 230.0),
+                height: (MediaQuery.sizeOf(context).height * .3).clamp(
+                  120.0,
+                  230.0,
+                ),
                 width: double.infinity,
                 child: LayoutBuilder(
                   builder: (context, size) {

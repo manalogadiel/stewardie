@@ -783,7 +783,12 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
     required bool isSelected,
     required bool isMe,
   }) {
-    return MemberLocationPin(uid: uid, name: name, label: label,
-      selected: isSelected, isMe: isMe);
+    return MemberLocationPin(
+      uid: uid,
+      name: name,
+      label: label,
+      selected: isSelected,
+      isMe: isMe,
+    );
   }
 }

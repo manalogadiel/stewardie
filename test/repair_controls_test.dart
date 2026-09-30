@@ -9,6 +9,8 @@ import 'package:stewardie/core/profile_photo.dart';
 import 'package:stewardie/core/theme.dart';
 import 'package:stewardie/features/subscription/soft_pop_paywall.dart';
 import 'package:stewardie/online/rename_space_dialog.dart';
+import 'package:stewardie/online/member_location_pin.dart';
+import 'package:stewardie/features/media/camera_screen.dart';
 
 import 'demo_ui_test.dart' show captureKey, screenshot;
 
@@ -29,7 +31,7 @@ void main() {
     double width = 360,
     double scale = 1,
   }) async {
-    tester.view.physicalSize = Size(width, 720);
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -101,10 +103,12 @@ void main() {
       );
       await tester.tap(find.text('Photo'));
       await tester.pumpAndSettle();
-      await tester.runAsync(() => precacheImage(
-        tester.widget<Image>(find.byType(Image).first).image,
-        tester.element(find.byType(Image).first),
-      ));
+      await tester.runAsync(
+        () => precacheImage(
+          tester.widget<Image>(find.byType(Image).first).image,
+          tester.element(find.byType(Image).first),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(
         tester.widget<Image>(find.byType(Image).first).fit,
@@ -181,4 +185,55 @@ void main() {
     await screenshot(tester, 'plus-benefits-expanded-430');
     expect(tester.takeException(), isNull);
   });
+  testWidgets('selected map pin fits its scaled name and selection ring', (
+    tester,
+  ) async {
+    await host(
+      tester,
+      (context) => Center(
+        child: SizedBox.fromSize(
+          size: MemberLocationPin.sizeFor(context),
+          child: const MemberLocationPin(
+            uid: 'member-1',
+            name: 'Alexandria Montgomery',
+            label: 'Alexandria Montgomery',
+            selected: true,
+            isMe: false,
+          ),
+        ),
+      ),
+      scale: 3,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await screenshot(tester, 'map-member-pin-360-3x');
+  });
+
+  testWidgets(
+    'camera recovery remains scrollable in landscape with enlarged text',
+    (tester) async {
+      const channel = MethodChannel('plugins.flutter.io/camera');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        (_) async => <Object>[],
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await host(
+        tester,
+        (_) => const CameraScreen(spaceName: 'Family'),
+        width: 640,
+        height: 360,
+        scale: 2,
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byTooltip('Choose photo'), findsOneWidget);
+      await screenshot(tester, 'camera-recovery-landscape-2x');
+    },
+  );
 }
