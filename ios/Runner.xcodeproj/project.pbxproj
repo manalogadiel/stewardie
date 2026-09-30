@@ -19,6 +19,14 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+        A10120261002000000000401 /* saved.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000411; };
+        A10120261002000000000501 /* moment_shared.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000511; };
+        A10120261002000000000601 /* space_ready.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000611; };
+        A10120261002000000000701 /* mood_checked_in.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000711; };
+        A10120261002000000000801 /* location_start.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000811; };
+        A10120261002000000000901 /* location_stop.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000911; };
+        A10120261002000000000A01 /* reaction_pop.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000A11; };
+        A10120261002000000000B01 /* attention.wav in Resources */ = {isa = PBXBuildFile; fileRef = A10120261002000000000B11; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +73,14 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+        A10120261002000000000411 /* saved.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/saved.wav; sourceTree = SOURCE_ROOT; };
+        A10120261002000000000511 /* moment_shared.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/moment_shared.wav; sourceTree = SOURCE_ROOT; };
+        A10120261002000000000611 /* space_ready.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/space_ready.wav; sourceTree = SOURCE_ROOT; };
+        A10120261002000000000711 /* mood_checked_in.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/mood_checked_in.wav; sourceTree = SOURCE_ROOT; };
+        A10120261002000000000811 /* location_start.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/location_start.wav; sourceTree = SOURCE_ROOT; };
+        A10120261002000000000911 /* location_stop.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/location_stop.wav; sourceTree = SOURCE_ROOT; };
+        A10120261002000000000A11 /* reaction_pop.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/reaction_pop.wav; sourceTree = SOURCE_ROOT; };
+        A10120261002000000000B11 /* attention.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/Sounds/attention.wav; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -235,6 +251,14 @@
                 A10120261001000000000001 /* notification.wav in Resources */,
                 A10120261001000000000002 /* capture.wav in Resources */,
                 A10120261001000000000003 /* success.wav in Resources */,
+                A10120261002000000000B01 /* attention.wav in Resources */,
+                A10120261002000000000A01 /* reaction_pop.wav in Resources */,
+                A10120261002000000000901 /* location_stop.wav in Resources */,
+                A10120261002000000000801 /* location_start.wav in Resources */,
+                A10120261002000000000701 /* mood_checked_in.wav in Resources */,
+                A10120261002000000000601 /* space_ready.wav in Resources */,
+                A10120261002000000000501 /* moment_shared.wav in Resources */,
+                A10120261002000000000401 /* saved.wav in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,

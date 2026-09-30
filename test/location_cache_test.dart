@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:stewardie/online/online_backend.dart';
 import 'package:stewardie/online/live_location_service.dart';
 
@@ -34,7 +35,32 @@ class _Auth extends Fake implements FirebaseAuth {
   User get currentUser => _User(accountUid);
 }
 
+// The sharing service now resolves its space label before requesting GPS.
+// Test-only SDK mock; sealed Firestore types have no public constructors.
+// ignore: subtype_of_sealed_class
+class _SpaceSnapshot extends Fake
+    implements DocumentSnapshot<Map<String, dynamic>> {
+  @override
+  Map<String, dynamic>? data() => {'name': 'Test space'};
+}
+
+// ignore: subtype_of_sealed_class
+class _SpaceDocument extends Fake
+    implements DocumentReference<Map<String, dynamic>> {
+  @override
+  Future<DocumentSnapshot<Map<String, dynamic>>> get([
+    GetOptions? options,
+  ]) async => _SpaceSnapshot();
+}
+
+class _Firestore extends Fake implements FirebaseFirestore {
+  @override
+  DocumentReference<Map<String, dynamic>> doc(String path) => _SpaceDocument();
+}
+
 class _Backend extends Fake implements OnlineBackend {
+  @override
+  FirebaseFirestore get firestore => _Firestore();
   final started = Completer<void>();
   final response = Completer<Map<String, dynamic>>();
   int stops = 0;
@@ -46,6 +72,7 @@ class _Backend extends Fake implements OnlineBackend {
   Future<Map<String, dynamic>> call(
     String action, [
     Map<String, dynamic> data = const {},
+    bool feedback = true,
   ]) async {
     if (action == 'startLocationSession') {
       started.complete();

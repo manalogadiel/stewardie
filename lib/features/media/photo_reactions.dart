@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../core/sound_feedback.dart';
 import '../../online/cloud_media_library.dart';
 import 'media_library.dart';
 
@@ -84,6 +85,7 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
     final selected = rows.any(
       (row) => row['uid'] == library!.user.uid && row['type'] == id,
     );
+    unawaited(SoundFeedback.emit(SoundCue.reactionPop));
     _choose(selected ? null : id);
   }
 

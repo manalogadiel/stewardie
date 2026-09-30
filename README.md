@@ -6,6 +6,8 @@ Status: The normal Flutter app connects to the live `stewardie` Firebase project
 
 ## Start here
 
+Latest audio follow-up: [louder Soft Pop sounds and account controls](docs/soft-pop-sound-expansion-verification.md), with device listening and iOS compilation still open.
+
 Latest implementation: [permissions, tour, Moments and notifications verification](docs/permissions-tour-moments-notifications-verification.md). Firebase rules and Supabase gateways/worker are deployed; native device delivery and GPS checks remain documented gates.
 
 1. [Product plan](docs/shared-spaces-product-plan.md) — behavior and scope.

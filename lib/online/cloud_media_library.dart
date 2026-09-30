@@ -8,6 +8,7 @@ import 'package:sembast/sembast.dart';
 
 import '../features/media/media_library.dart';
 import '../core/place_pin.dart';
+import '../core/sound_feedback.dart';
 import '../features/timeline/domain/models.dart';
 import 'firebase_repository.dart';
 
@@ -255,6 +256,7 @@ class CloudMediaLibrary extends MediaLibrary {
     if (photo.uploaderId != user.uid || !_allowed(photo.spaceId)) {
       throw StateError('You cannot share this photo.');
     }
+    _soundIntents[photo.id] = SoundFeedback.captureIntent();
     _pending.add(photo.id);
     await _outbox.record('${user.uid}/${photo.id}').put(database!, {
       'id': photo.id,
@@ -271,6 +273,7 @@ class CloudMediaLibrary extends MediaLibrary {
         .whenComplete(() => _uploadRun = null);
   }
 
+  final Map<String, SoundIntent?> _soundIntents = {};
   Future<void>? _uploadRun;
   Future<void> _drainPending() async {
     if (_uploading || _closed) return;
@@ -283,6 +286,7 @@ class CloudMediaLibrary extends MediaLibrary {
         final id = _pending.where((id) => !attempted.contains(id)).firstOrNull;
         if (id == null) break;
         attempted.add(id);
+        final soundIntent = _soundIntents.remove(id);
         final photo = super.items.where((p) => p.id == id).firstOrNull;
         if (photo == null || !_allowed(photo.spaceId)) continue;
         try {
@@ -326,7 +330,19 @@ class CloudMediaLibrary extends MediaLibrary {
           await cacheAttachment(item);
           await _outbox.record('${user.uid}/$id').delete(database!);
           _pending.remove(id);
+          if (item.publishedAt != null)
+            unawaited(
+              SoundFeedback.confirmed(
+                SoundCue.momentShared,
+                'photo/$id',
+                soundIntent,
+              ),
+            );
         } catch (e) {
+          if (soundIntent != null)
+            unawaited(
+              SoundFeedback.emit(SoundCue.attention, intent: soundIntent),
+            );
           // Retain this attachment for retry without starving later spaces.
           _error = e is StateError
               ? e.message
@@ -362,6 +378,16 @@ class CloudMediaLibrary extends MediaLibrary {
 
   @override
   Future<void> publishTask(Task supplied) async {
+    final intent = SoundFeedback.captureIntent();
+    final unpublished = items
+        .where(
+          (p) =>
+              p.taskId == supplied.id &&
+              p.uploaderId == user.uid &&
+              p.publishedAt == null,
+        )
+        .map((p) => p.id)
+        .toSet();
     await super.publishTask(supplied);
     if (!_allowed(supplied.spaceId)) return;
     try {
@@ -372,6 +398,21 @@ class CloudMediaLibrary extends MediaLibrary {
       });
       _lastRefresh.remove(supplied.spaceId);
       await refresh(supplied.spaceId);
+      for (final item in _remote.values.where(
+        (p) =>
+            unpublished.contains(p.id) &&
+            p.taskId == supplied.id &&
+            p.uploaderId == user.uid &&
+            p.publishedAt != null,
+      )) {
+        unawaited(
+          SoundFeedback.confirmed(
+            SoundCue.momentShared,
+            'photo/${item.id}',
+            intent,
+          ),
+        );
+      }
     } catch (e) {
       _error = 'Task completed. Photos will publish when sharing reconnects.';
       if (!_closed) notifyListeners();

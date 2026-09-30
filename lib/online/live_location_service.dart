@@ -1,3 +1,5 @@
+import '../core/sound_feedback.dart';
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -160,6 +162,7 @@ class LiveLocationService {
     required String spaceId,
     required int durationMinutes,
   }) async {
+    final intent = SoundFeedback.captureIntent();
     final backend = _backend;
     final uid = backend?.auth.currentUser?.uid;
     if (backend == null || uid == null) {
@@ -240,6 +243,13 @@ class LiveLocationService {
     _lastSent = DateTime.now().toUtc();
     updatesUnavailable.value = false;
     isSharing.value = true;
+    unawaited(
+      SoundFeedback.confirmed(
+        SoundCue.locationStart,
+        'location/$spaceId/${_expiresAt!.toIso8601String()}',
+        intent,
+      ),
+    );
     _tick();
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(
@@ -335,13 +345,15 @@ class LiveLocationService {
     if (expiry == null) return;
     final remaining = expiry.difference(DateTime.now().toUtc());
     if (remaining <= Duration.zero) {
-      unawaited(stopSharing());
+      unawaited(stopSharing(userInitiated: false));
     } else {
       remainingMinutes.value = (remaining.inSeconds / 60).ceil();
     }
   }
 
-  Future<void> stopSharing() async {
+  Future<void> stopSharing({bool userInitiated = true}) async {
+    final intent = userInitiated ? SoundFeedback.captureIntent() : null;
+    final wasSharing = isSharing.value;
     final backend = _backend;
     final uid = backend?.auth.currentUser?.uid;
     _sharingRevision++;
@@ -357,6 +369,8 @@ class LiveLocationService {
     final spaceId = _activeSpaceId;
     _activeSpaceId = null;
     await positions?.cancel();
+    if (wasSharing && intent != null)
+      unawaited(SoundFeedback.emit(SoundCue.locationStop, intent: intent));
     if (backend == null || uid == null || spaceId == null) return;
     try {
       if (backend.auth.currentUser?.uid != uid) return;

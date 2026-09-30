@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/member_avatar.dart';
+import '../core/sound_feedback.dart';
+import 'app_sound_settings.dart';
 import '../core/profile_photo.dart';
 import 'online_backend.dart';
 import 'live_location_service.dart';
@@ -74,7 +76,15 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
         return;
       }
       setState(() => _busy = true);
+      final intent = SoundFeedback.captureIntent();
       await ProfilePhoto.save(photo);
+      unawaited(
+        SoundFeedback.confirmed(
+          SoundCue.saved,
+          'avatar/${DateTime.now().microsecondsSinceEpoch}',
+          intent,
+        ),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -91,9 +101,17 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
   }
 
   Future<void> _removePhoto() async {
+    final intent = SoundFeedback.captureIntent();
     try {
       setState(() => _busy = true);
       await ProfilePhoto.remove();
+      unawaited(
+        SoundFeedback.confirmed(
+          SoundCue.saved,
+          'avatar-remove/${DateTime.now().microsecondsSinceEpoch}',
+          intent,
+        ),
+      );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -116,7 +134,8 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
     _nameFocus.addListener(() {
       if (!_nameFocus.hasFocus) {
         final newName = _nameController.text.trim();
-        if (newName.isNotEmpty) {
+        if (newName.isNotEmpty &&
+            newName != widget.backend.auth.currentUser?.displayName) {
           unawaited(
             widget.backend.updateProfileName(newName).catchError((_) {
               if (mounted) {
@@ -159,7 +178,8 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    await LiveLocationService.instance.stopSharing();
+    SoundFeedback.clearAccount();
+    await LiveLocationService.instance.stopSharing(userInitiated: false);
     await PushService.instance.logOut();
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -402,6 +422,8 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+                const AppSoundSettings(),
                 const SizedBox(height: 24),
                 if (_busy)
                   const Center(child: CircularProgressIndicator())

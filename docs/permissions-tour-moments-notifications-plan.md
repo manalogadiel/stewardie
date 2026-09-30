@@ -160,3 +160,5 @@ These confirmed requests supersede earlier choices about plain Satellite, label-
 - Check changed surfaces for overflow at narrow/wide widths and 2x text, including reactions, map controls and media preview. Native GPS, perceived latency and sound volume still need device observation.
 
 See the October 1 follow-up section in the [verification record](permissions-tour-moments-notifications-verification.md) for results and remaining gates.
+
+October 1 audio follow-up: [louder Soft Pop sounds and additional action cues](soft-pop-sound-expansion-plan.md). Implemented locally; see its verification record for device and iOS release gates.

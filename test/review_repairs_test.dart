@@ -34,6 +34,7 @@ class _Backend extends Fake implements OnlineBackend {
   Future<Map<String, dynamic>> call(
     String name, [
     Map<String, dynamic> value = const {},
+    bool feedback = true,
   ]) async {
     updates.add(Map.from(value));
     if (updates.length == 1 && holdFirstSave != null) {

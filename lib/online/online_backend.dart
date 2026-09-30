@@ -112,22 +112,57 @@ class OnlineBackend {
   Future<Map<String, dynamic>> call(
     String name, [
     Map<String, dynamic> values = const {},
+    bool feedback = true,
   ]) async {
     // A backend is selected explicitly. A denied/uncertain callable never
     // becomes a less-protected direct write.
+    final intent = feedback ? SoundFeedback.captureIntent() : null;
+    final actor = auth.currentUser?.uid;
+    final operation =
+        values['operationId'] as String? ??
+        firestore.collection('operationIds').doc().id;
     const callable = bool.fromEnvironment('USE_CALLABLE_BACKEND');
     late final Map<String, dynamic> response;
-    if (callable) {
-      final result = await functions
-          .httpsCallable(name)
-          .call<Map<String, dynamic>>(values);
-      response = result.data;
-    } else {
-      response = await SparkBackend(this).call(name, values);
+    try {
+      if (callable) {
+        final result = await functions
+            .httpsCallable(name)
+            .call<Map<String, dynamic>>(values);
+        response = result.data;
+      } else {
+        response = await SparkBackend(this).call(name, values);
+      }
+    } catch (_) {
+      if ([
+            'createTask',
+            'updateTask',
+            'savePlan',
+            'setCheckIn',
+          ].contains(name) &&
+          intent != null) {
+        unawaited(SoundFeedback.emit(SoundCue.attention, intent: intent));
+      }
+      rethrow;
     }
-    if (name == 'markTaskDone' ||
-        (name == 'actOnTask' && values['action'] == 'complete')) {
-      unawaited(SoundFeedback.play('success'));
+    final cue = switch (name) {
+      'markTaskDone' => SoundCue.success,
+      'actOnTask' when values['action'] == 'complete' => SoundCue.success,
+      'createTask' || 'updateTask' || 'savePlan' => SoundCue.saved,
+      'setCheckIn' => SoundCue.moodCheckedIn,
+      'createSpace' => SoundCue.spaceReady,
+      'joinSpace' || 'redeemInvite'
+          when response['spaceId'] is String && response['pending'] != true =>
+        SoundCue.spaceReady,
+      _ => null,
+    };
+    if (cue != null &&
+        actor == auth.currentUser?.uid &&
+        response['pending'] != true &&
+        response['ok'] != false) {
+      final receipt = (name == 'joinSpace' || name == 'redeemInvite')
+          ? 'join/${values['token']}/${response['spaceId']}'
+          : '$name/$operation';
+      unawaited(SoundFeedback.confirmed(cue, receipt, intent));
     }
     return response;
   }
@@ -465,6 +500,7 @@ class OnlineBackend {
 
   Future<void> updateProfileName(String newName) async {
     final user = auth.currentUser;
+    final intent = SoundFeedback.captureIntent();
     final name = newName.trim();
     if (user == null || name.isEmpty || name.length > 60) return;
     final account = await firestore.doc('accounts/${user.uid}').get();
@@ -486,6 +522,13 @@ class OnlineBackend {
     }
     await batch.commit();
     await user.updateDisplayName(name);
+    unawaited(
+      SoundFeedback.confirmed(
+        SoundCue.saved,
+        'profile/${DateTime.now().microsecondsSinceEpoch}',
+        intent,
+      ),
+    );
   }
 
   Future<void> requestAccountDeletion() async {

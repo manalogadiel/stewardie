@@ -5,23 +5,26 @@ import 'package:flutter/foundation.dart';
 import 'package:sembast/sembast.dart';
 
 import 'online_backend.dart';
+import '../core/sound_feedback.dart';
 
 /// Durable, account-scoped intent queue. Remote Firestore acknowledgement is
 /// the source of truth; queued items are never presented as confirmed writes.
 class EditOutbox extends ChangeNotifier {
   EditOutbox(this.database, this.backend, this.uid)
-      : _store = stringMapStoreFactory.store('edit-outbox-$uid');
+    : _store = stringMapStoreFactory.store('edit-outbox-$uid');
 
   final Database database;
   final OnlineBackend backend;
   final String uid;
   final StoreRef<String, Map<String, Object?>> _store;
   final Map<String, Map<String, Object?>> _items = {};
+  final Map<String, SoundIntent?> _soundIntents = {};
   Timer? _timer;
   bool _flushing = false, _closed = false;
 
   Iterable<Map<String, Object?>> get items => _items.values;
-  int get unsyncedCount => _items.values.where((item) => item['status'] != 'synced').length;
+  int get unsyncedCount =>
+      _items.values.where((item) => item['status'] != 'synced').length;
 
   Future<void> start() async {
     for (final record in await _store.find(database)) {
@@ -30,19 +33,33 @@ class EditOutbox extends ChangeNotifier {
     if (_closed) return;
     notifyListeners();
     unawaited(flush());
-    _timer = Timer.periodic(const Duration(seconds: 20), (_) => unawaited(flush()));
+    _timer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => unawaited(flush()),
+    );
   }
 
-  Future<void> add(String id, String spaceId, String kind, Map<String, Object?> payload) async {
+  Future<void> add(
+    String id,
+    String spaceId,
+    String kind,
+    Map<String, Object?> payload,
+  ) async {
     if (_closed || backend.auth.currentUser?.uid != uid) {
       throw StateError('Sign in again to save this change.');
     }
+    final intent = SoundFeedback.captureIntent();
     final item = <String, Object?>{
-      'id': id, 'spaceId': spaceId, 'kind': kind, 'payload': payload,
-      'status': 'pending', 'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'id': id,
+      'spaceId': spaceId,
+      'kind': kind,
+      'payload': payload,
+      'status': 'pending',
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
     };
     await _store.record(id).put(database, item);
     _items[id] = item;
+    _soundIntents[id] = intent;
     notifyListeners();
     unawaited(flush());
   }
@@ -62,18 +79,41 @@ class EditOutbox extends ChangeNotifier {
           continue;
         }
         final payload = Map<String, dynamic>.from(item['payload'] as Map);
+        final soundIntent = _soundIntents.remove(item['id']);
         try {
-          await backend.call(switch (item['kind']) {
-            'taskCreate' => 'createTask',
-            'planSave' => 'savePlan',
-            'planRemove' => 'removePlan',
-            _ => throw StateError('Unknown queued edit.'),
-          }, payload);
+          await backend.call(
+            switch (item['kind']) {
+              'taskCreate' => 'createTask',
+              'planSave' => 'savePlan',
+              'planRemove' => 'removePlan',
+              _ => throw StateError('Unknown queued edit.'),
+            },
+            payload,
+            false,
+          );
+          if (item['kind'] == 'taskCreate' || item['kind'] == 'planSave') {
+            unawaited(
+              SoundFeedback.confirmed(
+                SoundCue.saved,
+                'outbox/${item['id']}',
+                soundIntent,
+              ),
+            );
+          }
           item['status'] = 'synced';
           item.remove('error');
         } catch (error) {
-          final unavailable = error is FirebaseException &&
-              ['unavailable', 'deadline-exceeded', 'network-request-failed'].contains(error.code);
+          if (soundIntent != null)
+            unawaited(
+              SoundFeedback.emit(SoundCue.attention, intent: soundIntent),
+            );
+          final unavailable =
+              error is FirebaseException &&
+              [
+                'unavailable',
+                'deadline-exceeded',
+                'network-request-failed',
+              ].contains(error.code);
           item['status'] = unavailable ? 'pending' : 'failed';
           item['error'] = unavailable
               ? 'Waiting for connection'
@@ -94,7 +134,8 @@ class EditOutbox extends ChangeNotifier {
   }
 
   Future<void> discardSpace(String spaceId) async {
-    for (final item in _items.values.where((item) => item['spaceId'] == spaceId).toList()) {
+    for (final item
+        in _items.values.where((item) => item['spaceId'] == spaceId).toList()) {
       await acknowledged(item['id'] as String);
     }
   }

@@ -235,6 +235,7 @@ class _CameraScreenState extends State<CameraScreen>
           orientationLocked = true;
         } catch (_) {}
       }
+      final soundIntent = SoundFeedback.captureIntent();
       final file = gallery
           ? await ImagePicker().pickImage(
               source: ImageSource.gallery,
@@ -242,7 +243,8 @@ class _CameraScreenState extends State<CameraScreen>
             )
           : await controller!.takePicture();
       if (file != null) {
-        if (!gallery) unawaited(SoundFeedback.play('capture'));
+        if (!gallery && soundIntent != null)
+          unawaited(SoundFeedback.emit(SoundCue.capture, intent: soundIntent));
         final selectedCrop = shutterRatio;
         final pendingPin = locationFuture?.then(
           (fix) =>

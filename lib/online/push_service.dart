@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../core/sound_feedback.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -77,6 +79,10 @@ class PushService {
     }
     _foregroundMessages = FirebaseMessaging.onMessage.listen((message) {
       if (_uid == uid && FirebaseAuth.instance.currentUser?.uid == uid) {
+        if (defaultTargetPlatform == TargetPlatform.iOS &&
+            message.notification != null) {
+          unawaited(SoundFeedback.notificationPresented());
+        }
         _foregroundUpdates.add(null);
         if (defaultTargetPlatform == TargetPlatform.android) {
           unawaited(_present(message, uid).catchError((_) {}));
@@ -142,10 +148,17 @@ class PushService {
     for (final unit in activityId.codeUnits) {
       id = (id * 31 + unit) & 0x7fffffff;
     }
+    await SoundFeedback.notificationPresented();
     await _native.invokeMethod<void>('show', {
       'id': id,
       'activityId': activityId,
     });
+  }
+
+  Future<void> openSystemSettings() async {
+    if (!available) return;
+    if (defaultTargetPlatform == TargetPlatform.android)
+      await _native.invokeMethod<void>('settings');
   }
 
   Future<void> syncPermission() => _syncIfPermitted();

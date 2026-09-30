@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sembast/sembast.dart';
 
 import '../app.dart';
+import '../core/sound_feedback.dart';
 import '../core/invite_links.dart';
 import '../features/subscription/revenuecat_service.dart';
 import '../core/backend_provider.dart';
@@ -41,7 +42,38 @@ class FirebaseSessionApp extends StatefulWidget {
   State<FirebaseSessionApp> createState() => _FirebaseSessionAppState();
 }
 
-class _FirebaseSessionAppState extends State<FirebaseSessionApp> {
+class _FirebaseSessionAppState extends State<FirebaseSessionApp>
+    with WidgetsBindingObserver {
+  StreamSubscription<User?>? _soundAccount;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    SoundFeedback.foreground(
+      WidgetsBinding.instance.lifecycleState == null ||
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+    );
+    unawaited(
+      SoundFeedback.bind(widget.database, widget.backend.auth.currentUser?.uid),
+    );
+    _soundAccount = widget.backend.auth.authStateChanges().listen((user) {
+      unawaited(SoundFeedback.bind(widget.database, user?.uid));
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    SoundFeedback.foreground(state == AppLifecycleState.resumed);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_soundAccount?.cancel());
+    SoundFeedback.foreground(false);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => StreamBuilder<User?>(
     stream: widget.backend.auth.userChanges(),
@@ -296,7 +328,7 @@ class _SignedInAppState extends State<_SignedInApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(TutorialCoordinator.cancelForAccount(widget.user.uid));
-    unawaited(LiveLocationService.instance.stopSharing());
+    unawaited(LiveLocationService.instance.stopSharing(userInitiated: false));
     unawaited(PushService.instance.logOut());
     unawaited(timeline.dispose());
     outbox.close();
