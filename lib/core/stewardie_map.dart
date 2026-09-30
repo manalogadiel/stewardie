@@ -48,10 +48,12 @@ class _StewardieMapState extends State<StewardieMap> {
   bool get satellite =>
       widget.style == StewardieMapStyle.satellite && mapTilerKey.isNotEmpty;
 
-  String get url => satellite
-      ? 'https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg?key=$mapTilerKey'
+  String get url => failed
+      ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+      : satellite
+      ? 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$mapTilerKey'
       : mapTilerKey.isNotEmpty
-      ? 'https://api.maptiler.com/maps/streets-v4/256/{z}/{x}/{y}.png?key=$mapTilerKey'
+      ? 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$mapTilerKey'
       : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
   @override

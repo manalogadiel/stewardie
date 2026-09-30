@@ -428,7 +428,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
                     OutlinedButton.icon(
                       onPressed: _openEmailApp,
                       icon: const Icon(Icons.mail_outline_rounded, size: 20),
-                      label: const Text('Open inbox'),
+                      label: const Text('Open email app'),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(48, 48),
                         shape: RoundedRectangleBorder(

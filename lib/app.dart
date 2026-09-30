@@ -303,7 +303,7 @@ class AppShell extends ConsumerWidget {
                             shape: const CircleBorder(),
                           ),
                           key: TutorialTargetRegistry.notificationBellTarget,
-                          tooltip: 'Notifications',
+                          tooltip: 'Inbox',
                           icon: const Icon(Icons.notifications_none_rounded),
                           onPressed: () {
                             final requests = state.tasks

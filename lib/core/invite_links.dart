@@ -18,11 +18,14 @@ class InviteLinks {
     final raw = value.trim();
     if (raw.contains('://')) {
       final uri = Uri.tryParse(raw);
-      if (uri == null ||
-          uri.scheme != 'https' ||
-          uri.host != 'stewardie.web.app') {
-        return null;
-      }
+      if (uri == null) return null;
+      final host = uri.host.toLowerCase();
+      final isStewardieHost = host == 'stewardie.web.app' ||
+          host == 'stewardie.app' ||
+          host.endsWith('.stewardie.web.app') ||
+          host == 'localhost' ||
+          host == '127.0.0.1';
+      if (!isStewardieHost) return null;
     }
     final code = sanitize(raw);
     return isValidCode(code) ? code : null;
