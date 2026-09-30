@@ -1,3 +1,5 @@
+import '../../core/month_year_picker.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -203,10 +205,11 @@ class CalendarSheet extends ConsumerWidget {
                   icon: const Icon(Icons.chevron_left_rounded),
                 ),
                 Expanded(
-                  child: Text(
-                    monthLabel(context, state.month),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
+                  child: MonthYearButton(
+                    month: state.month,
+                    onSelected: (next) => controller.selectDay(
+                      calendarDayInMonth(next, state.selectedDay.day),
+                    ),
                   ),
                 ),
                 IconButton(

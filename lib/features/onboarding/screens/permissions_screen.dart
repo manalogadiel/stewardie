@@ -63,9 +63,13 @@ class _PermissionsScreenState extends State<PermissionsScreen>
 
   Future<void> _checkInitialStatuses() async {
     final token = ++_statusGeneration;
-    final statuses = await Future.wait(PermissionCapability.values.map(widget.adapter.checkStatus));
+    final statuses = await Future.wait(
+      PermissionCapability.values.map(widget.adapter.checkStatus),
+    );
     bool services = true;
-    try { services = await widget.adapter.locationServicesEnabled(); } catch (_) {}
+    try {
+      services = await widget.adapter.locationServicesEnabled();
+    } catch (_) {}
     if (!mounted || token != _statusGeneration) return;
     setState(() {
       for (var i = 0; i < statuses.length; i++) {
@@ -150,7 +154,8 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                       capability: PermissionCapability.camera,
                       icon: Icons.camera_alt_outlined,
                       title: 'Camera',
-                      description: 'Scan invitations and take photos for your space.',
+                      description:
+                          'Scan invitations and take photos for your space.',
                     ),
                     const SizedBox(height: 12),
                     _buildPermissionCard(
@@ -164,7 +169,8 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                       capability: PermissionCapability.notifications,
                       icon: Icons.notifications_none_rounded,
                       title: 'Notifications',
-                      description: 'Get reminders and updates from your spaces.',
+                      description:
+                          'Get reminders and updates from your spaces.',
                     ),
                     if (!_servicesEnabled) ...[
                       const SizedBox(height: 12),
@@ -333,12 +339,14 @@ class _PermissionsScreenState extends State<PermissionsScreen>
               ],
             )
           else
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 8,
               children: [
                 if (!isSkipped)
                   TextButton(
-                    onPressed: () => _skipCapability(capability),
+                    onPressed: _busy ? null : () => _skipCapability(capability),
                     style: TextButton.styleFrom(
                       minimumSize: const Size(48, 48),
                     ),
@@ -365,7 +373,9 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: () => _requestCapability(capability),
+                  onPressed: _busy
+                      ? null
+                      : () => _requestCapability(capability),
                   style: FilledButton.styleFrom(
                     backgroundColor: SoftPop.blue,
                     foregroundColor: SoftPop.surface,
@@ -380,10 +390,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   ),
                   child: const Text(
                     'Allow',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                   ),
                 ),
               ],

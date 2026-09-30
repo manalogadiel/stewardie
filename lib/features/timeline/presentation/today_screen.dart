@@ -1,3 +1,5 @@
+import '../../onboarding/tutorial/tutorial_target_registry.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,7 +28,27 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   int historyDay = 0;
   String scope = '';
   @override
+  void initState() {
+    super.initState();
+    TutorialTargetRegistry.preparers['tasks'] = _prepareTaskTarget;
+  }
+
+  void _prepareTaskTarget() {
+    if (!mounted ||
+        !scroll.hasClients ||
+        TutorialTargetRegistry.tasksTarget.currentContext != null)
+      return;
+    // Sliver headers beyond the cache are not mounted until approached.
+    scroll.jumpTo(
+      (scroll.offset + 300).clamp(0, scroll.position.maxScrollExtent),
+    );
+  }
+
+  @override
   void dispose() {
+    if (TutorialTargetRegistry.preparers['tasks'] == _prepareTaskTarget) {
+      TutorialTargetRegistry.preparers.remove('tasks');
+    }
     scroll.dispose();
     super.dispose();
   }
@@ -235,7 +257,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-                    child: PeopleFilter(space),
+                    child: PeopleFilter(
+                      space,
+                      key: TutorialTargetRegistry.dayTogetherTarget,
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -473,7 +498,11 @@ class _TaskTabHeader extends SliverPersistentHeaderDelegate {
     BuildContext context,
     double shrinkOffset,
     bool overlapsContent,
-  ) => ColoredBox(color: SoftPop.canvas, child: child);
+  ) => ColoredBox(
+    key: TutorialTargetRegistry.tasksTarget,
+    color: SoftPop.canvas,
+    child: child,
+  );
   @override
   bool shouldRebuild(_TaskTabHeader old) => true;
 }

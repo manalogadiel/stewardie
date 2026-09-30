@@ -89,13 +89,30 @@ class OnboardingStore {
     final result = Map<String, dynamic>.from(record);
     final savedId = result['stepId'];
     if (savedId is String) {
-      result['stepIndex'] = OnboardingStep.values.firstWhere(
-        (step) => step.name == savedId, orElse: () => OnboardingStep.welcome).index;
+      result['stepIndex'] = OnboardingStep.values
+          .firstWhere(
+            (step) => step.name == savedId,
+            orElse: () => OnboardingStep.welcome,
+          )
+          .index;
     } else if ((result['schemaVersion'] as int? ?? 1) < 2) {
-      const legacy = ['welcome', 'name', 'account', 'verifyEmail', 'permissions', 'features', 'allSet'];
-      final index = (result['stepIndex'] as int? ?? 0).clamp(0, legacy.length - 1);
+      const legacy = [
+        'welcome',
+        'name',
+        'account',
+        'verifyEmail',
+        'permissions',
+        'features',
+        'allSet',
+      ];
+      final index = (result['stepIndex'] as int? ?? 0).clamp(
+        0,
+        legacy.length - 1,
+      );
       result['stepId'] = legacy[index];
-      result['stepIndex'] = OnboardingStep.values.firstWhere((step) => step.name == legacy[index]).index;
+      result['stepIndex'] = OnboardingStep.values
+          .firstWhere((step) => step.name == legacy[index])
+          .index;
     }
     return result;
   }

@@ -19,19 +19,21 @@ class SpaceScreen extends ConsumerWidget {
     final state = ref.watch(demoProvider), repo = ref.read(repositoryProvider);
     final backend = ref.watch(sharedBackendProvider);
     if (backend != null && backend.auth.currentUser != null) {
+      final router = GoRouter.of(context);
       return OnlineHome(
         backend: backend,
         user: backend.auth.currentUser!,
         spaceOnly: true,
+        database: ref.read(tutorialDatabaseProvider),
         spaceId: state.spaceId,
         onTabRequested: (tab) {
           switch (tab) {
             case 0:
-              context.go('/today');
+              router.go('/today');
             case 1:
-              context.go('/moments');
+              router.go('/moments');
             case 2:
-              context.go('/space');
+              router.go('/space');
           }
         },
         onSpaceSelected: (id) {

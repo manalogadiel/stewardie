@@ -1,3 +1,4 @@
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -97,6 +98,8 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
   final caption = TextEditingController();
   PhotoDraft? draft;
   PlacePin? pin;
+  String? locationIssue;
+  DateTime? capturedAt;
   bool busy = false;
   bool attached = false;
   String? error;
@@ -139,6 +142,8 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
         setState(() {
           draft = processed;
           pin = photo.pin;
+          locationIssue = photo.locationIssue;
+          capturedAt = photo.capturedAt;
           error = null;
         });
       }
@@ -269,6 +274,73 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
         ),
       );
     });
+  }
+
+  Future<void> retryCaptureLocation() async {
+    if (busy || capturedAt == null) return;
+    if (DateTime.now().toUtc().difference(capturedAt!).abs() >
+        const Duration(seconds: 30)) {
+      setState(
+        () => locationIssue = 'The capture time has passed. Add a place tag or continue without location.',
+      );
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw StateError('Location services are off. Open location settings.');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied)
+        permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw StateError(
+          'Location permission is unavailable. Open app settings.',
+        );
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (position.timestamp.toUtc().difference(capturedAt!).abs() >
+          const Duration(seconds: 30)) {
+        throw StateError(
+          'No fix was available near capture time. Add a place tag instead.',
+        );
+      }
+      if (mounted)
+        setState(() {
+          pin = PlacePin(
+            lat: position.latitude,
+            lng: position.longitude,
+            label: 'Photo location',
+            source: 'capture',
+            accuracy: position.accuracy,
+            locatedAt: position.timestamp,
+          );
+          locationIssue = null;
+        });
+    } catch (e) {
+      if (mounted)
+        setState(
+          () => locationIssue = e is StateError
+              ? e.message
+              : 'Could not obtain a fresh location.',
+        );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> openPhotoLocationSettings() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      await Geolocator.openLocationSettings();
+    } else {
+      await Geolocator.openAppSettings();
+    }
   }
 
   Future<void> save() async {
@@ -770,6 +842,29 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             ),
             if (draft != null) ...[
               const SizedBox(height: 16),
+              if (locationIssue != null && pin == null) ...[
+                Semantics(liveRegion: true, child: Text(locationIssue!)),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: busy ? null : retryCaptureLocation,
+                      child: const Text('Retry location'),
+                    ),
+                    TextButton(
+                      onPressed: busy ? null : openPhotoLocationSettings,
+                      child: const Text('Settings'),
+                    ),
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => setState(() => locationIssue = null),
+                      child: const Text('Continue without location'),
+                    ),
+                  ],
+                ),
+              ],
               if (pin != null)
                 Paper(
                   color: SoftPop.warm,
@@ -792,7 +887,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                     ],
                   ),
                 ),
-              if (draft!.source != 'camera' && pin == null)
+              if (pin == null)
                 OutlinedButton.icon(
                   onPressed: () async {
                     final selected = await showPlacePicker(context);

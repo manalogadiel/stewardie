@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -47,8 +48,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
     _currentEmail = widget.user.email ?? '';
     _initCooldown();
     if (!widget.initialEmailSent) {
-      _statusMessage =
-          'We couldn\'t send the initial email automatically. Tap "Resend email" below.';
+      _statusMessage = 'We couldn\'t send the initial email automatically. Tap "Resend email" below.';
     }
   }
 
@@ -67,7 +67,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
   }
 
   Future<void> _initCooldown() async {
-    final remaining = await widget.store.getRemainingCooldownSeconds(widget.user.uid);
+    final remaining = await widget.store.getRemainingCooldownSeconds(
+      widget.user.uid,
+    );
     if (!mounted) return;
     if (remaining > 0) {
       setState(() => _cooldownSeconds = remaining);
@@ -120,14 +122,14 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
         widget.onVerified();
       } else {
         setState(() {
-          _statusMessage =
-              'Email verification is still pending. Tap the link in your email, then come back here.';
+          _statusMessage = 'Email verification is still pending. Tap the link in your email, then come back here.';
         });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Could not check verification status. Check connection.';
+          _errorMessage =
+              'Could not check verification status. Check connection.';
         });
       }
     } finally {
@@ -136,7 +138,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
   }
 
   Future<void> _openEmailApp() async {
-    final mailtoUri = Uri.parse('mailto:');
+    final mailtoUri = Uri.https('mail.google.com', '/mail/', {
+      'authuser': widget.user.email ?? '',
+    }).replace(fragment: 'inbox');
     try {
       final launched = await launchUrl(
         mailtoUri,
@@ -258,7 +262,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
       ),
     );
 
-    if (newEmail == null || newEmail.isEmpty || newEmail == _currentEmail) return;
+    if (newEmail == null || newEmail.isEmpty || newEmail == _currentEmail)
+      return;
 
     setState(() {
       _busy = true;
@@ -423,7 +428,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
                     OutlinedButton.icon(
                       onPressed: _openEmailApp,
                       icon: const Icon(Icons.mail_outline_rounded, size: 20),
-                      label: const Text('Open email app'),
+                      label: const Text('Open inbox'),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(48, 48),
                         shape: RoundedRectangleBorder(

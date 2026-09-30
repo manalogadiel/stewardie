@@ -1,3 +1,5 @@
+import '../core/month_year_picker.dart';
+
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -690,23 +692,29 @@ class _OnlineCalendarSheetState extends State<OnlineCalendarSheet> {
                     tooltip: 'Previous month',
                     icon: const Icon(Icons.chevron_left_rounded),
                     onPressed: () => setState(() {
-                      month = DateTime(month.year, month.month - 1);
-                      selected = month;
+                      month = clampCalendarMonth(
+                        DateTime(month.year, month.month - 1),
+                      );
+                      selected = calendarDayInMonth(month, selected.day);
                     }),
                   ),
                   Expanded(
-                    child: Text(
-                      MaterialLocalizations.of(context).formatMonthYear(month),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
+                    child: MonthYearButton(
+                      month: month,
+                      onSelected: (next) => setState(() {
+                        month = next;
+                        selected = calendarDayInMonth(month, selected.day);
+                      }),
                     ),
                   ),
                   IconButton(
                     tooltip: 'Next month',
                     icon: const Icon(Icons.chevron_right_rounded),
                     onPressed: () => setState(() {
-                      month = DateTime(month.year, month.month + 1);
-                      selected = month;
+                      month = clampCalendarMonth(
+                        DateTime(month.year, month.month + 1),
+                      );
+                      selected = calendarDayInMonth(month, selected.day);
                     }),
                   ),
                 ],

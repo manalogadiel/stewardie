@@ -27,7 +27,8 @@ class AccountScreen extends StatefulWidget {
   final OnlineBackend? backend;
   final void Function(User user, bool emailSent) onAccountCreated;
   final void Function(String email) onDraftChanged;
-  final Future<void> Function(String email, String password)? onSubmitForTesting;
+  final Future<void> Function(String email, String password)?
+  onSubmitForTesting;
 
   @override
   State<AccountScreen> createState() => _AccountScreenState();
@@ -88,10 +89,8 @@ class _AccountScreenState extends State<AccountScreen> {
         throw StateError('OnlineBackend is required for account creation');
       }
       // 1. Create account
-      final credential = await widget.backend!.auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final credential = await widget.backend!.auth
+          .createUserWithEmailAndPassword(email: email, password: password);
       createdUser = credential.user;
 
       if (createdUser != null) {
@@ -120,10 +119,14 @@ class _AccountScreenState extends State<AccountScreen> {
             'invalid-email' => 'Enter a valid email address.',
             'email-already-in-use' =>
               'This email already has an account. Sign in instead.',
-            'weak-password' => 'Choose a stronger password (at least 8 characters).',
-            'operation-not-allowed' => 'Account creation is currently unavailable.',
-            'network-request-failed' => 'Could not connect. Check your internet.',
-            'too-many-requests' => 'Too many attempts. Try again in a little while.',
+            'weak-password' =>
+              'Choose a stronger password (at least 8 characters).',
+            'operation-not-allowed' =>
+              'Account creation is currently unavailable.',
+            'network-request-failed' =>
+              'Could not connect. Check your internet.',
+            'too-many-requests' =>
+              'Too many attempts. Try again in a little while.',
             _ => e.message ?? 'Could not create account. Please try again.',
           };
         });
@@ -187,154 +190,162 @@ class _AccountScreenState extends State<AccountScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: InputDecoration(
-                      labelText: 'Email address',
-                      hintText: 'name@example.com',
-                      prefixIcon: const Icon(
-                        Icons.mail_outline_rounded,
-                        color: SoftPop.secondary,
-                      ),
-                      filled: true,
-                      fillColor: SoftPop.surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: SoftPop.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: SoftPop.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(
-                          color: SoftPop.blue,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Enter your email';
-                      }
-                      if (!value.contains('@') || !value.contains('.')) {
-                        return 'Enter a valid email address';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: _passwordController,
-                    focusNode: _passwordFocus,
-                    obscureText: _obscurePassword,
-                    autofillHints: const [AutofillHints.newPassword],
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _submit(),
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      helperText: 'At least 8 characters',
-                      prefixIcon: const Icon(
-                        Icons.lock_outline_rounded,
-                        color: SoftPop.secondary,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          color: SoftPop.secondary,
-                        ),
-                        tooltip: _obscurePassword
-                            ? 'Show password'
-                            : 'Hide password',
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                      filled: true,
-                      fillColor: SoftPop.surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: SoftPop.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(color: SoftPop.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: const BorderSide(
-                          color: SoftPop.blue,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Enter a password';
-                      }
-                      if (value.length < 8) {
-                        return 'Password must be at least 8 characters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'By continuing, you agree to Stewardie’s community guidelines and privacy notice.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.35,
-                      color: SoftPop.secondary,
-                    ),
-                  ),
-                  if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      _error!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.redAccent,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: SoftPop.blue,
-                      foregroundColor: SoftPop.surface,
-                      minimumSize: const Size(48, 54),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: _busy
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                              color: SoftPop.surface,
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.email],
+                          decoration: InputDecoration(
+                            labelText: 'Email address',
+                            hintText: 'name@example.com',
+                            prefixIcon: const Icon(
+                              Icons.mail_outline_rounded,
+                              color: SoftPop.secondary,
                             ),
-                          )
-                        : const Text(
-                            'Create account',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                            filled: true,
+                            fillColor: SoftPop.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: SoftPop.border,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: SoftPop.border,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: SoftPop.blue,
+                                width: 2,
+                              ),
                             ),
                           ),
-                  ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Enter your email';
+                            }
+                            if (!value.contains('@') || !value.contains('.')) {
+                              return 'Enter a valid email address';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        TextFormField(
+                          controller: _passwordController,
+                          focusNode: _passwordFocus,
+                          obscureText: _obscurePassword,
+                          autofillHints: const [AutofillHints.newPassword],
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _submit(),
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            helperText: 'At least 8 characters',
+                            prefixIcon: const Icon(
+                              Icons.lock_outline_rounded,
+                              color: SoftPop.secondary,
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                color: SoftPop.secondary,
+                              ),
+                              tooltip: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                            filled: true,
+                            fillColor: SoftPop.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: SoftPop.border,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: SoftPop.border,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: SoftPop.blue,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Enter a password';
+                            }
+                            if (value.length < 8) {
+                              return 'Password must be at least 8 characters';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'By continuing, you agree to Stewardie’s community guidelines and privacy notice.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.35,
+                            color: SoftPop.secondary,
+                          ),
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        FilledButton(
+                          onPressed: _busy ? null : _submit,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: SoftPop.blue,
+                            foregroundColor: SoftPop.surface,
+                            minimumSize: const Size(48, 54),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: _busy
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: SoftPop.surface,
+                                  ),
+                                )
+                              : const Text(
+                                  'Create account',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                        ),
                       ],
                     ),
                   ),

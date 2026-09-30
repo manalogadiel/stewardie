@@ -11,14 +11,26 @@ Future<bool?> showSoftPopPaywall(
   VoidCallback? onPurchased,
 }) => showModalBottomSheet<bool>(
   context: context,
+  useRootNavigator: true,
+  useSafeArea: true,
   isScrollControlled: true,
   showDragHandle: false,
   backgroundColor: Colors.transparent,
-  builder: (context) => SoftPopPaywall(onPurchased: onPurchased),
+  builder: (context) => DraggableScrollableSheet(
+    initialChildSize: .72,
+    minChildSize: .42,
+    maxChildSize: .95,
+    expand: false,
+    snap: true,
+    snapSizes: const [.72],
+    builder: (context, controller) =>
+        SoftPopPaywall(onPurchased: onPurchased, scrollController: controller),
+  ),
 );
 
 class SoftPopPaywall extends StatefulWidget {
-  const SoftPopPaywall({super.key, this.onPurchased});
+  const SoftPopPaywall({super.key, this.onPurchased, this.scrollController});
+  final ScrollController? scrollController;
   final VoidCallback? onPurchased;
 
   @override
@@ -66,6 +78,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
+          controller: widget.scrollController,
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
           child: Column(
             mainAxisSize: MainAxisSize.min,

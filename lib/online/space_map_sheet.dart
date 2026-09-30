@@ -55,7 +55,8 @@ class SpaceMapSheet extends StatefulWidget {
   State<SpaceMapSheet> createState() => _SpaceMapSheetState();
 }
 
-class _SpaceMapSheetState extends State<SpaceMapSheet> {
+class _SpaceMapSheetState extends State<SpaceMapSheet>
+    with WidgetsBindingObserver {
   final MapController _mapController = MapController();
   int _selectedDuration = 15; // 15, 30, 60
   Map<String, dynamic>? _selectedMember;
@@ -74,6 +75,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final cached = LiveLocationService.instance.currentPosition.value;
     if (cached != null &&
         DateTime.now().difference(cached.timestamp) <
@@ -126,7 +128,13 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _initUserLocation();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     LiveLocationService.instance.currentPosition.removeListener(
       _onPositionChanged,
     );
@@ -182,6 +190,20 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
             'Could not update your location. Check permission and services.',
       );
     }
+  }
+
+  Future<void> _recoverLocation() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      await Geolocator.openLocationSettings();
+    } else {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.deniedForever) {
+        await Geolocator.openAppSettings();
+      } else if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    }
+    if (mounted) await _initUserLocation();
   }
 
   Future<void> _startSharing() async {
@@ -300,6 +322,12 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                     color: Color(0xFF596171),
                   ),
                 ),
+                if (_locationStatus != 'Your private device location')
+                  TextButton.icon(
+                    onPressed: _recoverLocation,
+                    icon: const Icon(Icons.location_on_outlined),
+                    label: const Text('Enable location / Retry'),
+                  ),
                 const SizedBox(height: 16),
                 StreamBuilder<List<Map<String, dynamic>>>(
                   stream: widget.spaceId == null
@@ -335,8 +363,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                       markers.add(
                         Marker(
                           point: LatLng(lat, lng),
-                          width: 56,
-                          height: 62,
+                          width: 88,
+                          height: 90,
                           child: GestureDetector(
                             onTap: () {
                               setState(() => _selectedMember = s);
@@ -361,8 +389,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
                       markers.add(
                         Marker(
                           point: userPoint,
-                          width: 56,
-                          height: 62,
+                          width: 88,
+                          height: 90,
                           child: GestureDetector(
                             onTap: () {
                               setState(() {

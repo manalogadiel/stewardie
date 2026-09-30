@@ -111,8 +111,10 @@ class _OnboardingSignInScreenState extends State<OnboardingSignInScreen> {
             'invalid-credential' ||
             'wrong-password' ||
             'user-not-found' => 'Check your email and password.',
-            'too-many-requests' => 'Too many attempts. Try again in a little while.',
-            'network-request-failed' => 'Could not connect. Check your internet.',
+            'too-many-requests' =>
+              'Too many attempts. Try again in a little while.',
+            'network-request-failed' =>
+              'Could not connect. Check your internet.',
             _ => e.message ?? 'Could not sign in. Try again.',
           };
         });
@@ -193,9 +195,12 @@ class _OnboardingSignInScreenState extends State<OnboardingSignInScreen> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     autofillHints: const [AutofillHints.email],
-                    textInputAction:
-                        _resetMode ? TextInputAction.done : TextInputAction.next,
-                    onFieldSubmitted: _resetMode && !_busy ? (_) => _submit() : null,
+                    textInputAction: _resetMode
+                        ? TextInputAction.done
+                        : TextInputAction.next,
+                    onFieldSubmitted: _resetMode && !_busy
+                        ? (_) => _submit()
+                        : null,
                     decoration: InputDecoration(
                       labelText: 'Email',
                       prefixIcon: const Icon(
@@ -220,10 +225,9 @@ class _OnboardingSignInScreenState extends State<OnboardingSignInScreen> {
                         ),
                       ),
                     ),
-                    validator: (val) =>
-                        val == null || !val.contains('@')
-                            ? 'Enter a valid email'
-                            : null,
+                    validator: (val) => val == null || !val.contains('@')
+                        ? 'Enter a valid email'
+                        : null,
                   ),
                   if (!_resetMode) ...[
                     const SizedBox(height: 14),
@@ -271,8 +275,9 @@ class _OnboardingSignInScreenState extends State<OnboardingSignInScreen> {
                           ),
                         ),
                       ),
-                      validator: (val) =>
-                          val == null || val.isEmpty ? 'Enter your password' : null,
+                      validator: (val) => val == null || val.isEmpty
+                          ? 'Enter your password'
+                          : null,
                     ),
                     if (widget.database != null) ...[
                       const SizedBox(height: 6),
@@ -384,9 +389,7 @@ class _OnboardingSignInScreenState extends State<OnboardingSignInScreen> {
                             }
                           },
                     child: Text(
-                      _resetMode
-                          ? 'Back to sign in'
-                          : 'Back to Get started',
+                      _resetMode ? 'Back to sign in' : 'Back to Get started',
                       style: const TextStyle(color: SoftPop.secondary),
                     ),
                   ),

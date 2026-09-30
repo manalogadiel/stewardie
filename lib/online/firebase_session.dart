@@ -16,6 +16,7 @@ import '../core/profile_photo.dart';
 import '../features/calendar/calendar_state.dart';
 import '../features/calendar/google_calendar_import.dart';
 import '../features/media/media_library.dart';
+import '../features/onboarding/tutorial/tutorial_coordinator.dart';
 import '../features/media/camera_screen.dart';
 import '../features/media/picker_recovery.dart';
 import 'firebase_repository.dart';
@@ -308,6 +309,7 @@ class _SignedInAppState extends State<_SignedInApp>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(TutorialCoordinator.cancelForAccount(widget.user.uid));
     unawaited(LiveLocationService.instance.stopSharing());
     unawaited(PushService.instance.logOut());
     unawaited(timeline.dispose());
@@ -361,6 +363,7 @@ class _SignedInAppState extends State<_SignedInApp>
             key: ValueKey(widget.user.uid),
             overrides: [
               sharedBackendProvider.overrideWithValue(widget.backend),
+              tutorialDatabaseProvider.overrideWithValue(widget.database),
               repositoryProvider.overrideWithValue(timeline),
               calendarRepositoryProvider.overrideWithValue(calendar),
               mediaLibraryProvider.overrideWithValue(photoSnapshot.data!),

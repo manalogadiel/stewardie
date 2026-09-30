@@ -24,6 +24,13 @@ class TutorialCoordinator {
   /// In-memory tracker for UIDs that have been prompted during this app session.
   static final Set<String> _promptedUids = <String>{};
   static final Set<String> _continuingUids = <String>{};
+  static final Map<String, Future<void> Function(TutorialStatus?)>
+  _activeTours = {};
+
+  /// Account departure closes its overlay without recording a false completion.
+  static Future<void> cancelForAccount(String uid) async {
+    await _activeTours[uid]?.call(null);
+  }
 
   /// In-memory tracker for UIDs that just finished fresh onboarding and are
   /// eligible for the one-time first-use tour offer.
@@ -42,6 +49,9 @@ class TutorialCoordinator {
 
   /// Clears in-memory session eligibility (e.g. for testing or logout).
   static void resetSessionState() {
+    for (final close in _activeTours.values.toList()) {
+      unawaited(close(null));
+    }
     _promptedUids.clear();
     _continuingUids.clear();
     _eligibleFirstUseUids.clear();
@@ -107,17 +117,22 @@ class TutorialCoordinator {
     bool isReplay = false,
     bool hasSpaces = true,
   }) async {
+    if (uid.isNotEmpty && _activeTours.containsKey(uid)) return;
     final overlay = Overlay.of(context);
     final closed = Completer<void>();
     late OverlayEntry entry;
+    bool closing = false;
 
-    Future<void> close(TutorialStatus status) async {
+    Future<void> close(TutorialStatus? status) async {
+      if (closing) return;
+      closing = true;
+      _activeTours.remove(uid);
       if (entry.mounted) {
         entry.remove();
       }
       entry.dispose();
       try {
-        if (uid.isNotEmpty && !isReplay) {
+        if (uid.isNotEmpty && !isReplay && status != null) {
           await _store.setStatus(uid, status);
         }
       } finally {
@@ -139,6 +154,7 @@ class TutorialCoordinator {
     );
 
     overlay.insert(entry);
+    if (uid.isNotEmpty) _activeTours[uid] = close;
     await closed.future;
   }
 

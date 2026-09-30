@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
@@ -29,12 +31,41 @@ class TutorialOverlay extends StatefulWidget {
   State<TutorialOverlay> createState() => _TutorialOverlayState();
 }
 
-class _TutorialOverlayState extends State<TutorialOverlay> {
+class _TutorialOverlayState extends State<TutorialOverlay>
+    with WidgetsBindingObserver {
   late int _currentStopIndex;
+  Timer? _targetMonitor;
+  Rect? _targetRect;
+  bool _locating = true;
+  int _requestGeneration = 0;
+
+  @override
+  void dispose() {
+    _requestGeneration++;
+    _targetMonitor?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _measureTarget();
+    });
+  }
+
+  void _measureTarget() {
+    final stop = widget.stops[_currentStopIndex];
+    final rect = TutorialTargetRegistry.getTargetRect(
+      TutorialTargetRegistry.keyForId(stop.targetKeyGetter()),
+    );
+    if (rect != _targetRect) setState(() => _targetRect = rect);
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _currentStopIndex = widget.initialStopIndex.clamp(
       0,
       widget.stops.length - 1,
@@ -43,18 +74,29 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   }
 
   void _syncTabIfNeeded() {
-    final requestedIndex = _currentStopIndex;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || requestedIndex != _currentStopIndex) return;
-      final stop = widget.stops[requestedIndex];
+    final request = ++_requestGeneration;
+    _targetMonitor?.cancel();
+    _targetRect = null;
+    _locating = true;
+    var attempts = 0;
+    var revealing = false;
+    var revealed = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || request != _requestGeneration) return;
+      final stop = widget.stops[_currentStopIndex];
       widget.onTabRequested?.call(stop.destinationTab);
-      // The destination tab's target is laid out in the following frame.
-      for (var attempt = 0; attempt < 4; attempt++) {
-        await WidgetsBinding.instance.endOfFrame;
-        if (!mounted || requestedIndex != _currentStopIndex) return;
+      _targetMonitor = Timer.periodic(const Duration(milliseconds: 100), (
+        _,
+      ) async {
+        if (!mounted || request != _requestGeneration) return;
+        if (_locating) TutorialTargetRegistry.prepare(stop.targetKeyGetter());
         final target = TutorialTargetRegistry.keyForId(stop.targetKeyGetter());
         final targetContext = target?.currentContext;
-        if (targetContext != null && targetContext.mounted) {
+        if (!revealed &&
+            !revealing &&
+            targetContext != null &&
+            targetContext.mounted) {
+          revealing = true;
           await Scrollable.ensureVisible(
             targetContext,
             alignment: .2,
@@ -62,10 +104,19 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                 ? Duration.zero
                 : const Duration(milliseconds: 250),
           );
-          break;
+          if (!mounted || request != _requestGeneration) return;
+          revealed = true;
+          revealing = false;
         }
-      }
-      if (mounted && requestedIndex == _currentStopIndex) setState(() {});
+        _measureTarget();
+        if (_targetRect != null && _locating) {
+          setState(() => _locating = false);
+        } else if (++attempts >= 40 && _locating && !revealing) {
+          setState(() => _locating = false);
+        }
+        // Keep measuring while visible: route rebuilds, scroll, keyboard and
+        // orientation can move a target after its first successful layout.
+      });
     });
   }
 
@@ -93,18 +144,26 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final stop = widget.stops[_currentStopIndex];
-    final targetKey = TutorialTargetRegistry.keyForId(stop.targetKeyGetter());
-    final targetRect = TutorialTargetRegistry.getTargetRect(targetKey);
+    final targetRect = _targetRect;
 
     final mediaQuery = MediaQuery.of(context);
     final screenSize = mediaQuery.size;
     final isLast = _currentStopIndex == widget.stops.length - 1;
 
-    // Determine whether explanation card sits above, below, or centered (if target absent)
+    final above = targetRect == null
+        ? 0.0
+        : targetRect.top - mediaQuery.padding.top - 32;
+    final below = targetRect == null
+        ? 0.0
+        : screenSize.height -
+              targetRect.bottom -
+              mediaQuery.padding.bottom -
+              mediaQuery.viewInsets.bottom -
+              32;
+    // Fit the explanation entirely on the side with more room.
     final Alignment cardAlignment;
     if (targetRect != null) {
-      final targetCenterY = targetRect.center.dy;
-      final cardAbove = targetCenterY > (screenSize.height * 0.55);
+      final cardAbove = above > below;
       cardAlignment = cardAbove ? Alignment.topCenter : Alignment.bottomCenter;
     } else {
       cardAlignment = Alignment.center;
@@ -137,8 +196,12 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: 420,
-                    maxHeight:
-                        screenSize.height - mediaQuery.padding.vertical - 24,
+                    maxHeight: targetRect == null
+                        ? screenSize.height - mediaQuery.padding.vertical - 24
+                        : (above > below ? above : below).clamp(
+                            80.0,
+                            screenSize.height,
+                          ),
                   ),
                   child: Container(
                     decoration: BoxDecoration(
@@ -241,12 +304,37 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                           // The highlighted control is the real app UI. Avoid a
                           // miniature copy that drifts as the screens change.
                           if (targetRect == null)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 10),
-                              child: Text(
-                                'This control is not available in this view yet.',
-                                style: TextStyle(color: SoftPop.secondary),
-                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: _locating
+                                  ? const Text(
+                                      'Finding this control…',
+                                      style: TextStyle(
+                                        color: SoftPop.secondary,
+                                      ),
+                                    )
+                                  : Wrap(
+                                      spacing: 8,
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      children: [
+                                        const Text(
+                                          'This part has not loaded.',
+                                          style: TextStyle(
+                                            color: SoftPop.secondary,
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              setState(_syncTabIfNeeded),
+                                          child: const Text('Retry'),
+                                        ),
+                                        TextButton(
+                                          onPressed: _nextStop,
+                                          child: const Text('Skip this stop'),
+                                        ),
+                                      ],
+                                    ),
                             ),
 
                           const SizedBox(height: 12),
@@ -295,7 +383,9 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                                 const SizedBox(width: 4),
                               ],
                               FilledButton(
-                                onPressed: _nextStop,
+                                onPressed: targetRect == null
+                                    ? null
+                                    : _nextStop,
                                 style: FilledButton.styleFrom(
                                   backgroundColor: SoftPop.blue,
                                   foregroundColor: SoftPop.surface,

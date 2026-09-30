@@ -1,13 +1,24 @@
+import '../../core/month_year_picker.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/place_pin.dart';
 import '../../core/sync_state.dart';
 
 import '../../core/demo_state.dart';
 import '../timeline/domain/models.dart';
 
-enum PlanReminder { none, atStart, tenMinutes, oneHour, oneDay, morningOf, morningBefore }
+enum PlanReminder {
+  none,
+  atStart,
+  tenMinutes,
+  oneHour,
+  oneDay,
+  morningOf,
+  morningBefore,
+}
 
 extension PlanReminderLabel on PlanReminder {
   String get label => switch (this) {
@@ -250,7 +261,13 @@ class CalendarController extends Notifier<CalendarState> {
     dateOnly(day),
   );
   void changeMonth(int delta) {
-    final month = DateTime(state.month.year, state.month.month + delta);
-    state = CalendarState(state.plans, month, month);
+    final month = clampCalendarMonth(
+      DateTime(state.month.year, state.month.month + delta),
+    );
+    state = CalendarState(
+      state.plans,
+      month,
+      calendarDayInMonth(month, state.selectedDay.day),
+    );
   }
 }

@@ -1,3 +1,5 @@
+import 'package:image/image.dart' as img;
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -11,15 +13,11 @@ import 'package:stewardie/features/timeline/domain/models.dart';
 import 'package:stewardie/online/cloud_media_library.dart';
 import 'package:stewardie/online/firebase_repository.dart';
 
-class _FakeTimelineRepository extends Fake implements FirebaseTimelineRepository {
+class _FakeTimelineRepository extends Fake
+    implements FirebaseTimelineRepository {
   @override
   final List<Space> spaces = const [
-    Space(
-      'space-1',
-      'Home',
-      'home',
-      [Member('user-123', 'User', 'U', 0)],
-    ),
+    Space('space-1', 'Home', 'home', [Member('user-123', 'User', 'U', 0)]),
   ];
   @override
   String get currentUserId => 'user-123';
@@ -33,7 +31,8 @@ class _FakeUser extends Fake implements User {
   @override
   String get uid => 'user-123';
   @override
-  Future<String?> getIdToken([bool forceRefresh = false]) async => 'fake-id-token';
+  Future<String?> getIdToken([bool forceRefresh = false]) async =>
+      'fake-id-token';
 }
 
 void main() {
@@ -60,7 +59,10 @@ void main() {
         ratioName: '9:16',
       );
       expect(vertical.ratioName, '9:16');
-      expect((vertical.width / vertical.height - 9.0 / 16.0).abs(), lessThan(0.01));
+      expect(
+        (vertical.width / vertical.height - 9.0 / 16.0).abs(),
+        lessThan(0.01),
+      );
 
       final horizontal = FramingRect.fromAspectRatio(
         targetRatio: 16.0 / 9.0,
@@ -69,7 +71,10 @@ void main() {
         ratioName: '16:9',
       );
       expect(horizontal.ratioName, '16:9');
-      expect((horizontal.width / horizontal.height - 16.0 / 9.0).abs(), lessThan(0.01));
+      expect(
+        (horizontal.width / horizontal.height - 16.0 / 9.0).abs(),
+        lessThan(0.01),
+      );
     });
   });
 
@@ -113,104 +118,113 @@ void main() {
   });
 
   group('CloudMediaLibrary adapter round-trip', () {
-    test('upload sends framing in multipart request and decodes returned framing', () async {
-      final db = await newDatabaseFactoryMemory().openDatabase('cloud-media-test');
-      addTearDown(db.close);
+    test(
+      'upload sends baked framing and decodes legacy-safe full metadata',
+      () async {
+        final db = await newDatabaseFactoryMemory().openDatabase(
+          'cloud-media-test',
+        );
+        addTearDown(db.close);
 
-      String? capturedFramingField;
+        String? capturedFramingField;
 
-      final mockClient = MockClient.streaming((request, bodyStream) async {
-        final url = request.url.toString();
-        if (url.contains('action=upload')) {
-          if (request is http.MultipartRequest) {
-            capturedFramingField = request.fields['framing'];
-          }
-          final bytes = await bodyStream.toBytes();
-          final bodyString = String.fromCharCodes(bytes);
+        final mockClient = MockClient.streaming((request, bodyStream) async {
+          final url = request.url.toString();
+          if (url.contains('action=upload')) {
+            if (request is http.MultipartRequest) {
+              capturedFramingField = request.fields['framing'];
+            }
+            final bytes = await bodyStream.toBytes();
+            final bodyString = String.fromCharCodes(bytes);
 
-          final match = RegExp(r'name="framing"[^\r\n]*\r?\n\r?\n([^\r\n]+)').firstMatch(bodyString);
-          if (capturedFramingField == null && match != null) {
-            capturedFramingField = match.group(1);
-          }
+            final match = RegExp(r'name="framing"[^\r\n]*\r?\n\r?\n([^\r\n]+)')
+                .firstMatch(bodyString);
+            if (capturedFramingField == null && match != null) {
+              capturedFramingField = match.group(1);
+            }
 
-          final responseJson = jsonEncode({
-            'item': {
-              'id': 'photo-123',
-              'space_id': 'space-1',
-              'uploader_uid': 'user-123',
-              'caption': 'Shared with framing',
-              'created_at': DateTime.utc(2026, 9, 24).toIso8601String(),
-              'width': 400,
-              'height': 300,
-              'state': 'ready',
-              'framing': {
-                'x': 0.12,
-                'y': 0.18,
-                'width': 0.75,
-                'height': 0.65,
-                'ratioName': '3:4',
+            final responseJson = jsonEncode({
+              'item': {
+                'id': 'photo-123',
+                'space_id': 'space-1',
+                'uploader_uid': 'user-123',
+                'caption': 'Shared with framing',
+                'created_at': DateTime.utc(2026, 9, 24).toIso8601String(),
+                'width': 300,
+                'height': 195,
+                'state': 'ready',
+                'framing': {
+                  'x': 0.0,
+                  'y': 0.0,
+                  'width': 1.0,
+                  'height': 1.0,
+                  'ratioName': 'original',
+                },
               },
-            },
-          });
-          return http.StreamedResponse(
-            Stream.value(utf8.encode(responseJson)),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
+            });
+            return http.StreamedResponse(
+              Stream.value(utf8.encode(responseJson)),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
 
-        if (url.contains('action=download')) {
-          return http.StreamedResponse(
-            Stream.value(Uint8List.fromList([255, 216, 255, 217])),
-            200,
-            headers: {'content-type': 'image/jpeg'},
-          );
-        }
+          if (url.contains('action=download')) {
+            return http.StreamedResponse(
+              Stream.value(Uint8List.fromList([255, 216, 255, 217])),
+              200,
+              headers: {'content-type': 'image/jpeg'},
+            );
+          }
 
-        return http.StreamedResponse(Stream.value([]), 404);
-      });
+          return http.StreamedResponse(Stream.value([]), 404);
+        });
 
-      const framing = FramingRect(
-        x: 0.12,
-        y: 0.18,
-        width: 0.75,
-        height: 0.65,
-        ratioName: '3:4',
-      );
-      final draft = PhotoDraft(
-        Uint8List.fromList([255, 216, 255, 217]),
-        Uint8List.fromList([255, 216, 255, 217]),
-        400,
-        300,
-        'camera',
-        framing: framing,
-      );
+        const framing = FramingRect(
+          x: 0.12,
+          y: 0.18,
+          width: 0.75,
+          height: 0.65,
+          ratioName: '3:4',
+        );
+        final pixels = img.encodeJpg(img.Image(width: 400, height: 300));
+        final draft = PhotoDraft(
+          pixels,
+          pixels,
+          400,
+          300,
+          'camera',
+          framing: framing,
+        );
 
-      final cloudLib = CloudMediaLibrary(
-        _FakeTimelineRepository(),
-        user: _FakeUser(),
-        database: db,
-        records: stringMapStoreFactory.store('test-photos'),
-        initial: [],
-        pending: {},
-        client: mockClient,
-      );
-      addTearDown(cloudLib.dispose);
+        final cloudLib = CloudMediaLibrary(
+          _FakeTimelineRepository(),
+          user: _FakeUser(),
+          database: db,
+          records: stringMapStoreFactory.store('test-photos'),
+          initial: [],
+          pending: {},
+          client: mockClient,
+        );
+        addTearDown(cloudLib.dispose);
 
-      final attachment = await cloudLib.add(
-        draft,
-        'space-1',
-        'user-123',
-        'Shared with framing',
-      );
+        final attachment = await cloudLib.add(
+          draft,
+          'space-1',
+          'user-123',
+          'Shared with framing',
+        );
 
-      expect(attachment.framing.x, 0.12);
-      expect(attachment.framing.ratioName, '3:4');
+        expect(attachment.framing.isFull, isTrue);
+        expect(attachment.photo.width, 300);
+        expect(attachment.photo.height, 195);
 
-      expect(capturedFramingField, isNotNull);
-      final parsed = jsonDecode(capturedFramingField!);
-      expect(parsed['x'], 0.12);
-      expect(parsed['ratioName'], '3:4');
-    });
+        expect(capturedFramingField, isNotNull);
+        final parsed = jsonDecode(capturedFramingField!);
+        expect(parsed['x'], 0.0);
+        expect(parsed['width'], 1.0);
+        expect(parsed['ratioName'], 'original');
+      },
+    );
   });
 }

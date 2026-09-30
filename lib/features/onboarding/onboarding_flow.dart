@@ -87,8 +87,11 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               draft['name'] as String? ?? _currentUser?.displayName ?? '';
           _emailDraft = draft['email'] as String? ?? _currentUser?.email ?? '';
           _avatarDraft = draft['avatarBase64'] as String?;
-          final preferences = draft['permissions'] as Map<String, dynamic>? ?? {};
-          _skippedPermissions = PermissionCapability.values.where((cap) => preferences[cap.name] == 'skipped').toSet();
+          final preferences =
+              draft['permissions'] as Map<String, dynamic>? ?? {};
+          _skippedPermissions = PermissionCapability.values
+              .where((cap) => preferences[cap.name] == 'skipped')
+              .toSet();
           _featurePageIndex = draft['featurePageIndex'] as int? ?? 0;
 
           // Reconcile saved step with authenticated state
@@ -372,8 +375,11 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
             initialSkipped: _skippedPermissions,
             onSkippedChanged: (skipped) {
               _skippedPermissions = skipped;
-              _store.saveDraft(uid: _currentUser?.uid, step: OnboardingStep.permissions,
-                permissions: {for (final cap in skipped) cap.name: 'skipped'});
+              _store.saveDraft(
+                uid: _currentUser?.uid,
+                step: OnboardingStep.permissions,
+                permissions: {for (final cap in skipped) cap.name: 'skipped'},
+              );
             },
             onContinue: () {
               _goToStep(OnboardingStep.profile);
@@ -382,15 +388,23 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         );
 
       case OnboardingStep.profile:
-        return KeyedSubtree(key: const ValueKey('profile_screen'), child: ProfileScreen(
-          name: _nameDraft, initialPhoto: _avatarDraft,
-          onPhotoChanged: (photo) {
-            _avatarDraft = photo;
-            _store.saveDraft(uid: _currentUser?.uid, step: OnboardingStep.profile,
-              avatarBase64: photo, clearAvatar: photo == null);
-          },
-          onContinue: () => _goToStep(OnboardingStep.features),
-        ));
+        return KeyedSubtree(
+          key: const ValueKey('profile_screen'),
+          child: ProfileScreen(
+            name: _nameDraft,
+            initialPhoto: _avatarDraft,
+            onPhotoChanged: (photo) {
+              _avatarDraft = photo;
+              _store.saveDraft(
+                uid: _currentUser?.uid,
+                step: OnboardingStep.profile,
+                avatarBase64: photo,
+                clearAvatar: photo == null,
+              );
+            },
+            onContinue: () => _goToStep(OnboardingStep.features),
+          ),
+        );
 
       case OnboardingStep.features:
         return KeyedSubtree(

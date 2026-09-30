@@ -130,34 +130,36 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
                   },
                   itemBuilder: (context, index) {
                     final item = _features[index];
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        MascotStage(pose: item.pose),
-                        const SizedBox(height: 12),
-                        Text(
-                          item.title,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: SoftPop.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Text(
-                            item.body,
+                    return SingleChildScrollView(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          MascotStage(pose: item.pose),
+                          const SizedBox(height: 12),
+                          Text(
+                            item.title,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 14,
-                              height: 1.45,
-                              color: SoftPop.secondary,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: SoftPop.ink,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Text(
+                              item.body,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                height: 1.45,
+                                color: SoftPop.secondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),

@@ -43,3 +43,5 @@ Shared reference-edit prompt: “Use case: precise-object-edit. Asset type: tran
 ## Single-character 3D login (September 24 follow-up)
 
 `login-3d-still.png` and five `login-3d-*.gif` actions come from the original articulated ellipsoid model and ray tracer in `tool/render_login_3d.py` (NumPy/Pillow). These are rendered 3D geometry, not the old 2D painter or rigged reference screenshots. Five 48-frame clips at 70 ms/frame return to the same neutral pose; Flutter pauses and blends between actions. Original approved Today/Moments illustrations are unchanged. No third-party model or paid rendering service was used.
+
+- `onboarding-profile.png`: generated September 30 with the built-in image tool, using the approved attentive mascot as shape/material reference; transparent sky-blue character with portrait frame and camera for the optional profile step.

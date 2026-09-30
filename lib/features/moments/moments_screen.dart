@@ -1,3 +1,5 @@
+import '../onboarding/tutorial/tutorial_target_registry.dart';
+
 import 'dart:math' as math;
 import 'dart:async';
 
@@ -11,7 +13,6 @@ import '../../core/clay.dart';
 import '../../core/demo_state.dart';
 import '../../core/people_filter.dart';
 import '../../core/theme.dart';
-import '../../online/external_launcher.dart';
 import '../../online/safety_sheet.dart';
 import '../../core/backend_provider.dart';
 import '../../core/top_controls.dart';
@@ -218,6 +219,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
             ),
           ),
         FilledButton.icon(
+          key: TutorialTargetRegistry.momentsTabTarget,
           onPressed: () => showPhotoComposer(context, space),
           icon: const Icon(Icons.add_a_photo_outlined),
           label: const Text('Add moment'),
@@ -281,17 +283,12 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
           ),
           if (photo.pin != null)
             TextButton.icon(
-              onPressed: () => ExternalLauncher.openMapDirections(
-                context,
-                query: photo.pin!.label,
-                lat: photo.pin!.lat,
-                lng: photo.pin!.lng,
-              ),
+              onPressed: () => showPhotoLocation(context, photo),
               icon: const Icon(Icons.place_outlined),
               label: Text(
                 photo.pin!.source == 'capture'
-                    ? 'Capture pin · view on map'
-                    : '${photo.pin!.label} · manually pinned',
+                    ? 'Taken here · view location'
+                    : 'Place tag · view location',
               ),
             ),
           if (task != null && repo.canView(task))

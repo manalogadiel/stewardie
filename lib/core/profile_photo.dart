@@ -53,45 +53,18 @@ class ProfilePhoto {
       imageQuality: 90,
     );
     if (picked == null || !context.mounted) return null;
-    final original = image.decodeImage(await picked.readAsBytes());
+    return confirm(context, await picked.readAsBytes());
+  }
+
+  static Future<String?> confirm(BuildContext context, Uint8List bytes) async {
+    final original = image.decodeImage(bytes);
     if (original == null) throw StateError('Choose a valid photo.');
     final upright = image.bakeOrientation(original);
-    final edge = upright.width < upright.height
-        ? upright.width
-        : upright.height;
-    final square = image.copyCrop(
-      upright,
-      x: (upright.width - edge) ~/ 2,
-      y: (upright.height - edge) ~/ 2,
-      width: edge,
-      height: edge,
-    );
-    final small = image.copyResize(square, width: 256, height: 256);
-    var bytes = Uint8List.fromList(image.encodeJpg(small, quality: 78));
-    if (bytes.length > 110000) {
-      bytes = Uint8List.fromList(image.encodeJpg(small, quality: 55));
-    }
-    if (bytes.length > 110000)
-      throw StateError('This photo is too detailed. Try another.');
     if (!context.mounted) return null;
-    final accepted = await showDialog<bool>(
+    return showDialog<String>(
       context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('Use this photo?'),
-        content: CircleAvatar(radius: 82, backgroundImage: MemoryImage(bytes)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, false),
-            child: const Text('Choose again'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Use photo'),
-          ),
-        ],
-      ),
+      builder: (_) => _AvatarCropDialog(photo: upright),
     );
-    return accepted == true ? base64Encode(bytes) : null;
   }
 
   static Future<void> save(String base64) async {
@@ -111,5 +84,108 @@ class ProfilePhoto {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null)
       await FirebaseFirestore.instance.doc('profiles/$uid').delete();
+  }
+}
+
+class _AvatarCropDialog extends StatefulWidget {
+  const _AvatarCropDialog({required this.photo});
+  final image.Image photo;
+  @override
+  State<_AvatarCropDialog> createState() => _AvatarCropDialogState();
+}
+
+class _AvatarCropDialogState extends State<_AvatarCropDialog> {
+  double offset = .5;
+  late final full = Uint8List.fromList(
+    image.encodeJpg(widget.photo, quality: 85),
+  );
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photo;
+    final edge = photo.width < photo.height ? photo.width : photo.height;
+    final x = ((photo.width - edge) * offset).round();
+    final y = ((photo.height - edge) * offset).round();
+    final crop = image.copyResize(
+      image.copyCrop(photo, x: x, y: y, width: edge, height: edge),
+      width: 256,
+      height: 256,
+    );
+    final clean = image.Image(width: 256, height: 256, numChannels: 3);
+    image.fill(clean, color: image.ColorRgb8(255, 255, 255));
+    image.compositeImage(clean, crop);
+    final bytes = Uint8List.fromList(image.encodeJpg(clean, quality: 75));
+    return AlertDialog(
+      title: const Text('Choose your avatar crop'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 230,
+                width: double.infinity,
+                child: LayoutBuilder(
+                  builder: (context, size) {
+                    final scale =
+                        (size.maxWidth / photo.width) <
+                            (size.maxHeight / photo.height)
+                        ? size.maxWidth / photo.width
+                        : size.maxHeight / photo.height;
+                    final left = (size.maxWidth - photo.width * scale) / 2;
+                    final top = (size.maxHeight - photo.height * scale) / 2;
+                    return Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Image.memory(full, fit: BoxFit.contain),
+                        ),
+                        Positioned(
+                          left: left + x * scale,
+                          top: top + y * scale,
+                          width: edge * scale,
+                          height: edge * scale,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xFF244BFF),
+                                  width: 2,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              if (photo.width != photo.height)
+                Slider(
+                  value: offset,
+                  onChanged: (value) => setState(() => offset = value),
+                  semanticFormatterCallback: (value) =>
+                      'Avatar crop position ${(value * 100).round()} percent',
+                ),
+              const SizedBox(height: 8),
+              const Text('Your profile preview'),
+              const SizedBox(height: 8),
+              CircleAvatar(radius: 42, backgroundImage: MemoryImage(bytes)),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, base64Encode(bytes)),
+          child: const Text('Use photo'),
+        ),
+      ],
+    );
   }
 }

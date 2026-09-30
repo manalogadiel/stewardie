@@ -46,8 +46,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Next'));
-    await tester.tap(find.text('Next'));
+    expect(find.text('Finding this control…'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(find.text('Retry'), findsOneWidget);
+    await tester.ensureVisible(find.text('Skip this stop'));
+    await tester.tap(find.text('Skip this stop'));
     await tester.pumpAndSettle();
     expect(find.text('Your day, together'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -296,16 +300,34 @@ void main() {
         MaterialApp(
           theme: SoftPop.theme,
           home: Scaffold(
-            body: TutorialOverlay(
-              initialStopIndex: 0,
-              onFinished: () => finished = true,
-              onSkipped: () => skipped = true,
-              onTabRequested: (tab) => requestedTab = tab,
+            body: Stack(
+              children: [
+                Column(
+                  children: [
+                    for (final stop in TutorialStops.all)
+                      SizedBox(
+                        key: TutorialTargetRegistry.keyForId(
+                          stop.targetKeyGetter(),
+                        ),
+                        height: 40,
+                        width: 100,
+                        child: Text(stop.id.name),
+                      ),
+                  ],
+                ),
+                TutorialOverlay(
+                  initialStopIndex: 0,
+                  onFinished: () => finished = true,
+                  onSkipped: () => skipped = true,
+                  onTabRequested: (tab) => requestedTab = tab,
+                ),
+              ],
             ),
           ),
         ),
       );
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       // Stop 1: Your spaces
       expect(find.text('Your spaces'), findsOneWidget);
@@ -377,6 +399,52 @@ void main() {
 
     tearDown(() async {
       await db.close();
+    });
+
+    testWidgets('an account owns one tour and departure cancels it safely', (
+      tester,
+    ) async {
+      TutorialCoordinator.resetSessionState();
+      final coordinator = TutorialCoordinator(db);
+      late BuildContext entryContext;
+      Future<void>? running;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                entryContext = context;
+                return TextButton(
+                  onPressed: () => running = coordinator.startTour(
+                    context,
+                    uid: 'leaving-account',
+                  ),
+                  child: const Text('Start tour'),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Start tour'));
+      await tester.pumpAndSettle();
+      await coordinator.startTour(entryContext, uid: 'leaving-account');
+      expect(find.byType(TutorialOverlay), findsOneWidget);
+      final oldOverlay = tester.widget<TutorialOverlay>(
+        find.byType(TutorialOverlay),
+      );
+      await TutorialCoordinator.cancelForAccount('leaving-account');
+      oldOverlay.onFinished();
+      await running;
+      await tester.pumpAndSettle();
+      expect(find.byType(TutorialOverlay), findsNothing);
+      expect(tester.takeException(), isNull);
+      expect(
+        await tester.runAsync(
+          () => TutorialStore(db).getStatus('leaving-account'),
+        ),
+        TutorialStatus.notStarted,
+      );
     });
 
     testWidgets('does not prompt tour if not marked eligible for first-use', (

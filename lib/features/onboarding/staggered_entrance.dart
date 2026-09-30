@@ -42,7 +42,11 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
     _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: Interval(start, (start + 0.38).clamp(0.0, 1.0), curve: Curves.easeOut),
+        curve: Interval(
+          start,
+          (start + 0.38).clamp(0.0, 1.0),
+          curve: Curves.easeOut,
+        ),
       ),
     );
     _slide = Tween<double>(begin: 8.0, end: 0.0).animate(
@@ -65,7 +69,8 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
       if (_controller.isAnimating) {
         _controller.stop();
       }
@@ -97,10 +102,7 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
         }
         return Transform.translate(
           offset: Offset(0, _slide.value),
-          child: Opacity(
-            opacity: _fade.value,
-            child: child,
-          ),
+          child: Opacity(opacity: _fade.value, child: child),
         );
       },
       child: widget.child,

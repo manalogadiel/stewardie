@@ -1,3 +1,6 @@
+import 'features/onboarding/tutorial/tutorial_target_registry.dart';
+import 'features/onboarding/tutorial/tutorial_entry_gate.dart';
+
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -90,6 +93,12 @@ class AppShell extends ConsumerWidget {
             Positioned.fill(
               child: SafeArea(top: false, bottom: false, child: child),
             ),
+            Positioned.fill(
+              child: TutorialEntryGate(
+                onTabRequested: (tab) =>
+                    context.go(['/today', '/moments', '/space'][tab]),
+              ),
+            ),
             Positioned(
               top: 0,
               left: 0,
@@ -107,6 +116,7 @@ class AppShell extends ConsumerWidget {
                             return SizedBox(
                               width: 48,
                               child: IconButton(
+                                key: TutorialTargetRegistry.mapButtonTarget,
                                 tooltip: 'Space map',
                                 style: IconButton.styleFrom(
                                   backgroundColor: SoftPop.surface,
@@ -131,6 +141,7 @@ class AppShell extends ConsumerWidget {
                       Expanded(
                         child: Center(
                           child: TextButton(
+                            key: TutorialTargetRegistry.spaceSelectorTarget,
                             style: TextButton.styleFrom(
                               backgroundColor: SoftPop.surface,
                               minimumSize: const Size(48, 48),
@@ -219,8 +230,9 @@ class AppShell extends ConsumerWidget {
                             backgroundColor: SoftPop.surface,
                             shape: const CircleBorder(),
                           ),
-                          tooltip: 'Inbox',
-                          icon: const Icon(Icons.inbox_outlined),
+                          key: TutorialTargetRegistry.notificationBellTarget,
+                          tooltip: 'Notifications',
+                          icon: const Icon(Icons.notifications_none_rounded),
                           onPressed: () {
                             final requests = state.tasks
                                 .where(

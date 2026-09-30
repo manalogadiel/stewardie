@@ -35,10 +35,7 @@ class FramingRect {
   static const full = FramingRect();
 
   bool get isFull =>
-      (x <= 0.001) &&
-      (y <= 0.001) &&
-      (width >= 0.999) &&
-      (height >= 0.999);
+      (x <= 0.001) && (y <= 0.001) && (width >= 0.999) && (height >= 0.999);
 
   double get aspectRatio => width / (height <= 0 ? 1.0 : height);
 
@@ -58,10 +55,14 @@ class FramingRect {
     final rawH = (map['height'] as num?)?.toDouble() ?? 1.0;
     final name = map['ratioName'] as String? ?? 'original';
 
-    if (rawX.isNaN || rawX.isInfinite ||
-        rawY.isNaN || rawY.isInfinite ||
-        rawW.isNaN || rawW.isInfinite ||
-        rawH.isNaN || rawH.isInfinite) {
+    if (rawX.isNaN ||
+        rawX.isInfinite ||
+        rawY.isNaN ||
+        rawY.isInfinite ||
+        rawW.isNaN ||
+        rawW.isInfinite ||
+        rawH.isNaN ||
+        rawH.isInfinite) {
       return FramingRect.full;
     }
 
@@ -278,7 +279,6 @@ class _FramedImagePainter extends CustomPainter {
   }
 }
 
-
 class PhotoDraft {
   const PhotoDraft(
     this.bytes,
@@ -322,6 +322,33 @@ PhotoDraft processPhoto(Map<String, Object> input) {
     throw const FormatException('This photo could not be read.');
   }
   decoded = img.bakeOrientation(decoded);
+  final requestedFraming = input['framing'] is Map
+      ? FramingRect.fromMap(Map<String, dynamic>.from(input['framing'] as Map))
+      : FramingRect.full;
+  final bakeFraming = input['bakeFraming'] == true;
+  if (bakeFraming && !requestedFraming.isFull) {
+    final x = (requestedFraming.x * decoded.width).round().clamp(
+      0,
+      decoded.width - 1,
+    );
+    final y = (requestedFraming.y * decoded.height).round().clamp(
+      0,
+      decoded.height - 1,
+    );
+    decoded = img.copyCrop(
+      decoded,
+      x: x,
+      y: y,
+      width: (requestedFraming.width * decoded.width).round().clamp(
+        1,
+        decoded.width - x,
+      ),
+      height: (requestedFraming.height * decoded.height).round().clamp(
+        1,
+        decoded.height - y,
+      ),
+    );
+  }
   if (decoded.width > 1600 || decoded.height > 1600) {
     decoded = img.copyResize(
       decoded,
@@ -352,10 +379,7 @@ PhotoDraft processPhoto(Map<String, Object> input) {
     width: clean.width >= clean.height ? 320 : null,
     height: clean.height > clean.width ? 320 : null,
   );
-  FramingRect framing = FramingRect.full;
-  if (input['framing'] is Map) {
-    framing = FramingRect.fromMap(Map<String, dynamic>.from(input['framing'] as Map));
-  }
+  final framing = bakeFraming ? FramingRect.full : requestedFraming;
   return PhotoDraft(
     encoded,
     img.encodeJpg(thumb, quality: 75),
@@ -512,6 +536,14 @@ class MediaLibrary extends ChangeNotifier {
     PlacePin? pin,
   }) => _serialize(() async {
     _member(space, actor);
+    if (!photo.framing.isFull) {
+      photo = await compute(processPhoto, {
+        'bytes': photo.bytes,
+        'source': photo.source,
+        'framing': photo.framing.toMap(),
+        'bakeFraming': true,
+      });
+    }
     final task = taskId == null ? null : _task(taskId, space);
     if (task != null && task.creatorId != actor && task.ownerId != actor) {
       throw StateError(

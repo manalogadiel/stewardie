@@ -24,6 +24,10 @@ class TutorialTargetRegistry {
     debugLabel: 'tutorial_notification_bell',
   );
 
+  static final Map<String, VoidCallback> preparers = {};
+
+  static void prepare(String id) => preparers[id]?.call();
+
   static String spacesKey() => 'space_selector';
   static String dayTogetherKey() => 'day_together';
   static String tasksKey() => 'tasks';

@@ -1,3 +1,4 @@
+import 'rename_space_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -152,7 +153,6 @@ class _OnlineHomeState extends State<OnlineHome> {
     RevenueCatService.instance.removeListener(_onRevenueCatUpdate);
     _pushOpens?.cancel();
     _foregroundPush?.cancel();
-    LiveLocationService.instance.stopSharing();
     super.dispose();
   }
 
@@ -1403,36 +1403,16 @@ class _OnlineHomeState extends State<OnlineHome> {
   }
 
   Future<void> _renameSpace(String spaceId, String currentName) async {
-    final controller = TextEditingController(text: currentName);
-    final updated = await showDialog<String>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('Rename space'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 80,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Space name'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialog, controller.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (updated == null || updated.isEmpty || updated == currentName) return;
+    final updated = await showRenameSpaceDialog(context, currentName);
+    if (!mounted ||
+        updated == null ||
+        updated.isEmpty ||
+        updated == currentName)
+      return;
     try {
       await widget.backend.callSpaceAction('rename', spaceId, name: updated);
     } catch (_) {
-      _message('Could not rename this space. Please retry.');
+      if (mounted) _message('Could not rename this space. Please retry.');
     }
   }
 

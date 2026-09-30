@@ -12,6 +12,7 @@ import 'external_launcher.dart';
 import 'online_backend.dart';
 import '../core/clay.dart';
 import '../core/theme.dart';
+import '../core/place_pin.dart';
 import '../core/member_avatar.dart';
 import '../features/media/camera_screen.dart';
 import '../features/media/media_library.dart';
@@ -51,8 +52,17 @@ class OnlineMomentsStore extends ChangeNotifier {
     String uid,
     String spaceId,
     PhotoDraft photo,
-    String caption,
-  ) async {
+    String caption, {
+    PlacePin? pin,
+  }) async {
+    if (!photo.framing.isFull) {
+      photo = await compute(processPhoto, {
+        'bytes': photo.bytes,
+        'source': photo.source,
+        'framing': photo.framing.toMap(),
+        'bakeFraming': true,
+      });
+    }
     final now = DateTime.now().toUtc();
     final item = MediaAttachment(
       id: 'local-${now.microsecondsSinceEpoch}-${_serial++}',
@@ -62,6 +72,8 @@ class OnlineMomentsStore extends ChangeNotifier {
       createdAt: now,
       publishedAt: now,
       photo: photo,
+      framing: photo.framing,
+      pin: pin,
     );
     await _onlineMomentRecords.record(item.id).put(database, item.toMap());
     _items.add(item);
@@ -411,6 +423,7 @@ class _OnlineMomentComposer extends StatefulWidget {
 class _OnlineMomentComposerState extends State<_OnlineMomentComposer> {
   final caption = TextEditingController();
   PhotoDraft? draft;
+  PlacePin? pin;
   bool busy = false;
   String? error;
 
@@ -446,8 +459,13 @@ class _OnlineMomentComposerState extends State<_OnlineMomentComposer> {
         final processed = await compute(processPhoto, {
           'bytes': photo.bytes,
           'source': photo.source,
+          'framing': photo.framing.toMap(),
         });
-        if (mounted) setState(() => draft = processed);
+        if (mounted)
+          setState(() {
+            draft = processed;
+            pin = photo.pin;
+          });
       }
     } catch (_) {
       if (mounted) {
@@ -465,7 +483,13 @@ class _OnlineMomentComposerState extends State<_OnlineMomentComposer> {
       error = null;
     });
     try {
-      await widget.store.add(widget.uid, widget.spaceId, draft!, caption.text);
+      await widget.store.add(
+        widget.uid,
+        widget.spaceId,
+        draft!,
+        caption.text,
+        pin: pin,
+      );
       if (mounted) Navigator.pop(context);
     } catch (_) {
       if (mounted) {
@@ -490,10 +514,13 @@ class _OnlineMomentComposerState extends State<_OnlineMomentComposer> {
             else
               ClipRRect(
                 borderRadius: BorderRadius.circular(24),
-                child: Image.memory(
-                  draft!.bytes,
+                child: SizedBox(
                   height: 260,
-                  fit: BoxFit.contain,
+                  child: FramedPhoto(
+                    bytes: draft!.bytes,
+                    framing: draft!.framing,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             const SizedBox(height: 16),

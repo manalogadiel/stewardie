@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
@@ -9,11 +10,7 @@ import '../staggered_entrance.dart';
 /// Celebratory conclusion with restrained confetti and "Open Stewardie".
 /// The primary button is immediately usable without forced delays.
 class AllSetScreen extends StatefulWidget {
-  const AllSetScreen({
-    super.key,
-    required this.name,
-    required this.onOpenApp,
-  });
+  const AllSetScreen({super.key, required this.name, required this.onOpenApp});
 
   final String name;
   final VoidCallback onOpenApp;
@@ -59,10 +56,7 @@ class _AllSetScreenState extends State<AllSetScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const MascotStage(
-                    pose: MascotPose.done,
-                    celebrating: true,
-                  ),
+                  const MascotStage(pose: MascotPose.done, celebrating: true),
                   const SizedBox(height: 24),
                   StaggeredEntrance(
                     order: 1,
@@ -125,7 +119,9 @@ class _AllSetScreenState extends State<AllSetScreen>
                 animation: _confettiController,
                 builder: (context, _) {
                   return CustomPaint(
-                    painter: _ConfettiPainter(progress: _confettiController.value),
+                    painter: _ConfettiPainter(
+                      progress: _confettiController.value,
+                    ),
                   );
                 },
               ),
@@ -183,7 +179,8 @@ class _ConfettiPainter extends CustomPainter {
 
     for (final p in _particles) {
       final y = progress * size.height * p.speed;
-      final x = p.xRatio * size.width +
+      final x =
+          p.xRatio * size.width +
           math.sin(progress * 4.0 * math.pi + p.xRatio * 10) * 16.0;
 
       final alpha = (1.0 - progress).clamp(0.0, 1.0);

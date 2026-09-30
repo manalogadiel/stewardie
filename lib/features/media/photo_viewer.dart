@@ -20,6 +20,66 @@ Future<void> viewPhoto(BuildContext context, MediaAttachment photo) =>
       rootNavigator: true,
     ).push<void>(MaterialPageRoute(builder: (_) => PhotoViewer(photo)));
 
+Future<void> showPhotoLocation(
+  BuildContext context,
+  MediaAttachment photo,
+) async {
+  final pin = photo.pin;
+  if (pin == null) return;
+  final point = LatLng(pin.lat, pin.lng);
+  final details = [
+    pin.source == 'capture' ? 'Taken here' : 'Place tag',
+    pin.label,
+    if (pin.source == 'capture' && pin.locatedAt != null)
+      '${MaterialLocalizations.of(context).formatMediumDate(pin.locatedAt!.toLocal())} '
+          '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(pin.locatedAt!.toLocal()))}',
+    if (pin.accuracy != null) '±${pin.accuracy!.round()} m',
+  ].join(' · ');
+  var expandedStyle = mapTilerKey.isEmpty
+      ? StewardieMapStyle.streets
+      : StewardieMapStyle.satellite;
+  await showModalBottomSheet<void>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (sheet) => StatefulBuilder(
+      builder: (sheet, setMapState) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheet).height * .8,
+          child: Column(
+            children: [
+              Padding(padding: const EdgeInsets.all(16), child: Text(details)),
+              Expanded(
+                child: StewardieMap(
+                  center: point,
+                  zoom: 16,
+                  style: expandedStyle,
+                  onStyleChanged: (value) =>
+                      setMapState(() => expandedStyle = value),
+                  markers: [
+                    Marker(
+                      point: point,
+                      width: 72,
+                      height: 72,
+                      child: ClipOval(
+                        child: Image.memory(
+                          photo.photo.thumbnail,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class PhotoViewer extends ConsumerStatefulWidget {
   const PhotoViewer(this.photo, {super.key});
   final MediaAttachment photo;
@@ -50,6 +110,12 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
         foregroundColor: Colors.white,
         title: const Text('Your moment', style: TextStyle(color: Colors.white)),
         actions: [
+          if (widget.photo.pin != null)
+            IconButton(
+              tooltip: 'Photo location',
+              onPressed: () => showPhotoLocation(context, widget.photo),
+              icon: const Icon(Icons.place_rounded),
+            ),
           IconButton(
             tooltip: 'Save photo',
             onPressed: saving
@@ -163,51 +229,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
               onTap: () {
-                var expandedStyle = mapTilerKey.isEmpty
-                    ? StewardieMapStyle.streets
-                    : StewardieMapStyle.satellite;
-                showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  showDragHandle: true,
-                  builder: (sheet) => StatefulBuilder(
-                    builder: (sheet, setMapState) => SafeArea(
-                      child: SizedBox(
-                        height: MediaQuery.sizeOf(sheet).height * .8,
-                        child: Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(details),
-                            ),
-                            Expanded(
-                              child: StewardieMap(
-                                center: point,
-                                zoom: 16,
-                                style: expandedStyle,
-                                onStyleChanged: (value) =>
-                                    setMapState(() => expandedStyle = value),
-                                markers: [
-                                  Marker(
-                                    point: point,
-                                    width: 72,
-                                    height: 72,
-                                    child: ClipOval(
-                                      child: Image.memory(
-                                        widget.photo.photo.thumbnail,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
+                showPhotoLocation(context, widget.photo);
               },
               child: map(150),
             ),
