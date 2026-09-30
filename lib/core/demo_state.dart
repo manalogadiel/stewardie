@@ -128,7 +128,7 @@ class DemoController extends Notifier<DemoState> {
     String? error;
     try {
       await repository.act(task.id, action, repository.currentUserId);
-      if (action == TaskAction.complete)
+      if (action == TaskAction.complete && !repository.isShared)
         unawaited(SoundFeedback.play('success'));
     } on DemoException catch (exception) {
       error = exception.message;

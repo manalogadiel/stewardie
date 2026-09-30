@@ -1,4 +1,7 @@
 import 'dart:math';
+import 'dart:async';
+
+import '../core/sound_feedback.dart';
 
 import '../core/task_name.dart';
 
@@ -113,13 +116,20 @@ class OnlineBackend {
     // A backend is selected explicitly. A denied/uncertain callable never
     // becomes a less-protected direct write.
     const callable = bool.fromEnvironment('USE_CALLABLE_BACKEND');
+    late final Map<String, dynamic> response;
     if (callable) {
       final result = await functions
           .httpsCallable(name)
           .call<Map<String, dynamic>>(values);
-      return result.data;
+      response = result.data;
+    } else {
+      response = await SparkBackend(this).call(name, values);
     }
-    return SparkBackend(this).call(name, values);
+    if (name == 'markTaskDone' ||
+        (name == 'actOnTask' && values['action'] == 'complete')) {
+      unawaited(SoundFeedback.play('success'));
+    }
+    return response;
   }
 
   Future<Map<String, dynamic>> callSpaceAction(

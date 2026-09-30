@@ -51,3 +51,18 @@ Firebase project `stewardie`: `backend/firebase/firestore.rules` compiled and re
 No Android device was connected to ADB. Actual FCM send permission/token delivery, notification-center presentation/taps, locked-screen GPS, native permission/settings behavior, two-device reaction syncing and cross-device location-start races have not been observed. iOS APNs configuration and device delivery are also unverified. These are testing/setup gates, not claimed successful integration tests.
 
 Fully stop and rerun `flutter run` because native Android notification code changed. With two authorized accounts, check a new task/photo/reaction, foreground/background alerts and taps, sharing in space A while viewing B, Stop/expiry, and create/join selection. Also verify denied notification permission and explicit opt-outs. A failed push must not prevent the inbox/task/photo from syncing. No billing, OneSignal or public release was enabled.
+
+## October 1 follow-up
+
+Implemented all additional requests in plan section 10: always-visible clay map refresh; Hybrid/Streets only; zoom 16 personal centering; automatic read-only place names with editable notes; tighter Moments spacing and a viewport-centered loader; icon/count-only optimistic reactions with serialized saves and rollback/retry; stable account-scoped avatars; shared camera/location fixes; task-name repeated-key checks; highlighted account-wide bell with 99+ badge; and original notification/capture/completion sound assets.
+
+Observed verification:
+
+- Six focused interaction/layout cases passed: task-name validation, permanently visible map refresh, immediate reaction feedback/newer-choice serialization/failed-save rollback, and Moments filtering/TV/preview at 360/430 widths and 2x text. No RenderFlex overflow was reported. The earlier six-case permission/selection/avatar run also passed.
+- Five Firestore emulator cases passed again, including new repeated-key title rejection. Rules deployed successfully to `stewardie`.
+- Live MapTiler Hybrid tile and reverse-geocoding requests both returned HTTP 200 using the existing pilot key; a selected Manila point returned a street/place name. Flutter widget tests intentionally mock network responses, so tile-error output in those tests is distinct from this live API check.
+- Changed-source Dart analysis reported no errors or warnings; style-info diagnostics remain. The worker's new Android/APNs sound payload passed Deno type checking and was deployed to `ulexhxfxatzlobabitpr`.
+- Android native compilation passed with bundled WAV resources, UI SoundPool feedback and the clay notification channel. iOS bundle-resource and AudioToolbox integration were added but cannot be compiled on this Windows machine.
+- WAVs are original synthesized cues, about 136 KB total for the three source assets. They are mirrored into Android raw resources and iOS bundle resources. No sound provider or new dependency was activated.
+
+Native sound volume, Android/iOS notification presentation, real avatar-image stability, GPS during camera capture/live sharing and physical-device safe areas remain device checks. A map without GPS permission/service availability stays usable and does not pretend to have a personal fix. Reverse-geocoding failures show coordinate-based pin names rather than invented place names. Notification channel/permission opt-outs remain respected. Stop and rerun `flutter run` to load the native resources and asset manifest.

@@ -142,3 +142,21 @@ Generate during implementation with the approved original mascot cutouts as imag
 6. Complete a bounded two-device live test for reaction syncing, notification-center display/taps, session privacy and create/join selection. Record missing credentials/device access as explicit gates rather than claiming completion. Document outcomes in a new verification record, linked from this plan.
 
 No new paid tier, OneSignal, Google OAuth activation or public release was activated. Implementation and focused checks are complete; the device gates in the verification record remain unverified rather than being represented as completed tests.
+
+## 10. Owner follow-up — October 1, implemented
+
+These confirmed requests supersede earlier choices about plain Satellite, label-bearing reactions and waiting for acknowledgment before visible reaction feedback.
+
+- Keep one clay tile-refresh button permanently visible on every shared map component, including healthy/loading/error states. Keep GPS recenter/settings separate.
+- Replace plain Satellite with MapTiler **Satellite hybrid**, retaining Streets. Automatically center/zoom to a real personal fix at zoom 16 in the space map and place picker; respect user panning and permission/service failures. Opening a map never starts sharing.
+- On selecting a task/place point, debounce reverse geocoding and fill a read-only place name. The member can edit only Location note. Ignore stale lookup/GPS results; use honest coordinates when the provider is unavailable. Preserve saved fixed pins. Provider reference: [MapTiler Geocoding API](https://docs.maptiler.com/cloud/api/geocoding/), [Hybrid styles](https://docs.maptiler.com/sdk-js/examples/built-in-styles/).
+- Remove the idle loader slot and reduce the Moments header-to-person-filter gap to 8 pixels. Show the rolling mascot loader at the viewport center without blocking input or moving content.
+- Reactions show only clay icons and counts, retaining accessible names. Apply selection/count feedback immediately, serialize/coalesce newer choices, ignore older reads, and visibly roll back/retry failed saves. A small syncing indicator distinguishes pending feedback from confirmation.
+- Retain the avatar's profile stream across rebuilds, decode only changed data, and preserve the loaded image with gapless playback. Bound cached images to 100 profiles and clear them when the signed-in account changes. A confirmed removed picture still shows the deterministic placeholder.
+- Reuse the location service for camera/composer capture fixes during live sharing. Local device fixes update before cloud throttling/upload, so upload latency cannot make camera GPS unavailable. Preserve the capture-time validity check; never use another person's position or automatically start a new live session.
+- Reject repeated-key task names in create/edit paths and enforce repeated ASCII letters/digits in Firestore rules. Keep short legitimate names valid. Preserve drafts and show a useful validation error.
+- Use the account-wide live notification badge in the main shell and empty-space shell. Highlight a bell with unread items and display counts capped at **99+**, with enough room for the capsule badge. Keep unread request/history deduplication.
+- Bundle three original pastel bell/chime WAV assets: notification, successful task completion and photo capture. Use Android's clay notification channel and APNs sound payload, plus native UI feedback for capture/confirmed completion. Respect silent/disabled channels and OS notification settings; do not play sounds for failed saves. Sound generation is reproducible with `tool/generate_soft_pop_sounds.dart`.
+- Check changed surfaces for overflow at narrow/wide widths and 2x text, including reactions, map controls and media preview. Native GPS, perceived latency and sound volume still need device observation.
+
+See the October 1 follow-up section in the [verification record](permissions-tour-moments-notifications-verification.md) for results and remaining gates.

@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../../../core/place_pin.dart';
+import '../../../core/task_name.dart';
 
 import '../domain/models.dart';
 import '../../subscription/revenuecat_service.dart';
@@ -303,9 +304,8 @@ class DemoRepository extends TimelineRepository {
     String? operationId,
     PlacePin? pin,
   }) async {
-    if (title.trim().isEmpty) {
-      throw const DemoException('Give your task a name.');
-    }
+    final titleError = taskNameError(title);
+    if (titleError != null) throw DemoException(titleError);
     final task = Task(
       id: 'local-${clock().microsecondsSinceEpoch}-${_nextId++}',
       spaceId: spaceId,
