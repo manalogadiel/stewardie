@@ -101,6 +101,11 @@ void main() {
       );
       await tester.tap(find.text('Photo'));
       await tester.pumpAndSettle();
+      await tester.runAsync(() => precacheImage(
+        tester.widget<Image>(find.byType(Image).first).image,
+        tester.element(find.byType(Image).first),
+      ));
+      await tester.pumpAndSettle();
       expect(
         tester.widget<Image>(find.byType(Image).first).fit,
         BoxFit.contain,
