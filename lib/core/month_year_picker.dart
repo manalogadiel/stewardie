@@ -112,8 +112,9 @@ class _MonthYearSheetState extends State<_MonthYearSheet> {
               return DropdownMenuItem(value: year, child: Text('$year'));
             }),
             onChanged: (year) {
-              if (year != null)
+              if (year != null) {
                 setState(() => choice = DateTime(year, choice.month));
+              }
             },
           ),
           const SizedBox(height: 16),

@@ -24,14 +24,16 @@ class _AppSoundSettingsState extends State<AppSoundSettings> {
     try {
       await SoundFeedback.update(value);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => error = 'Could not save sound settings. Please retry.');
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           saving = false;
           draftVolume = null;
         });
+      }
     }
   }
 
@@ -139,12 +141,13 @@ class _AppSoundSettingsState extends State<AppSoundSettings> {
                       await const PermissionAdapter().openSettings();
                     }
                   } catch (_) {
-                    if (context.mounted)
+                    if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Could not open device settings.'),
                         ),
                       );
+                    }
                   }
                 },
               ),

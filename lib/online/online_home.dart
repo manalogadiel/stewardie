@@ -193,10 +193,11 @@ class _OnlineHomeState extends State<OnlineHome> {
         uid: widget.user.uid,
         onTabRequested: (tab) {
           if (!mounted) return;
-          if (widget.onTabRequested != null)
+          if (widget.onTabRequested != null) {
             widget.onTabRequested!(tab);
-          else
+          } else {
             setState(() => _destination = tab);
+          }
         },
       );
       return;
@@ -1449,8 +1450,9 @@ class _OnlineHomeState extends State<OnlineHome> {
     if (!mounted ||
         updated == null ||
         updated.isEmpty ||
-        updated == currentName)
+        updated == currentName) {
       return;
+    }
     try {
       await widget.backend.callSpaceAction('rename', spaceId, name: updated);
     } catch (_) {
@@ -1858,10 +1860,11 @@ class _OnlineHomeState extends State<OnlineHome> {
                                     'spaceId': spaceId,
                                   });
                                 } catch (_) {
-                                  if (mounted)
+                                  if (mounted) {
                                     _message(
                                       'Could not cancel the ownership offer. Try again.',
                                     );
+                                  }
                                 }
                               },
                               icon: const Icon(Icons.undo_rounded),

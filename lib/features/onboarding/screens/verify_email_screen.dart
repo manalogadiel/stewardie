@@ -262,8 +262,9 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
       ),
     );
 
-    if (newEmail == null || newEmail.isEmpty || newEmail == _currentEmail)
+    if (newEmail == null || newEmail.isEmpty || newEmail == _currentEmail) {
       return;
+    }
 
     setState(() {
       _busy = true;

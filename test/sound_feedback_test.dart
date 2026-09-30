@@ -10,7 +10,6 @@ import 'package:stewardie/online/edit_outbox.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sembast/sembast_memory.dart';
-import 'package:sembast/sembast.dart';
 import 'package:stewardie/core/sound_feedback.dart';
 import 'package:stewardie/core/theme.dart';
 import 'package:stewardie/online/app_sound_settings.dart';

@@ -60,9 +60,10 @@ class _CameraScreenState extends State<CameraScreen>
   StreamSubscription<double>? orientationSubscription;
 
   DeviceOrientation get captureOrientation {
-    if (physicalTurns == null)
+    if (physicalTurns == null) {
       return controller?.value.deviceOrientation ??
           DeviceOrientation.portraitUp;
+    }
     return switch ((physicalTurns! * 4).round() % 4) {
       1 => DeviceOrientation.landscapeLeft,
       2 => DeviceOrientation.portraitDown,
@@ -243,8 +244,9 @@ class _CameraScreenState extends State<CameraScreen>
             )
           : await controller!.takePicture();
       if (file != null) {
-        if (!gallery && soundIntent != null)
+        if (!gallery && soundIntent != null) {
           unawaited(SoundFeedback.emit(SoundCue.capture, intent: soundIntent));
+        }
         final selectedCrop = shutterRatio;
         final pendingPin = locationFuture?.then(
           (fix) =>
@@ -632,8 +634,9 @@ class _CameraScreenState extends State<CameraScreen>
                                             ? FlashMode.off
                                             : FlashMode.always,
                                       );
-                                      if (mounted)
+                                      if (mounted) {
                                         setState(() => flash = !flash);
+                                      }
                                     } catch (_) {
                                       if (mounted) {
                                         setState(() => flashAvailable = false);

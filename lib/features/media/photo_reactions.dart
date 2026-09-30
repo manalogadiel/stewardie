@@ -66,15 +66,17 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
     final started = revision;
     try {
       final result = await library!.reactions(widget.photo);
-      if (mounted && started == revision)
+      if (mounted && started == revision) {
         setState(() {
           rows = result;
           confirmed = result;
           error = null;
         });
+      }
     } catch (_) {
-      if (mounted && started == revision)
+      if (mounted && started == revision) {
         setState(() => error = 'Could not load reactions.');
+      }
     } finally {
       reading = false;
     }

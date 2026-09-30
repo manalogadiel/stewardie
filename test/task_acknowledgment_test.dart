@@ -91,10 +91,12 @@ void main() {
         ),
       );
       expect(find.text('Synced'), findsNothing);
-      if (sync == SyncState.pending)
+      if (sync == SyncState.pending) {
         expect(find.text('Pending sync'), findsOneWidget);
-      if (sync == SyncState.failed)
+      }
+      if (sync == SyncState.failed) {
         expect(find.text('Needs retry'), findsOneWidget);
+      }
       expect(tester.takeException(), isNull);
     });
   }

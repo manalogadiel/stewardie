@@ -103,10 +103,11 @@ class EditOutbox extends ChangeNotifier {
           item['status'] = 'synced';
           item.remove('error');
         } catch (error) {
-          if (soundIntent != null)
+          if (soundIntent != null) {
             unawaited(
               SoundFeedback.emit(SoundCue.attention, intent: soundIntent),
             );
+          }
           final unavailable =
               error is FirebaseException &&
               [

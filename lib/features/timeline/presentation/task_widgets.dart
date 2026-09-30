@@ -247,8 +247,9 @@ class _AddTaskState extends ConsumerState<_AddTask> {
                           context,
                           initial: pin,
                         );
-                        if (selected != null && mounted)
+                        if (selected != null && mounted) {
                           setState(() => pin = selected);
+                        }
                       },
                 icon: const Icon(Icons.place_outlined),
                 label: Text(pin?.label ?? 'Add destination (optional)'),

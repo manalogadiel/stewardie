@@ -323,8 +323,9 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
         throw StateError('Location services are off. Open location settings.');
       }
       var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied)
+      if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+      }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         throw StateError(
@@ -332,15 +333,16 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
         );
       }
       final position = await LiveLocationService.instance.determinePosition();
-      if (position == null)
+      if (position == null) {
         throw StateError('Could not obtain a photo location.');
+      }
       if (position.timestamp.toUtc().difference(capturedAt!).abs() >
           const Duration(seconds: 30)) {
         throw StateError(
           'No fix was available near capture time. Continue without location.',
         );
       }
-      if (mounted)
+      if (mounted) {
         setState(() {
           pin = PlacePin(
             lat: position.latitude,
@@ -354,13 +356,15 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
           includeLocation = true;
           locationIssue = null;
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => locationIssue = e is StateError
               ? e.message
               : 'Could not obtain a fresh location.',
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -408,10 +412,11 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             TaskAction.complete,
             repository.currentUserId,
           );
-          if (!completed.isDone)
+          if (!completed.isDone) {
             throw StateError(
               'Task could not be finished. Retry when connected.',
             );
+          }
           ref.read(demoProvider.notifier).refresh();
         }
       }

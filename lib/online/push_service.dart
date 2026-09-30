@@ -70,12 +70,14 @@ class PushService {
       _native.setMethodCallHandler((call) async {
         if (call.method == 'opened' &&
             _uid == uid &&
-            FirebaseAuth.instance.currentUser?.uid == uid)
+            FirebaseAuth.instance.currentUser?.uid == uid) {
           _requestInboxOpen();
+        }
       });
       if (await _native.invokeMethod<String>('takeInitial') != null &&
-          _uid == uid)
+          _uid == uid) {
         _requestInboxOpen();
+      }
     }
     _foregroundMessages = FirebaseMessaging.onMessage.listen((message) {
       if (_uid == uid && FirebaseAuth.instance.currentUser?.uid == uid) {
@@ -157,8 +159,9 @@ class PushService {
 
   Future<void> openSystemSettings() async {
     if (!available) return;
-    if (defaultTargetPlatform == TargetPlatform.android)
+    if (defaultTargetPlatform == TargetPlatform.android) {
       await _native.invokeMethod<void>('settings');
+    }
   }
 
   Future<void> syncPermission() => _syncIfPermitted();
@@ -195,8 +198,9 @@ class PushService {
       'platform': _platform,
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    if (_uid == uid && FirebaseAuth.instance.currentUser?.uid == uid)
+    if (_uid == uid && FirebaseAuth.instance.currentUser?.uid == uid) {
       _documentId = id;
+    }
   }
 
   Future<bool> requestPermission() async {
@@ -212,7 +216,7 @@ class PushService {
           'accounts/$uid/notificationPrefs/global',
         );
         await FirebaseFirestore.instance.runTransaction((tx) async {
-          if (!(await tx.get(pref)).exists)
+          if (!(await tx.get(pref)).exists) {
             tx.set(pref, {
               'enabled': true,
               'quietStart': 1320,
@@ -220,6 +224,7 @@ class PushService {
               'timeZone': 'Asia/Manila',
               'updatedAt': FieldValue.serverTimestamp(),
             });
+          }
         });
       }
       await _syncIfPermitted();

@@ -23,10 +23,12 @@ class PermissionAdapter {
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
   static PermissionStatusState mapStatus(native.PermissionStatus status) {
-    if (status.isGranted || status.isLimited || status.isProvisional)
+    if (status.isGranted || status.isLimited || status.isProvisional) {
       return PermissionStatusState.granted;
-    if (status.isPermanentlyDenied || status.isRestricted)
+    }
+    if (status.isPermanentlyDenied || status.isRestricted) {
       return PermissionStatusState.permanentlyDenied;
+    }
     return PermissionStatusState.denied;
   }
 
@@ -41,8 +43,9 @@ class PermissionAdapter {
   ) async {
     if (!supported ||
         (capability == PermissionCapability.notifications &&
-            !PushService.instance.available))
+            !PushService.instance.available)) {
       return PermissionStatusState.unavailable;
+    }
     try {
       return mapStatus(await _permission(capability).status);
     } catch (_) {
@@ -56,8 +59,9 @@ class PermissionAdapter {
     if (!supported) return PermissionStatusState.unavailable;
     try {
       if (capability == PermissionCapability.notifications) {
-        if (!PushService.instance.available)
+        if (!PushService.instance.available) {
           return PermissionStatusState.unavailable;
+        }
         await PushService.instance.requestPermission();
         return await checkStatus(capability);
       }

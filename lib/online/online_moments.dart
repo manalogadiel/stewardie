@@ -461,11 +461,12 @@ class _OnlineMomentComposerState extends State<_OnlineMomentComposer> {
           'source': photo.source,
           'framing': photo.framing.toMap(),
         });
-        if (mounted)
+        if (mounted) {
           setState(() {
             draft = processed;
             pin = photo.pin;
           });
+        }
       }
     } catch (_) {
       if (mounted) {

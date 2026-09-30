@@ -36,8 +36,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   void _prepareTaskTarget() {
     if (!mounted ||
         !scroll.hasClients ||
-        TutorialTargetRegistry.tasksTarget.currentContext != null)
+        TutorialTargetRegistry.tasksTarget.currentContext != null) {
       return;
+    }
     // Sliver headers beyond the cache are not mounted until approached.
     scroll.jumpTo(
       (scroll.offset + 300).clamp(0, scroll.position.maxScrollExtent),

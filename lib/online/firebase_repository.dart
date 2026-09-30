@@ -271,8 +271,9 @@ class FirebaseTimelineRepository extends TimelineRepository {
       backend.spaces(currentUserId).listen((snapshot) {
         final ids = snapshot.docs.map((d) => d.id).toSet();
         for (final id in _refs.keys.toList()) {
-          if (!ids.contains(id))
+          if (!ids.contains(id)) {
             _removeSpace(id, discardDrafts: !snapshot.metadata.isFromCache);
+          }
         }
         for (final doc in snapshot.docs) {
           _refs[doc.id] = doc.data();

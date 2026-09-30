@@ -44,9 +44,9 @@ class SparkBackend {
       'entityId': entityId,
       'targetUid': targetUid,
       'recipientUids': recipients,
-      if (affectedUids != null) 'affectedUids': affectedUids,
-      if (taskVersion != null) 'taskVersion': taskVersion,
-      if (planRevision != null) 'planRevision': planRevision,
+      'affectedUids': ?affectedUids,
+      'taskVersion': ?taskVersion,
+      'planRevision': ?planRevision,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -686,8 +686,9 @@ class SparkBackend {
         await db.runTransaction((tx) async {
           final parent = (await tx.get(space(id!))).data()!;
           final nominee = parent['pendingOwnerUid'] as String?;
-          if (parent['ownerUid'] != uid)
+          if (parent['ownerUid'] != uid) {
             throw StateError('Only the owner can cancel this offer.');
+          }
           if (nominee == null) return;
           tx.update(space(id), {'pendingOwnerUid': null});
           addSpaceEvent(
@@ -1160,8 +1161,9 @@ class SparkBackend {
         });
         return {'ok': true};
       case 'stopLocationSession':
-        if (!OnlineBackend.useEmulator)
+        if (!OnlineBackend.useEmulator) {
           return backend.callSpaceAction('stopLocation', id!);
+        }
         await space(id!).collection('locationSessions').doc(uid).delete();
         return {'ok': true};
       case 'checkInArrival':

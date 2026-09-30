@@ -41,10 +41,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => photo = next);
       widget.onPhotoChanged(next);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = 'Could not open that photo. You can try again or skip.',
         );
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }

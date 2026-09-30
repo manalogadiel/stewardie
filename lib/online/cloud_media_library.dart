@@ -330,7 +330,7 @@ class CloudMediaLibrary extends MediaLibrary {
           await cacheAttachment(item);
           await _outbox.record('${user.uid}/$id').delete(database!);
           _pending.remove(id);
-          if (item.publishedAt != null)
+          if (item.publishedAt != null) {
             unawaited(
               SoundFeedback.confirmed(
                 SoundCue.momentShared,
@@ -338,11 +338,13 @@ class CloudMediaLibrary extends MediaLibrary {
                 soundIntent,
               ),
             );
+          }
         } catch (e) {
-          if (soundIntent != null)
+          if (soundIntent != null) {
             unawaited(
               SoundFeedback.emit(SoundCue.attention, intent: soundIntent),
             );
+          }
           // Retain this attachment for retry without starving later spaces.
           _error = e is StateError
               ? e.message

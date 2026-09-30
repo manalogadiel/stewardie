@@ -44,8 +44,9 @@ class _RenameSpaceDialogState extends State<_RenameSpaceDialog> {
       ),
       FilledButton(
         onPressed: () {
-          if (form.currentState!.validate())
+          if (form.currentState!.validate()) {
             Navigator.pop(context, controller.text.trim());
+          }
         },
         child: const Text('Save'),
       ),

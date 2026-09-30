@@ -106,8 +106,9 @@ class _MemberAvatarState extends State<MemberAvatar> {
                   if (encoded != _encoded || encoded == null) {
                     _encoded = encoded;
                     _bytes = ProfilePhoto.decode(encoded);
-                    if (_photos.length >= 100 && !_photos.containsKey(uid))
+                    if (_photos.length >= 100 && !_photos.containsKey(uid)) {
                       _photos.remove(_photos.keys.first);
+                    }
                     _photos[uid] = _bytes;
                   }
                 }

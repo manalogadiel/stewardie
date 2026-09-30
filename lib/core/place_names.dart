@@ -22,8 +22,9 @@ Future<String> nameForPlace(double lat, double lng) async {
         final features = body['features'] as List? ?? [];
         if (features.isNotEmpty) {
           final value = features.first['place_name'] ?? features.first['text'];
-          if (value is String && value.trim().isNotEmpty)
+          if (value is String && value.trim().isNotEmpty) {
             return String.fromCharCodes(value.trim().runes.take(80));
+          }
         }
       }
     } catch (_) {

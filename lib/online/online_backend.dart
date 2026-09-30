@@ -193,7 +193,7 @@ class OnlineBackend {
         'spaceId': spaceId,
         'name': ?name,
         'token': ?token,
-        if (location != null) ...location,
+        ...?location,
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -231,10 +231,11 @@ class OnlineBackend {
         .timeout(const Duration(seconds: 25));
     if (auth.currentUser?.uid != user?.uid) throw StateError('Sign in again.');
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    if (response.statusCode != 200)
+    if (response.statusCode != 200) {
       throw StateError(
         body['error'] as String? ?? 'Could not save. Try again.',
       );
+    }
     return body;
   }
 

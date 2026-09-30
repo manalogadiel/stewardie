@@ -162,11 +162,12 @@ class TutorialStore {
           await setStatus(uid, status);
           return status;
         }
-        if (remoteStatus != null)
+        if (remoteStatus != null) {
           return TutorialStatus.values.firstWhere(
             (s) => s.name == remoteStatus,
             orElse: () => TutorialStatus.skipped,
           );
+        }
       } catch (_) {
         return TutorialStatus.skipped;
       }

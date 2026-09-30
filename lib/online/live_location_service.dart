@@ -76,8 +76,9 @@ class LiveLocationService {
           _activeSpaceId = spaceId;
           final space = await backend.firestore.doc('spaces/$spaceId').get();
           if (revision != _sharingRevision ||
-              backend.auth.currentUser?.uid != uid)
+              backend.auth.currentUser?.uid != uid) {
             return;
+          }
           _activeSpaceName = space.data()?['name'] as String? ?? 'your space';
           _expiresAt = expiry;
           _lastSent = (session.data()?['updatedAt'] as Timestamp?)?.toDate();
@@ -174,16 +175,18 @@ class LiveLocationService {
     if (isSharing.value) await stopSharing();
     if (_hasCurrentAccountStops) {
       await _retryStops();
-      if (_hasCurrentAccountStops)
+      if (_hasCurrentAccountStops) {
         throw StateError(
           'Your previous sharing session is still stopping. Retry once the server confirms.',
         );
+      }
     }
     final space = await backend.firestore
         .doc('spaces/$spaceId')
         .get(const GetOptions(source: Source.server));
-    if (backend.auth.currentUser?.uid != uid)
+    if (backend.auth.currentUser?.uid != uid) {
       throw StateError('Sign in again.');
+    }
     _activeSpaceName = space.data()?['name'] as String? ?? 'your space';
     final revision = ++_sharingRevision;
     bool current() =>
@@ -369,8 +372,9 @@ class LiveLocationService {
     final spaceId = _activeSpaceId;
     _activeSpaceId = null;
     await positions?.cancel();
-    if (wasSharing && intent != null)
+    if (wasSharing && intent != null) {
       unawaited(SoundFeedback.emit(SoundCue.locationStop, intent: intent));
+    }
     if (backend == null || uid == null || spaceId == null) return;
     try {
       if (backend.auth.currentUser?.uid != uid) return;

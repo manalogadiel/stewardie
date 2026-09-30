@@ -106,8 +106,9 @@ class DemoController extends Notifier<DemoState> {
     ++_selectionRevision;
     _awaitingMembership = repository.spaces.any((s) => s.id == id) ? null : id;
     final db = ref.read(tutorialDatabaseProvider);
-    if (db != null)
+    if (db != null) {
       unawaited(_selectionStore.record(repository.currentUserId).put(db, id));
+    }
     state = DemoState(
       tasks: state.tasks,
       spaceId: id,
@@ -130,8 +131,9 @@ class DemoController extends Notifier<DemoState> {
     String? error;
     try {
       await repository.act(task.id, action, repository.currentUserId);
-      if (action == TaskAction.complete && !repository.isShared)
+      if (action == TaskAction.complete && !repository.isShared) {
         unawaited(SoundFeedback.play('success'));
+      }
     } on DemoException catch (exception) {
       error = exception.message;
     } on FirebaseException catch (exception) {

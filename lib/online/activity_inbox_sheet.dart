@@ -175,12 +175,13 @@ class ActivityInboxSheet extends StatelessWidget {
         if (doc.data()['accountNotice'] == true && cleanupId is String) {
           try {
             await backend.callSpaceAction('drainDeletion', cleanupId);
-            if (context.mounted)
+            if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Cloud cleanup retry requested.')),
               );
+            }
           } catch (_) {
-            if (context.mounted)
+            if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
@@ -188,6 +189,7 @@ class ActivityInboxSheet extends StatelessWidget {
                   ),
                 ),
               );
+            }
           }
         }
         if (doc.data()['readAt'] == null) {

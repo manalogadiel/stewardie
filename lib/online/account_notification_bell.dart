@@ -69,8 +69,9 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
                   );
                   if (key != null) active.add(key);
                 }
-                if (mounted)
+                if (mounted) {
                   setState(() => requests['tasks:$spaceId'] = active);
+                }
               },
               onError: (Object error) {
                 if (mounted) setState(() => requests.remove('tasks:$spaceId'));
@@ -111,8 +112,9 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
               for (final doc in snapshot.docs) {
                 final data = doc.data();
                 if (data['accountNotice'] != true &&
-                    !ids.contains(data['spaceId']))
+                    !ids.contains(data['spaceId'])) {
                   continue;
+                }
                 final key = unreadActivityKey(doc.id, data);
                 if (key != null) unread.add(key);
               }

@@ -190,16 +190,18 @@ abstract final class SoundFeedback {
   static Future<void> emit(SoundCue cue, {SoundIntent? intent}) async {
     final captured = intent ?? captureIntent();
     final prefs = settings.value;
-    if (!_valid(captured) || !prefs.enabled || prefs.volume == 0 || kIsWeb)
+    if (!_valid(captured) || !prefs.enabled || prefs.volume == 0 || kIsWeb) {
       return;
+    }
     if (cue == SoundCue.reactionPop && !prefs.reactions) return;
     if (cue == SoundCue.attention && !prefs.attention) return;
     final now = DateTime.now();
     if (now.isBefore(_notificationUntil)) return;
     if (cue == SoundCue.reactionPop) {
       if (now.difference(_reactionAt).inMilliseconds < 200 ||
-          now.isBefore(_busyUntil))
+          now.isBefore(_busyUntil)) {
         return;
+      }
       _reactionAt = now;
     }
     _busyUntil = now.add(cue.duration);

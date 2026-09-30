@@ -151,8 +151,9 @@ class TutorialCoordinator {
         stops: hasSpaces ? TutorialStops.all : [TutorialStops.all.first],
         finishLabel: hasSpaces ? 'Got it' : 'Create or join',
         onStopChanged: (index) {
-          if (!isReplay && uid.isNotEmpty)
+          if (!isReplay && uid.isNotEmpty) {
             unawaited(_store.setCurrentStopIndex(uid, index));
+          }
         },
         onTabRequested: onTabRequested,
         onFinished: () => close(
@@ -192,13 +193,15 @@ class TutorialCoordinator {
   }) async {
     if (database == null ||
         _activeTours.containsKey(uid) ||
-        _resumeOffered.contains(uid))
+        _resumeOffered.contains(uid)) {
       return;
+    }
     final status = await _store.getStatus(uid);
     if (!context.mounted ||
         (status != TutorialStatus.awaitingSpace &&
-            status != TutorialStatus.inProgress))
+            status != TutorialStatus.inProgress)) {
       return;
+    }
     if (!_resumeOffered.add(uid)) return;
     final accepted = await TutorialInvitationSheet.show(context, resume: true);
     if (!context.mounted) return;
@@ -219,8 +222,9 @@ class TutorialCoordinator {
       final status = await _store.getStatus(uid);
       if ((status != TutorialStatus.awaitingSpace &&
               status != TutorialStatus.inProgress) ||
-          !context.mounted)
+          !context.mounted) {
         return;
+      }
       final next = status == TutorialStatus.awaitingSpace
           ? 1
           : await _store.getCurrentStopIndex(uid);
