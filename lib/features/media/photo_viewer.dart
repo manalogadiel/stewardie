@@ -102,7 +102,13 @@ class PhotoViewer extends ConsumerStatefulWidget {
 class _PhotoViewerState extends ConsumerState<PhotoViewer> {
   late final _full = ref.read(mediaLibraryProvider).fullPhoto(widget.photo);
   bool saving = false;
-  String? message;
+  void showMessage(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..removeCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.watch(demoProvider);
@@ -125,7 +131,12 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
       backgroundColor: SoftPop.canvas,
       appBar: AppBar(
         foregroundColor: SoftPop.ink,
-        title: const Text('Your moment', style: TextStyle(color: SoftPop.ink)),
+        title: const Text(
+          'Your moment',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: SoftPop.ink),
+        ),
         actions: [
           if (widget.photo.pin != null)
             IconButton(
@@ -146,11 +157,11 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                             .fullPhoto(widget.photo),
                         widget.photo.id,
                       );
-                      if (mounted) setState(() => message = result);
+                      showMessage(result);
                     } catch (_) {
                       if (mounted) {
-                        setState(
-                          () => message = 'Could not save. Check photo permissions and available storage, then try again.',
+                        showMessage(
+                          'Could not save. Check photo permissions and available storage, then try again.',
                         );
                       }
                     } finally {
@@ -198,80 +209,99 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                 ),
               ),
             ],
-            Column(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(28),
-                      child: InteractiveViewer(
-                        minScale: .8,
-                        maxScale: 5,
-                        child: Center(
-                          child: FutureBuilder(
-                            future: _full,
-                            builder: (context, snapshot) => snapshot.hasError
-                                ? const Text(
-                                    'Could not load this photo. Close and try again.',
-                                    style: TextStyle(color: SoftPop.ink),
-                                  )
-                                : ClipRRect(
-                                    borderRadius: BorderRadius.circular(24),
-                                    child: Image.memory(
-                                      snapshot.data ??
-                                          widget.photo.photo.thumbnail,
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final largeText =
+                    MediaQuery.textScalerOf(context).scale(16) >= 24;
+                final compact = constraints.maxHeight < 560 || largeText;
+                final caption = widget.photo.taskTitle ?? widget.photo.caption;
+                final mapHeight = (constraints.maxHeight * .22).clamp(
+                  72.0,
+                  130.0,
+                );
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: SoftPop.surface,
+                            borderRadius: BorderRadius.circular(28),
+                            boxShadow: [
+                              BoxShadow(
+                                color: SoftPop.ink.withValues(alpha: .08),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Flexible(
-                  flex: 2,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                          child: Text(
-                            author,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        if (widget.photo.caption.isNotEmpty ||
-                            widget.photo.taskTitle != null)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                            child: Text(
-                              widget.photo.taskTitle ?? widget.photo.caption,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        PhotoReactions(photo: widget.photo),
-                        if (widget.photo.pin != null) _photoLocation(context),
-                        if (saving) const LinearProgressIndicator(),
-                        if (message != null)
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Semantics(
-                              liveRegion: true,
-                              child: Text(
-                                message!,
-                                style: const TextStyle(color: SoftPop.ink),
+                          clipBehavior: Clip.antiAlias,
+                          child: InteractiveViewer(
+                            minScale: 1,
+                            maxScale: 5,
+                            child: Center(
+                              child: FutureBuilder(
+                                future: _full,
+                                builder: (context, snapshot) =>
+                                    snapshot.hasError
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(16),
+                                        child: Text(
+                                          'Could not load this photo. Close and try again.',
+                                        ),
+                                      )
+                                    : Image.memory(
+                                        snapshot.data ??
+                                            widget.photo.photo.thumbnail,
+                                        fit: BoxFit.contain,
+                                      ),
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      if (caption.isNotEmpty)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => showModalBottomSheet<void>(
+                            context: context,
+                            useSafeArea: true,
+                            showDragHandle: true,
+                            builder: (_) => SingleChildScrollView(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(caption),
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              caption,
+                              maxLines: compact ? 1 : 2,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                      PhotoReactions(photo: widget.photo),
+                      if (widget.photo.pin != null)
+                        _photoLocation(context, mapHeight),
+                      if (saving)
+                        const SizedBox(
+                          height: 2,
+                          child: LinearProgressIndicator(),
+                        ),
+                    ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ],
         ),
@@ -279,7 +309,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
     );
   }
 
-  Widget _photoLocation(BuildContext context) {
+  Widget _photoLocation(BuildContext context, double mapHeight) {
     final pin = widget.photo.pin!;
     final point = LatLng(pin.lat, pin.lng);
     final subtitle = pin.source == 'capture' ? 'Taken here' : 'Place tag';
@@ -316,7 +346,12 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(details, style: const TextStyle(color: SoftPop.ink)),
+          Text(
+            details,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: SoftPop.ink),
+          ),
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(16),
@@ -324,7 +359,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
               onTap: () {
                 showPhotoLocation(context, widget.photo);
               },
-              child: map(150),
+              child: map(mapHeight),
             ),
           ),
         ],

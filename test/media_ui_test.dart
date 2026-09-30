@@ -6,18 +6,26 @@ import 'package:image/image.dart' as img;
 import 'package:stewardie/app.dart';
 import 'package:stewardie/core/demo_state.dart';
 import 'package:stewardie/core/theme.dart';
+import 'package:stewardie/core/place_pin.dart';
 import 'package:stewardie/features/media/camera_screen.dart';
 import 'package:stewardie/features/media/media_library.dart';
 import 'package:stewardie/features/media/photo_composer.dart';
 import 'package:stewardie/features/media/photo_viewer.dart';
+import 'package:stewardie/features/media/photo_reactions.dart';
 import 'package:stewardie/features/moments/moments_screen.dart';
 import 'package:stewardie/features/timeline/data/demo_repository.dart';
 import 'package:stewardie/features/timeline/domain/models.dart';
 
 import 'demo_ui_test.dart' show captureKey, screenshot, reveal;
+import 'permissions_moments_selection_test.dart' show HeldReactions;
 
 late Uint8List photoBytes;
 late PhotoDraft photo;
+
+class _ViewerReactions extends HeldReactions {
+  @override
+  Future<Uint8List> fullPhoto(MediaAttachment item) async => item.photo.bytes;
+}
 
 Future<ProviderContainer> startMedia(
   WidgetTester tester, {
@@ -279,6 +287,59 @@ void main() {
     expect(find.text('Saved to your photos.'), findsOneWidget);
   });
 
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('pinned viewer fits one short page at ${scale}x', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(360, 640);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final post = MediaAttachment(
+        id: 'pinned',
+        spaceId: 'home',
+        uploaderId: 'me',
+        caption: 'A very long caption to check the compact viewer layout and details access.',
+        createdAt: DateTime.now(),
+        photo: photo,
+        cloud: true,
+        pin: const PlacePin(
+          lat: 14.6,
+          lng: 121,
+          label: 'A long saved location in the Philippines',
+          source: 'capture',
+        ),
+      );
+      final reactions = _ViewerReactions();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [mediaLibraryProvider.overrideWithValue(reactions)],
+          child: RepaintBoundary(
+            key: captureKey,
+            child: MaterialApp(theme: SoftPop.theme, home: PhotoViewer(post)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(SingleChildScrollView), findsNothing);
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.byType(PhotoReactions), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Like, 0 reactions',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Taken here'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await screenshot(tester, 'moment-page-short-${scale.toInt()}x');
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
   for (final settings in [(360.0, 1.0), (430.0, 1.0), (360.0, 2.0)]) {
     testWidgets(
       'Moments TV filtering, paging and preview ${settings.$1} ${settings.$2}',

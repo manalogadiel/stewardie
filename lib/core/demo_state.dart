@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'sound_feedback.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sembast/sembast.dart';
 
@@ -132,6 +134,17 @@ class DemoController extends Notifier<DemoState> {
         unawaited(SoundFeedback.play('success'));
     } on DemoException catch (exception) {
       error = exception.message;
+    } on FirebaseException catch (exception) {
+      error = switch (exception.code) {
+        'permission-denied' =>
+          'You no longer have permission to change this task.',
+        'unavailable' || 'deadline-exceeded' =>
+          'Connection unavailable. Retry to check this task.',
+        'not-found' => 'This task is no longer available.',
+        'aborted' ||
+        'failed-precondition' => 'This task changed. Refresh it and try again.',
+        _ => 'Could not save. Try again.',
+      };
     } catch (_) {
       error = 'Could not save. Try again.';
     }

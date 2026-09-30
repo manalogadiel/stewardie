@@ -22,25 +22,50 @@ class TaskCard extends ConsumerWidget {
     borderRadius: BorderRadius.circular(20),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
-      onTap: task.syncState == SyncState.synced ? () => context.push('/task/${task.id}') : null,
+      onTap: task.syncState == SyncState.synced
+          ? () => context.push('/task/${task.id}')
+          : null,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(switch (task.syncState) {
-                SyncState.synced => 'Synced',
-                SyncState.pending => 'Pending sync',
-                SyncState.failed => 'Needs retry',
-              }, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: SoftPop.secondary)),
-            ),
-            if (task.syncState == SyncState.failed && ref.read(repositoryProvider) is FirebaseTimelineRepository)
-              Wrap(spacing: 8, children: [
-                TextButton(onPressed: () => (ref.read(repositoryProvider) as FirebaseTimelineRepository).outbox.flush(retryFailed: true), child: const Text('Retry sync')),
-                TextButton(onPressed: () => (ref.read(repositoryProvider) as FirebaseTimelineRepository).outbox.acknowledged(task.id), child: const Text('Discard draft')),
-              ]),
+            if (task.syncState != SyncState.synced)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  switch (task.syncState) {
+                    SyncState.synced => 'Synced',
+                    SyncState.pending => 'Pending sync',
+                    SyncState.failed => 'Needs retry',
+                  },
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: SoftPop.secondary),
+                ),
+              ),
+            if (task.syncState == SyncState.failed &&
+                ref.read(repositoryProvider) is FirebaseTimelineRepository)
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: () =>
+                        (ref.read(repositoryProvider)
+                                as FirebaseTimelineRepository)
+                            .outbox
+                            .flush(retryFailed: true),
+                    child: const Text('Retry sync'),
+                  ),
+                  TextButton(
+                    onPressed: () =>
+                        (ref.read(repositoryProvider)
+                                as FirebaseTimelineRepository)
+                            .outbox
+                            .acknowledged(task.id),
+                    child: const Text('Discard draft'),
+                  ),
+                ],
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -102,8 +127,9 @@ class TaskCard extends ConsumerWidget {
                   ],
                 ),
               ),
-            if (task.syncState == SyncState.synced && ((task.ownerId == space.currentUserId && !task.isDone) ||
-                task.requestedId == space.currentUserId)) ...[
+            if (task.syncState == SyncState.synced &&
+                ((task.ownerId == space.currentUserId && !task.isDone) ||
+                    task.requestedId == space.currentUserId)) ...[
               const SizedBox(height: 16),
               TaskActions(task: task, compact: true),
             ],
@@ -214,10 +240,16 @@ class _AddTaskState extends ConsumerState<_AddTask> {
               const Text('A request stays pending until they accept.'),
               const SizedBox(height: 12),
               OutlinedButton.icon(
-                onPressed: saving ? null : () async {
-                  final selected = await showPlacePicker(context, initial: pin);
-                  if (selected != null && mounted) setState(() => pin = selected);
-                },
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final selected = await showPlacePicker(
+                          context,
+                          initial: pin,
+                        );
+                        if (selected != null && mounted)
+                          setState(() => pin = selected);
+                      },
                 icon: const Icon(Icons.place_outlined),
                 label: Text(pin?.label ?? 'Add destination (optional)'),
               ),

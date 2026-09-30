@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../core/place_pin.dart';
 import '../core/sync_state.dart';
 
@@ -75,6 +76,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
   final _today = <String, DateTime>{};
   final _historyEpoch = <String, int>{};
   final _operationIds = <String, String>{};
+  final _acknowledgedActions = <String, Map<String, dynamic>>{};
   bool loading = true;
   String? error;
   @override
@@ -111,7 +113,9 @@ class FirebaseTimelineRepository extends TimelineRepository {
     for (final space in spaces) ...[
       for (final task in _active[space.id] ?? <Task>[])
         _withActiveAssignment(task, space),
-      for (final item in outbox.items.where((i) => i['spaceId'] == space.id && i['kind'] == 'taskCreate'))
+      for (final item in outbox.items.where(
+        (i) => i['spaceId'] == space.id && i['kind'] == 'taskCreate',
+      ))
         if (!(_active[space.id] ?? []).any((t) => t.id == item['id']))
           _draftTask(item),
       ..._done[space.id] ?? [],
@@ -120,16 +124,24 @@ class FirebaseTimelineRepository extends TimelineRepository {
   Task _draftTask(Map<String, Object?> item) {
     final payload = Map<String, dynamic>.from(item['payload'] as Map);
     return Task(
-      id: item['id'] as String, spaceId: item['spaceId'] as String,
+      id: item['id'] as String,
+      spaceId: item['spaceId'] as String,
       title: payload['title'] as String,
-      day: DateTime.tryParse(payload['scheduledLocalDate'] as String? ?? '') ?? dateOnly(DateTime.now()),
+      day:
+          DateTime.tryParse(payload['scheduledLocalDate'] as String? ?? '') ??
+          dateOnly(DateTime.now()),
       creatorId: currentUserId,
       requestedId: payload['requestedUid'] as String?,
-      status: payload['requestedUid'] == null ? Responsibility.unclaimed : Responsibility.requested,
+      status: payload['requestedUid'] == null
+          ? Responsibility.unclaimed
+          : Responsibility.requested,
       pin: PlacePin.fromMap(payload['pin']),
-      syncState: item['status'] == 'failed' ? SyncState.failed : SyncState.pending,
+      syncState: item['status'] == 'failed'
+          ? SyncState.failed
+          : SyncState.pending,
     );
   }
+
   // A concurrent assignment may land immediately before a removal commits.
   // Rules permit active members to claim such orphaned tasks; expose that action.
   Task _withActiveAssignment(Task task, Space space) {
@@ -146,33 +158,49 @@ class FirebaseTimelineRepository extends TimelineRepository {
 
   List<CalendarPlan> get plans => [
     for (final s in spaces) ...[
-      for (final plan in _plans[s.id] ?? <CalendarPlan>[])
-        _draftPlanFor(plan),
-      for (final item in outbox.items.where((i) => i['spaceId'] == s.id && i['kind'] == 'planSave'))
-        if (!(_plans[s.id] ?? []).any((p) => p.id == (item['payload'] as Map)['planId']))
+      for (final plan in _plans[s.id] ?? <CalendarPlan>[]) _draftPlanFor(plan),
+      for (final item in outbox.items.where(
+        (i) => i['spaceId'] == s.id && i['kind'] == 'planSave',
+      ))
+        if (!(_plans[s.id] ?? []).any(
+          (p) => p.id == (item['payload'] as Map)['planId'],
+        ))
           _draftPlan(item),
     ],
   ];
   CalendarPlan _draftPlanFor(CalendarPlan remote) {
     for (final item in outbox.items) {
-      if (item['kind'] == 'planSave' && item['spaceId'] == remote.spaceId &&
+      if (item['kind'] == 'planSave' &&
+          item['spaceId'] == remote.spaceId &&
           (item['payload'] as Map)['planId'] == remote.id) {
         return _draftPlan(item);
       }
-      if (item['kind'] == 'planRemove' && item['spaceId'] == remote.spaceId &&
+      if (item['kind'] == 'planRemove' &&
+          item['spaceId'] == remote.spaceId &&
           (item['payload'] as Map)['planId'] == remote.id) {
         return CalendarPlan(
-          id: remote.id, spaceId: remote.spaceId, ownerId: remote.ownerId,
-          title: remote.title, start: remote.start, end: remote.end,
-          allDay: remote.allDay, note: remote.note, participants: remote.participants,
-          pin: remote.pin, reminder: remote.reminder, revision: remote.revision,
-          syncState: item['status'] == 'failed' ? SyncState.failed : SyncState.pending,
+          id: remote.id,
+          spaceId: remote.spaceId,
+          ownerId: remote.ownerId,
+          title: remote.title,
+          start: remote.start,
+          end: remote.end,
+          allDay: remote.allDay,
+          note: remote.note,
+          participants: remote.participants,
+          pin: remote.pin,
+          reminder: remote.reminder,
+          revision: remote.revision,
+          syncState: item['status'] == 'failed'
+              ? SyncState.failed
+              : SyncState.pending,
           pendingRemoval: true,
         );
       }
     }
     return remote;
   }
+
   CalendarPlan _draftPlan(Map<String, Object?> item) {
     final p = Map<String, dynamic>.from(item['payload'] as Map);
     final allDay = p['allDay'] == true;
@@ -180,18 +208,29 @@ class FirebaseTimelineRepository extends TimelineRepository {
       final d = DateTime.fromMillisecondsSinceEpoch(millis, isUtc: true);
       return allDay ? DateTime(d.year, d.month, d.day) : d;
     }
+
     return CalendarPlan(
-      id: p['planId'] as String, spaceId: p['spaceId'] as String,
-      ownerId: currentUserId, title: p['title'] as String,
-      start: date(p['startMillis'] as int), end: date(p['endMillis'] as int),
-      allDay: allDay, note: p['note'] as String? ?? '',
+      id: p['planId'] as String,
+      spaceId: p['spaceId'] as String,
+      ownerId: currentUserId,
+      title: p['title'] as String,
+      start: date(p['startMillis'] as int),
+      end: date(p['endMillis'] as int),
+      allDay: allDay,
+      note: p['note'] as String? ?? '',
       participants: List<String>.from(p['participants'] as List? ?? []),
       pin: PlacePin.fromMap(p['pin']),
-      reminder: PlanReminder.values.firstWhere((r) => r.name == p['reminder'], orElse: () => PlanReminder.none),
-      syncState: item['status'] == 'failed' ? SyncState.failed : SyncState.pending,
+      reminder: PlanReminder.values.firstWhere(
+        (r) => r.name == p['reminder'],
+        orElse: () => PlanReminder.none,
+      ),
+      syncState: item['status'] == 'failed'
+          ? SyncState.failed
+          : SyncState.pending,
       revision: p['expectedRevision'] as int? ?? 0,
     );
   }
+
   @override
   bool canView(Task task) =>
       tasks.any((t) => t.id == task.id && t.spaceId == task.spaceId);
@@ -204,7 +243,9 @@ class FirebaseTimelineRepository extends TimelineRepository {
       backend.account(currentUserId).listen((doc) {
         final data = doc.data();
         _rawPlus = data?['tier'] == 'plus';
-        _isFounder = data?['founderGrant'] == true || data?['entitlementSource'] == 'founder';
+        _isFounder =
+            data?['founderGrant'] == true ||
+            data?['entitlementSource'] == 'founder';
         final expiry = data?['subscriptionExpiresAt'];
         DateTime? expiryDate;
         if (expiry is Timestamp) {
@@ -213,7 +254,8 @@ class FirebaseTimelineRepository extends TimelineRepository {
           expiryDate = DateTime.tryParse(expiry);
         }
         _subscriptionExpiry = expiryDate;
-        final notExpired = expiryDate != null && expiryDate.isAfter(DateTime.now());
+        final notExpired =
+            expiryDate != null && expiryDate.isAfter(DateTime.now());
         final next = _rawPlus && (_isFounder || notExpired);
         if (_plus != next) {
           _plus = next;
@@ -229,7 +271,8 @@ class FirebaseTimelineRepository extends TimelineRepository {
       backend.spaces(currentUserId).listen((snapshot) {
         final ids = snapshot.docs.map((d) => d.id).toSet();
         for (final id in _refs.keys.toList()) {
-          if (!ids.contains(id)) _removeSpace(id, discardDrafts: !snapshot.metadata.isFromCache);
+          if (!ids.contains(id))
+            _removeSpace(id, discardDrafts: !snapshot.metadata.isFromCache);
         }
         for (final doc in snapshot.docs) {
           _refs[doc.id] = doc.data();
@@ -324,7 +367,9 @@ class FirebaseTimelineRepository extends TimelineRepository {
           for (final d in snapshot.docs) firebaseTask(id, d.id, d.data()),
         ];
         for (final d in snapshot.docs) {
-          if (outbox.items.any((i) => i['id'] == d.id && i['kind'] == 'taskCreate')) {
+          if (outbox.items.any(
+            (i) => i['id'] == d.id && i['kind'] == 'taskCreate',
+          )) {
             unawaited(outbox.acknowledged(d.id));
           }
         }
@@ -361,9 +406,15 @@ class FirebaseTimelineRepository extends TimelineRepository {
           if (item['spaceId'] != id) continue;
           final payload = item['payload'] as Map;
           final planId = payload['planId'];
-          if (item['kind'] == 'planSave' && snapshot.docs.any((d) => d.id == planId && d.data()['lastMutationId'] == item['id'])) {
+          if (item['kind'] == 'planSave' &&
+              snapshot.docs.any(
+                (d) =>
+                    d.id == planId && d.data()['lastMutationId'] == item['id'],
+              )) {
             unawaited(outbox.acknowledged(item['id'] as String));
-          } else if (item['kind'] == 'planRemove' && item['status'] == 'synced' && !snapshot.docs.any((d) => d.id == planId)) {
+          } else if (item['kind'] == 'planRemove' &&
+              item['status'] == 'synced' &&
+              !snapshot.docs.any((d) => d.id == planId)) {
             unawaited(outbox.acknowledged(item['id'] as String));
           }
         }
@@ -415,21 +466,39 @@ class FirebaseTimelineRepository extends TimelineRepository {
       operationKey,
       () => backend.firestore.collection('operationIds').doc().id,
     );
-    final result = await backend.call('actOnTask', {
-      'spaceId': task.spaceId,
-      'taskId': taskId,
-      'action': action.name,
-      'operationId': operationId,
-    });
+    final result =
+        _acknowledgedActions[operationKey] ??
+        await backend.call('actOnTask', {
+          'spaceId': task.spaceId,
+          'taskId': taskId,
+          'action': action.name,
+          'operationId': operationId,
+        });
+    _acknowledgedActions[operationKey] = result;
     _operationIds.remove(operationKey);
-    if (result['task'] == null) {
-      await refreshHistory(task.spaceId);
-      throw StateError('This task is outside your available history.');
+    Map<String, dynamic> hydrated = result;
+    if (hydrated['task'] == null) {
+      try {
+        hydrated = await backend.call('getTask', {
+          'spaceId': task.spaceId,
+          'taskId': taskId,
+        });
+        if (hydrated['task'] == null) {
+          throw StateError('Task unavailable.');
+        }
+      } catch (_) {
+        // The mutation is committed. Retrying this action only repeats its
+        // authorized read, never the mutation or its notification/sound.
+        throw DemoException(
+          'Saved. Waiting for the task to refresh; retry to check.',
+        );
+      }
     }
+    _acknowledgedActions.remove(operationKey);
     final updated = firebaseTask(
       task.spaceId,
       taskId,
-      Map<String, dynamic>.from(result['task'] as Map),
+      Map<String, dynamic>.from(hydrated['task'] as Map),
     );
     _active[task.spaceId]?.removeWhere((t) => t.id == taskId);
     _done[task.spaceId]?.removeWhere((t) => t.id == taskId);
@@ -450,11 +519,13 @@ class FirebaseTimelineRepository extends TimelineRepository {
     String? operationId,
     PlacePin? pin,
   }) async {
-    final stableId = operationId ?? backend.firestore.collection('operationIds').doc().id;
+    final stableId =
+        operationId ?? backend.firestore.collection('operationIds').doc().id;
     final payload = <String, Object?>{
       'spaceId': spaceId,
       'title': title,
-      'scheduledLocalDate': '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}',
+      'scheduledLocalDate':
+          '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}',
       if (requestedUid != null || assignToMe)
         'requestedUid': requestedUid ?? currentUserId,
       'operationId': stableId,
@@ -520,7 +591,8 @@ String _initials(String name) => name.trim().isEmpty
 CalendarPlan _plan(String spaceId, String id, Map<String, dynamic> data) {
   final allDay = data['allDay'] == true;
   DateTime date(Object? value, Object? millisFallback) {
-    final parsed = firebaseDate(value) ?? firebaseDate(millisFallback) ?? DateTime.now();
+    final parsed =
+        firebaseDate(value) ?? firebaseDate(millisFallback) ?? DateTime.now();
     final time = parsed.toUtc();
     return allDay ? DateTime(time.year, time.month, time.day) : time;
   }
@@ -534,16 +606,16 @@ CalendarPlan _plan(String spaceId, String id, Map<String, dynamic> data) {
     end: date(data['endAt'], data['endMillis']),
     allDay: allDay,
     note: data['note'] as String? ?? '',
-      participants: List<String>.from(data['participants'] as List? ?? []),
-      pin: PlacePin.fromMap(data['pin']),
-      googleCalendarId: data['sourceCalendarId'] as String?,
-      googleEventId: data['sourceEventId'] as String?,
-      googleUpdatedAt: data['sourceUpdatedAt'] as String?,
-      reminder: PlanReminder.values.firstWhere(
-        (r) => r.name == data['reminder'],
-        orElse: () => PlanReminder.none,
-      ),
-      revision: data['revision'] as int? ?? 0,
+    participants: List<String>.from(data['participants'] as List? ?? []),
+    pin: PlacePin.fromMap(data['pin']),
+    googleCalendarId: data['sourceCalendarId'] as String?,
+    googleEventId: data['sourceEventId'] as String?,
+    googleUpdatedAt: data['sourceUpdatedAt'] as String?,
+    reminder: PlanReminder.values.firstWhere(
+      (r) => r.name == data['reminder'],
+      orElse: () => PlanReminder.none,
+    ),
+    revision: data['revision'] as int? ?? 0,
   );
 }
 
@@ -564,9 +636,9 @@ class FirebaseCalendarRepository extends CalendarDataSource {
     required DateTime end,
     required bool allDay,
     String note = '',
-      List<String> participants = const [],
-      PlacePin? pin,
-      PlanReminder reminder = PlanReminder.none,
+    List<String> participants = const [],
+    PlacePin? pin,
+    PlanReminder reminder = PlanReminder.none,
   }) async {
     if (actorId != timeline.currentUserId) {
       throw StateError('Use your own account.');
@@ -579,7 +651,10 @@ class FirebaseCalendarRepository extends CalendarDataSource {
     int time(DateTime d) =>
         (allDay ? DateTime.utc(d.year, d.month, d.day) : d.toUtc())
             .millisecondsSinceEpoch;
-    final operationId = timeline.backend.firestore.collection('operationIds').doc().id;
+    final operationId = timeline.backend.firestore
+        .collection('operationIds')
+        .doc()
+        .id;
     final payload = <String, Object?>{
       'spaceId': spaceId,
       'planId': planId,
@@ -588,11 +663,12 @@ class FirebaseCalendarRepository extends CalendarDataSource {
       'allDay': allDay,
       'startMillis': time(start),
       'endMillis': time(end),
-        'participants': participants,
-        if (pin != null) 'pin': pin.toMap(),
-        'reminder': reminder.name,
+      'participants': participants,
+      if (pin != null) 'pin': pin.toMap(),
+      'reminder': reminder.name,
       'operationId': operationId,
-      if (id != null) 'expectedRevision': plans.firstWhere((p) => p.id == id).revision,
+      if (id != null)
+        'expectedRevision': plans.firstWhere((p) => p.id == id).revision,
     };
     await timeline.outbox.add(operationId, spaceId, 'planSave', payload);
     return CalendarPlan(
@@ -604,10 +680,10 @@ class FirebaseCalendarRepository extends CalendarDataSource {
       end: end,
       allDay: allDay,
       note: note,
-        participants: participants,
-        pin: pin,
-        reminder: reminder,
-        syncState: SyncState.pending,
+      participants: participants,
+      pin: pin,
+      reminder: reminder,
+      syncState: SyncState.pending,
     );
   }
 
@@ -617,7 +693,10 @@ class FirebaseCalendarRepository extends CalendarDataSource {
     if (actorId != timeline.currentUserId || plan.ownerId != actorId) {
       throw StateError('Only the author can remove this plan.');
     }
-    final operationId = timeline.backend.firestore.collection('operationIds').doc().id;
+    final operationId = timeline.backend.firestore
+        .collection('operationIds')
+        .doc()
+        .id;
     await timeline.outbox.add(operationId, plan.spaceId, 'planRemove', {
       'spaceId': plan.spaceId,
       'planId': id,
