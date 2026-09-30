@@ -199,12 +199,8 @@ class _TutorialOverlayState extends State<TutorialOverlay>
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: 420,
-                    maxHeight: targetRect == null
-                        ? screenSize.height - mediaQuery.padding.vertical - 24
-                        : (above > below ? above : below).clamp(
-                            80.0,
-                            screenSize.height,
-                          ),
+                    maxHeight:
+                        screenSize.height - mediaQuery.padding.vertical - 24,
                   ),
                   child: Container(
                     decoration: BoxDecoration(
@@ -386,9 +382,7 @@ class _TutorialOverlayState extends State<TutorialOverlay>
                                 const SizedBox(width: 4),
                               ],
                               FilledButton(
-                                onPressed: targetRect == null
-                                    ? null
-                                    : _nextStop,
+                                onPressed: _nextStop,
                                 style: FilledButton.styleFrom(
                                   backgroundColor: SoftPop.blue,
                                   foregroundColor: SoftPop.surface,

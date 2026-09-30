@@ -11,8 +11,8 @@ class LiveLocationPill extends StatefulWidget {
 }
 
 class _LiveLocationPillState extends State<LiveLocationPill> {
-  static bool minimized = false;
-  static String? session;
+  bool minimized = false;
+  String? session;
   @override
   Widget build(BuildContext context) {
     final service = LiveLocationService.instance;
