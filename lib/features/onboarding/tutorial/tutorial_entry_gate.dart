@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/backend_provider.dart';
 import 'tutorial_coordinator.dart';
-import 'tutorial_state.dart';
 
-/// Lives in the real member shell, which replaces the no-space home on joining.
+/// Offers continuation after membership is ready, once per account session.
 class TutorialEntryGate extends ConsumerStatefulWidget {
   const TutorialEntryGate({super.key, required this.onTabRequested});
   final ValueChanged<int> onTabRequested;
@@ -14,81 +13,30 @@ class TutorialEntryGate extends ConsumerStatefulWidget {
 }
 
 class _TutorialEntryGateState extends ConsumerState<TutorialEntryGate> {
-  bool awaiting = false, busy = false;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final db = ref.read(tutorialDatabaseProvider);
-      final uid = ref.read(sharedBackendProvider)?.auth.currentUser?.uid;
-      if (db == null || uid == null || !mounted) return;
-      await TutorialCoordinator(
-        db,
-        backend: ref.read(sharedBackendProvider),
-      ).checkAndPromptTour(
+      final backend = ref.read(sharedBackendProvider);
+      final uid = backend?.auth.currentUser?.uid;
+      if (db == null || uid == null) return;
+      final coordinator = TutorialCoordinator(db, backend: backend);
+      await coordinator.checkAndPromptTour(
         context,
         uid: uid,
-        onTabRequested: (tab) => widget.onTabRequested(tab),
+        onTabRequested: widget.onTabRequested,
       );
       if (!mounted) return;
-      final status = await TutorialStore(
-        db,
-        backend: ref.read(sharedBackendProvider),
-      ).getStatus(uid);
-      if (mounted)
-        setState(
-          () => awaiting =
-              status == TutorialStatus.awaitingSpace ||
-              status == TutorialStatus.inProgress,
-        );
+      await coordinator.offerContinuation(
+        context,
+        uid: uid,
+        onTabRequested: widget.onTabRequested,
+      );
     });
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (!awaiting) return const SizedBox.shrink();
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          0,
-          20,
-          145 + MediaQuery.paddingOf(context).bottom,
-        ),
-        child: FilledButton.icon(
-          icon: Image.asset(
-            'assets/illustrations/clay-navigation.png',
-            width: 28,
-            height: 28,
-          ),
-          label: const Text('Continue tour'),
-          onPressed: busy
-              ? null
-              : () async {
-                  final uid = ref
-                      .read(sharedBackendProvider)
-                      ?.auth
-                      .currentUser
-                      ?.uid;
-                  if (uid == null) return;
-                  setState(() {
-                    busy = true;
-                    awaiting = false;
-                  });
-                  await TutorialCoordinator(
-                    ref.read(tutorialDatabaseProvider),
-                    backend: ref.read(sharedBackendProvider),
-                  ).continueTour(
-                    context,
-                    uid: uid,
-                    onTabRequested: (tab) => widget.onTabRequested(tab),
-                  );
-                  if (mounted) setState(() => busy = false);
-                },
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

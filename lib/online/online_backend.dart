@@ -159,6 +159,36 @@ class OnlineBackend {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> callMediaAction(
+    Map<String, dynamic> values,
+  ) async {
+    final user = auth.currentUser;
+    final token = await user?.getIdToken();
+    if (token == null) throw StateError('Sign in again.');
+    const endpoint = String.fromEnvironment(
+      'MEDIA_GATEWAY_URL',
+      defaultValue:
+          'https://ulexhxfxatzlobabitpr.supabase.co/functions/v1/media',
+    );
+    final response = await http
+        .post(
+          Uri.parse(endpoint),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(values),
+        )
+        .timeout(const Duration(seconds: 25));
+    if (auth.currentUser?.uid != user?.uid) throw StateError('Sign in again.');
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200)
+      throw StateError(
+        body['error'] as String? ?? 'Could not save. Try again.',
+      );
+    return body;
+  }
+
   Future<Map<String, dynamic>> taskAccess(
     String action,
     Map<String, dynamic> values,
@@ -414,7 +444,8 @@ class OnlineBackend {
     final expiry = data?['subscriptionExpiresAt'];
     final plus =
         data?['tier'] == 'plus' &&
-        (data?['founderGrant'] == true || data?['entitlementSource'] == 'founder' ||
+        (data?['founderGrant'] == true ||
+            data?['entitlementSource'] == 'founder' ||
             (expiry is Timestamp && expiry.toDate().isAfter(DateTime.now())));
     return (data?['spaceIds'] as List? ?? []).length < (plus ? 50 : 3);
   }

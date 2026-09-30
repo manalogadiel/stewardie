@@ -198,7 +198,6 @@ class AppShell extends ConsumerWidget {
                                           ref
                                               .read(demoProvider.notifier)
                                               .switchSpace(choice.id);
-                                          context.go('/today');
                                         },
                                       ),
                                     if (ref.read(sharedBackendProvider)
@@ -232,7 +231,6 @@ class AppShell extends ConsumerWidget {
                                             ref
                                                 .read(demoProvider.notifier)
                                                 .switchSpace(id);
-                                            context.go('/today');
                                           } catch (_) {
                                             if (context.mounted) {
                                               ScaffoldMessenger.of(context)
@@ -265,7 +263,6 @@ class AppShell extends ConsumerWidget {
                                               ref
                                                   .read(demoProvider.notifier)
                                                   .switchSpace(id);
-                                              context.go('/today');
                                             },
                                           );
                                         },

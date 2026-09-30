@@ -37,8 +37,8 @@ class NotificationSettingsSheet extends StatefulWidget {
 }
 
 class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
-  bool enabled = false, spaceEnabled = true, busy = false;
-  bool photos = false, reactions = false, moods = false;
+  bool enabled = true, spaceEnabled = true, busy = false;
+  bool photos = true, reactions = true, moods = true;
   int quietStart = 22 * 60, quietEnd = 7 * 60;
   String timeZone = 'Asia/Manila';
   String? error;
@@ -63,14 +63,14 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
       ]);
       if (!mounted) return;
       setState(() {
-        enabled = docs[0].data()?['enabled'] == true;
+        enabled = docs[0].data()?['enabled'] != false;
         quietStart = docs[0].data()?['quietStart'] as int? ?? quietStart;
         quietEnd = docs[0].data()?['quietEnd'] as int? ?? quietEnd;
         timeZone = docs[0].data()?['timeZone'] as String? ?? timeZone;
         spaceEnabled = docs[1].data()?['enabled'] != false;
-        photos = docs[1].data()?['photos'] == true;
-        reactions = docs[1].data()?['reactions'] == true;
-        moods = docs[1].data()?['moods'] == true;
+        photos = docs[1].data()?['photos'] != false;
+        reactions = docs[1].data()?['reactions'] != false;
+        moods = docs[1].data()?['moods'] != false;
       });
     } catch (_) {
       if (mounted) {

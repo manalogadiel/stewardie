@@ -348,30 +348,31 @@ class _TutorialOverlayState extends State<TutorialOverlay>
                             crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               // Progress dots
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: List.generate(widget.stops.length, (
-                                  i,
-                                ) {
-                                  final active = i == _currentStopIndex;
-                                  return AnimatedContainer(
-                                    duration: Duration(
-                                      milliseconds: reduceMotion ? 100 : 200,
-                                    ),
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 1.5,
-                                    ),
-                                    width: active ? 10 : 4,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: active
-                                          ? SoftPop.blue
-                                          : const Color(0xFFD6D6DC),
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  );
-                                }),
-                              ),
+                              if (widget.stops.length > 1)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: List.generate(widget.stops.length, (
+                                    i,
+                                  ) {
+                                    final active = i == _currentStopIndex;
+                                    return AnimatedContainer(
+                                      duration: Duration(
+                                        milliseconds: reduceMotion ? 100 : 200,
+                                      ),
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 1.5,
+                                      ),
+                                      width: active ? 10 : 4,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: active
+                                            ? SoftPop.blue
+                                            : const Color(0xFFD6D6DC),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    );
+                                  }),
+                                ),
                               if (_currentStopIndex > 0) ...[
                                 TextButton(
                                   onPressed: _prevStop,

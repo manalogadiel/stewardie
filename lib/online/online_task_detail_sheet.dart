@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:sembast/sembast.dart';
 
 import 'external_launcher.dart';
 import 'online_backend.dart';
@@ -72,6 +75,12 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   bool _saving = false;
   bool _saveAgain = false;
   bool _disposing = false;
+  late final String? _accountUid = widget.backend.auth.currentUser?.uid;
+  final _draftStore = stringMapStoreFactory.store('task-detail-drafts');
+  String get _draftKey => '$_accountUid/${widget.spaceId}/$_taskId';
+  int _draftRevision = 0;
+  final String _draftSession = UniqueKey().toString();
+  Future<void> _draftWrites = Future.value();
   String? _saveError;
   late int _expectedVersion = widget.task['version'] as int? ?? 1;
   bool _helpNeeded = false;
@@ -116,6 +125,84 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     _titleFocus.addListener(_onFocusChanged);
     _noteFocus.addListener(_onFocusChanged);
     _destinationFocus.addListener(_onFocusChanged);
+    unawaited(_restoreDraft());
+  }
+
+  Future<void> _restoreDraft() async {
+    if (_accountUid == null || _completed) return;
+    final originalTitle = _titleController.text;
+    final originalNote = _noteController.text;
+    final originalDestination = _destinationController.text;
+    try {
+      final draft = await _draftStore
+          .record(_draftKey)
+          .get(widget.momentStore.database);
+      if (draft == null ||
+          !mounted ||
+          _disposing ||
+          _draftRevision != 0 ||
+          widget.backend.auth.currentUser?.uid != _accountUid ||
+          _titleController.text != originalTitle ||
+          _noteController.text != originalNote ||
+          _destinationController.text != originalDestination) {
+        return;
+      }
+      setState(() {
+        _titleController.text = draft['title'] as String;
+        _noteController.text = draft['note'] as String;
+        _destinationController.text = draft['destination'] as String;
+        _selectedAssignee = draft['assignee'] as String?;
+        _subtasks = (draft['subtasks'] as List)
+            .map((s) => Map<String, dynamic>.from(s as Map))
+            .toList();
+        _saveError =
+            'Unsaved draft restored. Review your changes and tap to retry.';
+      });
+    } catch (_) {
+      if (mounted && !_disposing) {
+        setState(
+          () =>
+              _saveError = 'Could not restore your draft. Close and try again.',
+        );
+      }
+    }
+  }
+
+  Future<int> _persistDraft() {
+    final revision = ++_draftRevision;
+    final draft = <String, Object?>{
+      'session': _draftSession,
+      'revision': revision,
+      'title': _titleController.text,
+      'note': _noteController.text,
+      'destination': _destinationController.text,
+      'assignee': _selectedAssignee,
+      'subtasks': _subtasks.map((s) => Map<String, dynamic>.from(s)).toList(),
+    };
+    _draftWrites = _draftWrites.catchError((Object _) {}).then((_) async {
+      if (_accountUid != null && revision == _draftRevision) {
+        await _draftStore
+            .record(_draftKey)
+            .put(widget.momentStore.database, draft);
+      }
+    });
+    return _draftWrites.then((_) => revision);
+  }
+
+  Future<void> _clearDraft(int revision) {
+    _draftWrites = _draftWrites.catchError((Object _) {}).then((_) async {
+      if (revision == _draftRevision) {
+        await widget.momentStore.database.transaction((transaction) async {
+          final record = _draftStore.record(_draftKey);
+          final current = await record.get(transaction);
+          if (current?['session'] == _draftSession &&
+              current?['revision'] == revision) {
+            await record.delete(transaction);
+          }
+        });
+      }
+    });
+    return _draftWrites;
   }
 
   void _onFocusChanged() {
@@ -130,6 +217,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     if (_completed) return;
     if (_saving) {
       _saveAgain = true;
+      unawaited(_persistDraft().catchError((Object _) => _draftRevision));
       return;
     }
     final title = _titleController.text.trim();
@@ -145,6 +233,8 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     _saving = true;
     if (mounted && !_disposing) setState(() => _saveError = null);
     try {
+      final revision = await _persistDraft();
+      if (widget.backend.auth.currentUser?.uid != _accountUid) return;
       final result = await widget.backend.call('updateTask', {
         'spaceId': widget.spaceId,
         'taskId': _taskId,
@@ -157,6 +247,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
       });
       _expectedVersion = result['version'] as int? ?? _expectedVersion;
       _savedAssignee = assignee;
+      await _clearDraft(revision);
       if (mounted && !_disposing) widget.onChanged();
     } catch (error) {
       if (mounted && !_disposing) {
@@ -263,6 +354,9 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   @override
   void dispose() {
     _disposing = true;
+    if (!_completed) {
+      unawaited(_persistDraft().catchError((Object _) => _draftRevision));
+    }
     _autoSave();
     _titleFocus.dispose();
     _noteFocus.dispose();

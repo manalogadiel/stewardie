@@ -142,10 +142,10 @@ class _SpaceDeletionSheetState extends State<SpaceDeletionSheet> {
                 builder: (context, snapshot) {
                   final status = snapshot.data?.data()?['status'] as String?;
                   final label = status == 'done'
-                      ? 'Space deleted'
+                      ? 'Poof! This space has left the chat.'
                       : status == 'failed'
                       ? 'Deletion needs attention. The cleanup worker will retry.'
-                      : 'Deletion pending';
+                      : 'Packing up this space…';
                   return Semantics(
                     liveRegion: true,
                     child: Text(

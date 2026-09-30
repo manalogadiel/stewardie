@@ -680,6 +680,26 @@ class SparkBackend {
           );
         });
         return {'ok': true};
+      case 'cancelOwnership':
+        final cancelledEventId = db.collection('eventIds').doc().id;
+        await db.runTransaction((tx) async {
+          final parent = (await tx.get(space(id!))).data()!;
+          final nominee = parent['pendingOwnerUid'] as String?;
+          if (parent['ownerUid'] != uid)
+            throw StateError('Only the owner can cancel this offer.');
+          if (nominee == null) return;
+          tx.update(space(id), {'pendingOwnerUid': null});
+          addSpaceEvent(
+            tx,
+            id,
+            cancelledEventId,
+            type: 'ownershipCancelled',
+            entityId: nominee,
+            targetUid: nominee,
+            recipients: List<String>.from(parent['memberUids'] as List? ?? []),
+          );
+        });
+        return {'ok': true};
       case 'acceptOwnership':
         final acceptEventId = db.collection('eventIds').doc().id;
         await db.runTransaction((tx) async {
@@ -1075,17 +1095,14 @@ class SparkBackend {
             .collection('reactions')
             .doc(uid);
         final snap = await reactionRef.get();
-        if (snap.exists && snap.data()?['type'] == reactionType) {
-          await reactionRef.delete();
-          return {'active': false};
-        } else {
-          await reactionRef.set({
-            'uid': uid,
-            'type': reactionType,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-          return {'active': true};
-        }
+        final selected = snap.data()?['type'] == reactionType;
+        await backend.callMediaAction({
+          'action': 'react',
+          'space': id,
+          'id': momentId,
+          'type': selected ? null : reactionType,
+        });
+        return {'active': !selected};
       case 'startLocationSession':
         final durationMinutes = (v['durationMinutes'] as int?) ?? 15;
         if (![15, 30, 60].contains(durationMinutes)) {
@@ -1142,6 +1159,8 @@ class SparkBackend {
         });
         return {'ok': true};
       case 'stopLocationSession':
+        if (!OnlineBackend.useEmulator)
+          return backend.callSpaceAction('stopLocation', id!);
         await space(id!).collection('locationSessions').doc(uid).delete();
         return {'ok': true};
       case 'checkInArrival':

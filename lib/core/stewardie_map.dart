@@ -177,20 +177,25 @@ class _StewardieMapState extends State<StewardieMap> {
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: () => setState(() {
-                        failed = false;
-                        retry++;
-                      }),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFBEBC5),
-                        foregroundColor: const Color(0xFF202633),
-                        minimumSize: const Size(48, 48),
-                        elevation: 2,
-                        side: BorderSide.none,
+                    child: Tooltip(
+                      message: 'Refresh map',
+                      child: ElevatedButton(
+                        onPressed: () => setState(() {
+                          failed = false;
+                          retry++;
+                        }),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFBEBC5),
+                          foregroundColor: const Color(0xFF202633),
+                          minimumSize: const Size(48, 48),
+                          elevation: 2,
+                          side: BorderSide.none,
+                        ),
+                        child: const Icon(
+                          Icons.refresh_rounded,
+                          semanticLabel: 'Refresh map',
+                        ),
                       ),
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Refresh'),
                     ),
                   ),
                 ],

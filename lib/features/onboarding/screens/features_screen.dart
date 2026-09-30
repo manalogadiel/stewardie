@@ -43,17 +43,17 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
     FeatureItem(
       title: 'Share the everyday',
       body: 'See what needs help, who\'s covering it, and what\'s done.',
-      pose: MascotPose.shareEveryday,
+      pose: MascotPose.butterTask,
     ),
     FeatureItem(
       title: 'Keep the little moments',
       body: 'Share photos and celebrate things you finish together.',
-      pose: MascotPose.keepMoments,
+      pose: MascotPose.roseCamera,
     ),
     FeatureItem(
       title: 'Stay in the loop',
       body: 'Check moods and plans in each of your spaces.',
-      pose: MascotPose.stayInLoop,
+      pose: MascotPose.mintCalendar,
     ),
   ];
 
@@ -123,90 +123,92 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
                 SizedBox(
                   height: 350,
                   child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: _features.length,
-                  onPageChanged: (index) {
-                    setState(() => _currentPage = index);
-                    widget.onPageChanged(index);
-                  },
-                  itemBuilder: (context, index) {
-                    final item = _features[index];
-                    return SingleChildScrollView(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          MascotStage(pose: item.pose),
-                          const SizedBox(height: 12),
-                          Text(
-                            item.title,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: SoftPop.ink,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: Text(
-                              item.body,
+                    controller: _pageController,
+                    itemCount: _features.length,
+                    onPageChanged: (index) {
+                      setState(() => _currentPage = index);
+                      widget.onPageChanged(index);
+                    },
+                    itemBuilder: (context, index) {
+                      final item = _features[index];
+                      return SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            MascotStage(pose: item.pose),
+                            const SizedBox(height: 12),
+                            Text(
+                              item.title,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                fontSize: 14,
-                                height: 1.45,
-                                color: SoftPop.secondary,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: SoftPop.ink,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              child: Text(
+                                item.body,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 1.45,
+                                  color: SoftPop.secondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Page indicator dots
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(_features.length, (i) {
+                    final active = i == _currentPage;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: active ? 20 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: active ? SoftPop.blue : const Color(0xFFD6D6DC),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     );
-                  },
+                  }),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Page indicator dots
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(_features.length, (i) {
-                  final active = i == _currentPage;
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: active ? 20 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: active ? SoftPop.blue : const Color(0xFFD6D6DC),
-                      borderRadius: BorderRadius.circular(4),
+                const SizedBox(height: 32),
+                FilledButton(
+                  onPressed: _nextPage,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: SoftPop.blue,
+                    foregroundColor: SoftPop.surface,
+                    minimumSize: const Size(48, 54),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 32),
-              FilledButton(
-                onPressed: _nextPage,
-                style: FilledButton.styleFrom(
-                  backgroundColor: SoftPop.blue,
-                  foregroundColor: SoftPop.surface,
-                  minimumSize: const Size(48, 54),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    isLast ? 'Let\'s go' : 'Next',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                child: Text(
-                  isLast ? 'Let\'s go' : 'Next',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 }

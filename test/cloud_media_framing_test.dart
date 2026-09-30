@@ -293,4 +293,69 @@ void main() {
       await db.close();
     },
   );
+  test(
+    'a rejected attachment does not block the next pending upload',
+    () async {
+      final db = await databaseFactoryMemory.openDatabase(
+        'independent-uploads',
+      );
+      final bytes = Uint8List.fromList(
+        img.encodeJpg(img.Image(width: 80, height: 60)),
+      );
+      MediaAttachment photo(String id) => MediaAttachment(
+        id: id,
+        spaceId: 'space-1',
+        uploaderId: 'user-123',
+        caption: id,
+        createdAt: DateTime.utc(2026, 9, 30),
+        photo: PhotoDraft(bytes, bytes, 80, 60, 'camera'),
+      );
+      final attempted = <String>[];
+      final client = MockClient.streaming((request, stream) async {
+        await stream.toBytes();
+        final id = (request as http.MultipartRequest).fields['id']!;
+        attempted.add(id);
+        if (id == 'rejected') {
+          return http.StreamedResponse(
+            Stream.value(utf8.encode('{"error":"Quota exceeded"}')),
+            403,
+          );
+        }
+        return http.StreamedResponse(
+          Stream.value(
+            utf8.encode(
+              jsonEncode({
+                'item': {
+                  'id': id,
+                  'space_id': 'space-1',
+                  'uploader_uid': 'user-123',
+                  'caption': id,
+                  'created_at': DateTime.utc(2026, 9, 30).toIso8601String(),
+                  'width': 80,
+                  'height': 60,
+                },
+              }),
+            ),
+          ),
+          200,
+        );
+      });
+      final library = CloudMediaLibrary(
+        _FakeTimelineRepository(),
+        user: _FakeUser(),
+        database: db,
+        records: stringMapStoreFactory.store('independent-photos'),
+        initial: [photo('rejected'), photo('allowed')],
+        pending: {'rejected', 'allowed'},
+        client: client,
+      );
+      await library.retryPending();
+      expect(attempted, ['rejected', 'allowed']);
+      expect(library.pendingIds, {'rejected'});
+      expect(library.items.singleWhere((p) => p.id == 'allowed').cloud, isTrue);
+      expect(library.syncError, contains('Quota exceeded'));
+      library.dispose();
+      await db.close();
+    },
+  );
 }

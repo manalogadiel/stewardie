@@ -37,7 +37,7 @@ import 'package:sembast/sembast.dart';
 import '../features/subscription/revenuecat_service.dart';
 import '../features/subscription/soft_pop_paywall.dart';
 import '../features/onboarding/tutorial/tutorial_coordinator.dart';
-import '../features/onboarding/tutorial/tutorial_state.dart';
+
 import '../features/onboarding/tutorial/tutorial_target_registry.dart';
 import '../features/onboarding/onboarding_store.dart';
 
@@ -175,7 +175,24 @@ class _OnlineHomeState extends State<OnlineHome> {
     } catch (_) {
       // An unavailable tutorial must not prevent the account from entering a space.
     }
-    if (!mounted || _hasSpaces) return;
+    if (!mounted) return;
+    if (_hasSpaces) {
+      await TutorialCoordinator(
+        widget.database,
+        backend: widget.backend,
+      ).offerContinuation(
+        context,
+        uid: widget.user.uid,
+        onTabRequested: (tab) {
+          if (!mounted) return;
+          if (widget.onTabRequested != null)
+            widget.onTabRequested!(tab);
+          else
+            setState(() => _destination = tab);
+        },
+      );
+      return;
+    }
     // Let the invitation or tour overlay finish removing before opening the sheet.
     await Future<void>.delayed(Duration.zero);
     if (mounted && !_hasSpaces) {
@@ -854,46 +871,7 @@ class _OnlineHomeState extends State<OnlineHome> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (spaceId != null)
-                    FutureBuilder<TutorialStatus>(
-                      future: TutorialStore(widget.database, backend: widget.backend)
-                          .getStatus(widget.user.uid),
-                      builder: (context, snapshot) =>
-                          (snapshot.data == TutorialStatus.awaitingSpace || snapshot.data == TutorialStatus.inProgress)
-                          ? Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: FilledButton.icon(
-                                icon: Image.asset(
-                                  'assets/illustrations/clay-navigation.png',
-                                  width: 28,
-                                  height: 28,
-                                ),
-                                label: const Text('Continue tour'),
-                                onPressed: () async {
-                                  await TutorialCoordinator(
-                                    widget.database,
-                                    backend: widget.backend,
-                                  ).continueTour(
-                                    context,
-                                    uid: widget.user.uid,
-                                    onTabRequested: (tab) {
-                                      if (!mounted) return;
-                                      if (widget.onTabRequested != null) {
-                                        widget.onTabRequested!(tab);
-                                      } else {
-                                        setState(() => _destination = tab);
-                                      }
-                                    },
-                                  );
-                                  if (mounted) setState(() {});
-                                },
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ...summary,
-                ],
+                children: [...summary],
               ),
             ),
           ),
@@ -1857,6 +1835,25 @@ class _OnlineHomeState extends State<OnlineHome> {
                           ),
                         ],
                         if (owner == widget.user.uid) ...[
+                          if (pendingOwner != null) ...[
+                            const SizedBox(height: 12),
+                            TextButton.icon(
+                              onPressed: () async {
+                                try {
+                                  await widget.backend.call('cancelOwnership', {
+                                    'spaceId': spaceId,
+                                  });
+                                } catch (_) {
+                                  if (mounted)
+                                    _message(
+                                      'Could not cancel the ownership offer. Try again.',
+                                    );
+                                }
+                              },
+                              icon: const Icon(Icons.undo_rounded),
+                              label: const Text('Cancel ownership offer'),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           SwitchListTile.adaptive(
                             title: const Text(
@@ -2077,7 +2074,6 @@ class _OnlineHomeState extends State<OnlineHome> {
                                 spaceName: spaceName,
                                 onDeleted: () {
                                   _switchSpace(null);
-                                  setState(() => _destination = 0);
                                 },
                               );
                             },
@@ -2132,7 +2128,6 @@ class _OnlineHomeState extends State<OnlineHome> {
                 onTap: () {
                   Navigator.pop(sheet);
                   _switchSpace(ref.id);
-                  setState(() => _destination = 0);
                 },
               ),
             const Divider(),
@@ -2348,7 +2343,6 @@ class _OnlineHomeState extends State<OnlineHome> {
       final id = await OnlineHome.createSpace(context, widget.backend);
       if (mounted && id != null) {
         _switchSpace(id);
-        setState(() => _destination = 0);
       }
     } catch (error) {
       _message(_error(error));
@@ -2361,7 +2355,7 @@ class _OnlineHomeState extends State<OnlineHome> {
       backend: widget.backend,
       onJoined: (newSpaceId) {
         _switchSpace(newSpaceId);
-        setState(() => _destination = 0);
+
         widget.onSpaceSelected?.call(newSpaceId);
       },
     );

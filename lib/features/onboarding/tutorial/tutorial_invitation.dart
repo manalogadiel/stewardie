@@ -9,22 +9,57 @@ class TutorialInvitationSheet extends StatelessWidget {
     super.key,
     required this.onAccept,
     required this.onDismiss,
+    this.resume = false,
   });
 
   final VoidCallback onAccept;
   final VoidCallback onDismiss;
+  final bool resume;
 
-  static Future<bool?> show(BuildContext context) {
+  static Future<bool?> show(BuildContext context, {bool resume = false}) {
+    if (resume) {
+      return showDialog<bool>(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: SoftPop.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(32),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 480,
+              maxHeight: MediaQuery.sizeOf(ctx).height * .85,
+            ),
+            child: SingleChildScrollView(
+              child: TutorialInvitationSheet(
+                resume: true,
+                onAccept: () => Navigator.pop(ctx, true),
+                onDismiss: () => Navigator.pop(ctx, false),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: SoftPop.surface,
+      showDragHandle: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => TutorialInvitationSheet(
-        onAccept: () => Navigator.pop(ctx, true),
-        onDismiss: () => Navigator.pop(ctx, false),
+      builder: (ctx) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(ctx).height * .85,
+        ),
+        child: SingleChildScrollView(
+          child: TutorialInvitationSheet(
+            onAccept: () => Navigator.pop(ctx, true),
+            onDismiss: () => Navigator.pop(ctx, false),
+            resume: resume,
+          ),
+        ),
       ),
     );
   }
@@ -39,13 +74,13 @@ class TutorialInvitationSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Image.asset(
-              'assets/illustrations/clay-navigation.png',
-              height: 96,
+              'assets/illustrations/tour-navigation-guide.png',
+              height: 150,
               semanticLabel: 'A guided look around Stewardie',
             ),
             const SizedBox(height: 12),
             const Text(
-              'A quick look around?',
+              'Ready to look around?',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Fredoka',
@@ -68,15 +103,18 @@ class TutorialInvitationSheet extends StatelessWidget {
             FilledButton(
               onPressed: onAccept,
               style: FilledButton.styleFrom(
-                backgroundColor: SoftPop.blue,
-                foregroundColor: SoftPop.surface,
+                backgroundColor: SoftPop.lightButter,
+                foregroundColor: SoftPop.ink,
+                side: BorderSide.none,
+                elevation: 3,
+                shadowColor: SoftPop.ink.withValues(alpha: .16),
                 minimumSize: const Size(48, 52),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              child: const Text(
-                'Show me around',
+              child: Text(
+                resume ? 'Continue tour' : 'Show me around',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),

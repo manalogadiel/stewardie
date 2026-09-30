@@ -17,7 +17,6 @@ import '../../core/theme.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
 import 'calendar_state.dart';
-import 'google_calendar_import.dart';
 
 String monthLabel(BuildContext context, DateTime month) =>
     MaterialLocalizations.of(context).formatMonthYear(month);
@@ -41,13 +40,6 @@ class CalendarTile extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
           onTap: () {
-            final backend = ref.read(sharedBackendProvider);
-            if (backend != null) {
-              GoogleCalendarImport.instance
-                  .refreshSpace(backend, space.id)
-                  .then((_) => ref.read(calendarProvider.notifier).refresh())
-                  .catchError((Object _) {});
-            }
             showCalendar(context, space);
           },
           child: Padding(
@@ -427,20 +419,6 @@ class CalendarSheet extends ConsumerWidget {
                 );
               },
             ),
-            if (ref.read(sharedBackendProvider) case final backend?) ...[
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () =>
-                    showGoogleCalendarImport(context, backend, space),
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: const Text('Import selected Google events'),
-              ),
-              if (GoogleCalendarImport.instance.lastRefreshed
-                  case final refreshed?)
-                Text(
-                  'Google refreshed ${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(refreshed))}',
-                ),
-            ],
           ],
         ),
       ),
@@ -503,7 +481,7 @@ Future<void> showPlanDetails(
               SyncState.failed => 'Needs retry',
             }),
             if (plan.isImported)
-              const Text('Shared from Google Calendar · read-only here'),
+              const Text('Previously imported · sync paused · read-only here'),
             const SizedBox(height: 12),
             Text('${planDates(context, plan)} · ${planTime(context, plan)}'),
             if (plan.note.isNotEmpty)

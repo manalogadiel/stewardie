@@ -27,6 +27,7 @@ class TutorialCoordinator {
   /// In-memory tracker for UIDs that have been prompted during this app session.
   static final Set<String> _promptedUids = <String>{};
   static final Set<String> _continuingUids = <String>{};
+  static final Set<String> _resumeOffered = <String>{};
   static final Map<String, Future<void> Function(TutorialStatus?)>
   _activeTours = {};
 
@@ -57,6 +58,7 @@ class TutorialCoordinator {
     }
     _promptedUids.clear();
     _continuingUids.clear();
+    _resumeOffered.clear();
     _eligibleFirstUseUids.clear();
   }
 
@@ -183,6 +185,30 @@ class TutorialCoordinator {
   }
 
   /// Explicit continuation after the first membership, never an automatic tour.
+  Future<void> offerContinuation(
+    BuildContext context, {
+    required String uid,
+    ValueChanged<int>? onTabRequested,
+  }) async {
+    if (database == null ||
+        _activeTours.containsKey(uid) ||
+        _resumeOffered.contains(uid))
+      return;
+    final status = await _store.getStatus(uid);
+    if (!context.mounted ||
+        (status != TutorialStatus.awaitingSpace &&
+            status != TutorialStatus.inProgress))
+      return;
+    if (!_resumeOffered.add(uid)) return;
+    final accepted = await TutorialInvitationSheet.show(context, resume: true);
+    if (!context.mounted) return;
+    if (accepted == true) {
+      await continueTour(context, uid: uid, onTabRequested: onTabRequested);
+    } else {
+      await _store.setStatus(uid, TutorialStatus.skipped);
+    }
+  }
+
   Future<void> continueTour(
     BuildContext context, {
     required String uid,

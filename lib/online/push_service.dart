@@ -5,9 +5,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// FCM is optional delivery; Firestore activity remains authoritative.
 class PushService {
+  static const _native = MethodChannel('stewardie/notifications');
   PushService._();
   static final instance = PushService._();
 
@@ -54,9 +56,31 @@ class PushService {
     if (_uid == uid && _rotation != null) return;
     await logOut();
     _uid = uid;
-    _foregroundMessages = FirebaseMessaging.onMessage.listen((_) {
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+    } else {
+      await _native.invokeMethod<void>('configure');
+      _native.setMethodCallHandler((call) async {
+        if (call.method == 'opened' &&
+            _uid == uid &&
+            FirebaseAuth.instance.currentUser?.uid == uid)
+          _requestInboxOpen();
+      });
+      if (await _native.invokeMethod<String>('takeInitial') != null &&
+          _uid == uid)
+        _requestInboxOpen();
+    }
+    _foregroundMessages = FirebaseMessaging.onMessage.listen((message) {
       if (_uid == uid && FirebaseAuth.instance.currentUser?.uid == uid) {
         _foregroundUpdates.add(null);
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          unawaited(_present(message, uid).catchError((_) {}));
+        }
       }
     });
     _rotation = FirebaseMessaging.instance.onTokenRefresh.listen((token) {
@@ -73,6 +97,58 @@ class PushService {
     }
     await _syncIfPermitted();
   }
+
+  Future<void> _present(RemoteMessage message, String uid) async {
+    final activityId = message.data['activityId'];
+    final spaceId = message.data['spaceId'];
+    if (activityId is! String || spaceId is! String) return;
+    final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) return;
+    final docs = await Future.wait([
+      FirebaseFirestore.instance
+          .doc('accounts/$uid/notificationPrefs/global')
+          .get(),
+      FirebaseFirestore.instance
+          .doc(
+            'accounts/$uid/notificationPrefs/${spaceId.isEmpty ? 'global' : spaceId}',
+          )
+          .get(),
+      FirebaseFirestore.instance
+          .doc('accounts/$uid/activity/$activityId')
+          .get(),
+    ]);
+    if (_uid != uid ||
+        FirebaseAuth.instance.currentUser?.uid != uid ||
+        docs[0].data()?['enabled'] == false ||
+        docs[1].data()?['enabled'] == false ||
+        !docs[2].exists) {
+      return;
+    }
+    final item = docs[2].data()!;
+    final category = {
+      'photo': 'photos',
+      'reaction': 'reactions',
+      'mood': 'moods',
+    }[item['kind']];
+    if (category != null && docs[1].data()?[category] == false) return;
+    if (item['accountNotice'] != true) {
+      final space = await FirebaseFirestore.instance
+          .doc('spaces/$spaceId')
+          .get(const GetOptions(source: Source.server));
+      if (!(space.data()?['memberUids'] as List? ?? []).contains(uid)) return;
+    }
+    if (_uid != uid || FirebaseAuth.instance.currentUser?.uid != uid) return;
+    var id = 0;
+    for (final unit in activityId.codeUnits) {
+      id = (id * 31 + unit) & 0x7fffffff;
+    }
+    await _native.invokeMethod<void>('show', {
+      'id': id,
+      'activityId': activityId,
+    });
+  }
+
+  Future<void> syncPermission() => _syncIfPermitted();
 
   Future<void> _syncIfPermitted() async {
     if (!available || _uid == null) {
@@ -106,7 +182,8 @@ class PushService {
       'platform': _platform,
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    _documentId = id;
+    if (_uid == uid && FirebaseAuth.instance.currentUser?.uid == uid)
+      _documentId = id;
   }
 
   Future<bool> requestPermission() async {
@@ -116,6 +193,22 @@ class PushService {
         settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
     if (granted) {
+      final uid = _uid ?? FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final pref = FirebaseFirestore.instance.doc(
+          'accounts/$uid/notificationPrefs/global',
+        );
+        await FirebaseFirestore.instance.runTransaction((tx) async {
+          if (!(await tx.get(pref)).exists)
+            tx.set(pref, {
+              'enabled': true,
+              'quietStart': 1320,
+              'quietEnd': 420,
+              'timeZone': 'Asia/Manila',
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+        });
+      }
       await _syncIfPermitted();
     }
     return granted;
@@ -125,6 +218,13 @@ class PushService {
     final uid = _uid;
     _uid = null;
     _pendingInboxOpen = false;
+    if (available && defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        await _native.invokeMethod<void>('clear');
+      } catch (_) {
+        /* Native channel unavailable in tests. */
+      }
+    }
     await _rotation?.cancel();
     _rotation = null;
     await _openedMessages?.cancel();
@@ -136,9 +236,20 @@ class PushService {
     if (uid != null &&
         id != null &&
         FirebaseAuth.instance.currentUser?.uid == uid) {
-      await FirebaseFirestore.instance
-          .doc('accounts/$uid/pushDevices/$id')
-          .delete();
+      try {
+        await FirebaseFirestore.instance
+            .doc('accounts/$uid/pushDevices/$id')
+            .delete();
+      } catch (_) {
+        /* Invalidating the FCM token below also ends delivery offline. */
+      }
+    }
+    if (available && uid != null) {
+      try {
+        await FirebaseMessaging.instance.deleteToken();
+      } catch (_) {
+        /* Retry registration on the next authenticated session. */
+      }
     }
   }
 }

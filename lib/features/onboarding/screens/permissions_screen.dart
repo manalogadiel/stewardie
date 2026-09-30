@@ -10,7 +10,7 @@ import '../staggered_entrance.dart';
 /// Three optional permission cards (Camera, Location, Notifications).
 /// Each capability has its own isolated Allow and Not now actions.
 /// Never queues all prompts automatically.
-/// Continue is always usable.
+/// Skipping remains optional; Continue waits for an active native prompt.
 class PermissionsScreen extends StatefulWidget {
   const PermissionsScreen({
     super.key,
@@ -38,7 +38,8 @@ class _PermissionsScreenState extends State<PermissionsScreen>
   };
 
   final Set<PermissionCapability> _skipped = {};
-  bool _busy = false, _servicesEnabled = true;
+  PermissionCapability? _requesting;
+  bool _servicesEnabled = true;
   int _statusGeneration = 0;
 
   @override
@@ -81,9 +82,9 @@ class _PermissionsScreenState extends State<PermissionsScreen>
   }
 
   Future<void> _requestCapability(PermissionCapability capability) async {
-    if (_busy) return;
+    if (_requesting != null) return;
     ++_statusGeneration;
-    setState(() => _busy = true);
+    setState(() => _requesting = capability);
     try {
       final result = await widget.adapter.requestPermission(capability);
       ++_statusGeneration;
@@ -96,7 +97,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
       }
       await _checkInitialStatuses();
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _requesting = null);
     }
   }
 
@@ -118,7 +119,10 @@ class _PermissionsScreenState extends State<PermissionsScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const MascotStage(pose: MascotPose.makeItYours),
+              MascotStage(
+                pose: MascotPose.makeItYours,
+                compact: MediaQuery.sizeOf(context).height < 800,
+              ),
               const SizedBox(height: 16),
               const StaggeredEntrance(
                 order: 1,
@@ -186,7 +190,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                     ],
                     const SizedBox(height: 28),
                     FilledButton(
-                      onPressed: widget.onContinue,
+                      onPressed: _requesting == null ? widget.onContinue : null,
                       style: FilledButton.styleFrom(
                         backgroundColor: SoftPop.blue,
                         foregroundColor: SoftPop.surface,
@@ -349,7 +353,9 @@ class _PermissionsScreenState extends State<PermissionsScreen>
               children: [
                 if (!isSkipped)
                   TextButton(
-                    onPressed: _busy ? null : () => _skipCapability(capability),
+                    onPressed: _requesting == capability
+                        ? null
+                        : () => _skipCapability(capability),
                     style: TextButton.styleFrom(
                       minimumSize: const Size(48, 48),
                     ),
@@ -376,19 +382,22 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   ),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: _busy
+                  onPressed: _requesting == capability
                       ? null
                       : () => _requestCapability(capability),
                   style: FilledButton.styleFrom(
-                    backgroundColor: SoftPop.blue,
-                    foregroundColor: SoftPop.surface,
+                    backgroundColor: SoftPop.lightButter,
+                    foregroundColor: SoftPop.ink,
+                    side: BorderSide.none,
+                    elevation: 2,
+                    shadowColor: const Color(0x30202633),
                     minimumSize: const Size(48, 48),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 18,
                       vertical: 8,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(28),
                     ),
                   ),
                   child: const Text(

@@ -14,6 +14,7 @@ import '../timeline/domain/models.dart';
 import 'media_library.dart';
 import 'photo_composer.dart';
 import 'export.dart';
+import 'photo_reactions.dart';
 
 Future<void> viewPhoto(BuildContext context, MediaAttachment photo) =>
     Navigator.of(
@@ -164,6 +165,39 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
         child: Stack(
           children: [
             const Positioned.fill(child: SoftPopBackdrop()),
+            if (MediaQuery.sizeOf(context).width >= 380 &&
+                MediaQuery.textScalerOf(context).scale(16) < 24) ...[
+              Positioned(
+                right: -8,
+                bottom: 20,
+                child: IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: Opacity(
+                      opacity: .08,
+                      child: Image.asset(
+                        'assets/illustrations/viewer-mascot-hello.png',
+                        width: 120,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: -12,
+                bottom: 220,
+                child: IgnorePointer(
+                  child: ExcludeSemantics(
+                    child: Opacity(
+                      opacity: .08,
+                      child: Image.asset(
+                        'assets/illustrations/viewer-mascot-crawl.png',
+                        width: 140,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             Column(
               children: [
                 Expanded(
@@ -197,41 +231,46 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Text(
-                    author,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                Flexible(
+                  flex: 2,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                          child: Text(
+                            author,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (widget.photo.caption.isNotEmpty ||
+                            widget.photo.taskTitle != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                            child: Text(
+                              widget.photo.taskTitle ?? widget.photo.caption,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        PhotoReactions(photo: widget.photo),
+                        if (widget.photo.pin != null) _photoLocation(context),
+                        if (saving) const LinearProgressIndicator(),
+                        if (message != null)
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Semantics(
+                              liveRegion: true,
+                              child: Text(
+                                message!,
+                                style: const TextStyle(color: SoftPop.ink),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-                if (widget.photo.caption.isNotEmpty ||
-                    widget.photo.taskTitle != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: Text(
-                      widget.photo.taskTitle ?? widget.photo.caption,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                if (widget.photo.pin != null)
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: _photoLocation(context),
-                    ),
-                  ),
-                if (saving) const LinearProgressIndicator(),
-                if (message != null)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        message!,
-                        style: const TextStyle(color: SoftPop.ink),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ],

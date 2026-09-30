@@ -301,6 +301,22 @@ test('profile photos and push tokens stay account-scoped', async()=>{
  await assertFails(db('bob').doc(`accounts/alice/pushDevices/${device}`).set({token:'b'.repeat(42),platform:'android',updatedAt:now()}));
 });
 
+test('pilot canonical photo reactions reject direct client writes', async()=>{
+ await assertFails(db('alice').doc('accounts/alice/locationState/current').set({spaceId:'home',expiresAt:now()}));
+ await env.withSecurityRulesDisabled(c=>c.firestore().doc('accounts/alice/locationState/current').set({spaceId:'home',expiresAt:now()}));
+ await assertSucceeds(db('alice').doc('accounts/alice/locationState/current').get());
+ await assertFails(db('bob').doc('accounts/alice/locationState/current').get());
+ await assertFails(db('alice').doc('spaces/home/moments/real-photo/reactions/alice').set({uid:'alice',type:'heart',createdAt:now()}));
+ await assertFails(db('outsider').doc('spaces/home/moments/fake/reactions/outsider').set({uid:'outsider',type:'like',createdAt:now()}));
+});
+test('pilot ownership cancellation requires an atomic genuine owner transition', async()=>{
+ await env.withSecurityRulesDisabled(c=>c.firestore().doc('spaces/home').update({pendingOwnerUid:'bob'}));
+ await assertFails(db('bob').doc('spaces/home').update({pendingOwnerUid:null}));
+ const d=db('alice'), event={type:'ownershipCancelled',actorUid:'alice',entityId:'bob',targetUid:'bob',recipientUids:['alice','bob'],createdAt:now()};
+ await assertFails(d.doc('spaces/home/events/fake-cancel').set(event));
+ const batch=d.batch(); batch.update(d.doc('spaces/home'),{pendingOwnerUid:null}); batch.set(d.doc('spaces/home/events/cancel'),event);
+ await assertSucceeds(batch.commit());
+});
 test('pilot cap rejects concurrent Basic additions and preserves existing memberships', async()=>{
  await env.withSecurityRulesDisabled(async c=> c.firestore().doc('accounts/bob').update({spaceIds:['home','existing']}));
  const d=db('bob');

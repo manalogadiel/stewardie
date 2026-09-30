@@ -333,7 +333,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                           border: InputBorder.none,
                           isDense: true,
                           constraints: BoxConstraints(minHeight: 48),
-                          contentPadding: EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
                     ],
@@ -384,7 +384,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                         decoration: BoxDecoration(
                           color: isPlus
                               ? const Color(0xFFF8E7B0)
-                              : const Color(0xFFE8EEFF),
+                              : const Color(0xFFF1EFEA),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -395,7 +395,7 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                             fontWeight: FontWeight.w800,
                             color: isPlus
                                 ? const Color(0xFF8C6D1F)
-                                : const Color(0xFF244BFF),
+                                : const Color(0xFF596171),
                           ),
                         ),
                       ),

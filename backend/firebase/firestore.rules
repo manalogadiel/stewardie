@@ -77,6 +77,10 @@ service cloud.firestore {
           && request.resource.data.status in ['notStarted','inProgress','awaitingSpace','skipped','completed']
           && request.resource.data.updatedAt == request.time;
       }
+      match /locationState/{state} {
+        allow read: if self(uid) && state == 'current';
+        allow write: if false;
+      }
       match /notificationPrefs/{scope} {
         allow read: if self(uid);
         allow create, update: if self(uid)
@@ -238,7 +242,7 @@ service cloud.firestore {
         || requestDeletion()
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeInviteToken']))
         || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requireApproval']))
-        || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && request.resource.data.pendingOwnerUid in resource.data.memberUids)
+        || (owner(id) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pendingOwnerUid']) && (request.resource.data.pendingOwnerUid == null || request.resource.data.pendingOwnerUid in resource.data.memberUids))
         || (member(id) && resource.data.get('pendingOwnerUid', null) == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid','pendingOwnerUid'])
           && request.resource.data.ownerUid == request.auth.uid && request.resource.data.pendingOwnerUid == null
@@ -328,7 +332,11 @@ service cloud.firestore {
             || (member(id) && e.type == 'ownershipAccepted'
                     && e.entityId == request.auth.uid && e.targetUid == request.auth.uid
                     && sp(id).ownerUid != request.auth.uid
-                    && afterSpace(id).ownerUid == request.auth.uid);
+                    && afterSpace(id).ownerUid == request.auth.uid)
+            || (owner(id) && e.type == 'ownershipCancelled'
+                    && e.targetUid == e.entityId
+                    && sp(id).get('pendingOwnerUid', null) == e.targetUid
+                    && e.targetUid != null && afterSpace(id).pendingOwnerUid == null);
         }
         function extraTaskEvent() {
           let e = request.resource.data;
@@ -527,7 +535,8 @@ service cloud.firestore {
         allow read, create, update, delete: if member(id);
         match /reactions/{reactionUid} {
           allow read: if member(id);
-          allow create, update, delete: if member(id) && self(reactionUid);
+          // Trusted media gateway validates the canonical Supabase photo first.
+          allow create, update, delete: if false;
         }
       }
       match /locationSessions/{sessionUid} {

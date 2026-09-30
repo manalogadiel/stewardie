@@ -91,6 +91,24 @@ class CloudMediaLibrary extends MediaLibrary {
     return {'Authorization': 'Bearer $token'};
   }
 
+  Future<List<Map<String, dynamic>>> reactions(
+    MediaAttachment photo, {
+    String? type,
+    bool change = false,
+  }) async {
+    if (!_allowed(photo.spaceId)) throw StateError('Space access ended.');
+    final response = await _request({
+      'action': change ? 'react' : 'reactions',
+      'space': photo.spaceId,
+      'id': photo.id,
+      if (change) 'type': type,
+    });
+    if (!_allowed(photo.spaceId)) throw StateError('Space access ended.');
+    return (jsonDecode(response.body)['reactions'] as List)
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+  }
+
   Future<http.Response> _request(Map<String, Object?> body) async {
     final response = await _client
         .post(
@@ -267,51 +285,55 @@ class CloudMediaLibrary extends MediaLibrary {
         attempted.add(id);
         final photo = super.items.where((p) => p.id == id).firstOrNull;
         if (photo == null || !_allowed(photo.spaceId)) continue;
-        final request = http.MultipartRequest(
-          'POST',
-          Uri.parse('$mediaEndpoint?action=upload'),
-        );
-        request.headers.addAll(await _headers());
-        request.fields.addAll({
-          'id': id,
-          'space': photo.spaceId,
-          'caption': photo.caption,
-          if (photo.taskId != null) 'task': photo.taskId!,
-          'framing': jsonEncode(photo.framing.toMap()),
-          'photoSource': photo.photo.source,
-          if (photo.pin != null) 'pin': jsonEncode(photo.pin!.toMap()),
-        });
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'photo',
-            photo.photo.bytes,
-            filename: 'photo.jpg',
-          ),
-        );
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'thumbnail',
-            photo.photo.thumbnail,
-            filename: 'thumb.jpg',
-          ),
-        );
-        final response = await http.Response.fromStream(
-          await _client.send(request),
-        ).timeout(const Duration(seconds: 90));
-        _validate(response);
-        final item = await _decode(
-          Map<String, dynamic>.from(jsonDecode(response.body)['item']),
-        );
-        if (!_allowed(photo.spaceId)) return;
-        _remote[id] = item;
-        await cacheAttachment(item);
-        await _outbox.record('${user.uid}/$id').delete(database!);
-        _pending.remove(id);
+        try {
+          final request = http.MultipartRequest(
+            'POST',
+            Uri.parse('$mediaEndpoint?action=upload'),
+          );
+          request.headers.addAll(await _headers());
+          request.fields.addAll({
+            'id': id,
+            'space': photo.spaceId,
+            'caption': photo.caption,
+            if (photo.taskId != null) 'task': photo.taskId!,
+            'framing': jsonEncode(photo.framing.toMap()),
+            'photoSource': photo.photo.source,
+            if (photo.pin != null) 'pin': jsonEncode(photo.pin!.toMap()),
+          });
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'photo',
+              photo.photo.bytes,
+              filename: 'photo.jpg',
+            ),
+          );
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'thumbnail',
+              photo.photo.thumbnail,
+              filename: 'thumb.jpg',
+            ),
+          );
+          final response = await http.Response.fromStream(
+            await _client.send(request),
+          ).timeout(const Duration(seconds: 90));
+          _validate(response);
+          final item = await _decode(
+            Map<String, dynamic>.from(jsonDecode(response.body)['item']),
+          );
+          if (!_allowed(photo.spaceId)) return;
+          _remote[id] = item;
+          await cacheAttachment(item);
+          await _outbox.record('${user.uid}/$id').delete(database!);
+          _pending.remove(id);
+        } catch (e) {
+          // Retain this attachment for retry without starving later spaces.
+          _error = e is StateError
+              ? e.message
+              : 'Upload interrupted. Your photo is kept; tap Retry sharing.';
+          if (_closed) return;
+        }
       }
-    } catch (e) {
-      _error = e is StateError
-          ? e.message
-          : 'Upload interrupted. Your photo is kept; tap Retry sharing.';
     } finally {
       _uploading = false;
       if (!_closed) notifyListeners();

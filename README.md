@@ -6,6 +6,8 @@ Status: The normal Flutter app connects to the live `stewardie` Firebase project
 
 ## Start here
 
+Latest implementation: [permissions, tour, Moments and notifications verification](docs/permissions-tour-moments-notifications-verification.md). Firebase rules and Supabase gateways/worker are deployed; native device delivery and GPS checks remain documented gates.
+
 1. [Product plan](docs/shared-spaces-product-plan.md) — behavior and scope.
 2. [UI and assets](docs/ui-plan.md) — screens, tokens, approved visual direction, and assets needed.
 3. [Technical and launch plan](docs/technical-launch-plan.md) — proposed architecture and staged build.

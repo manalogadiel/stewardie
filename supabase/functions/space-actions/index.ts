@@ -153,6 +153,7 @@ async function join(token: string, uid: string, name: string): Promise<Response>
     ]);
     const plan = joinPlan({ uid, token, invite, space: space ? fields(space) : null, account: fields(account), pending: fields(pending), name });
     if (plan.alreadyJoined) return json(200, { spaceId });
+    if (!plan.member || !plan.event || !plan.memberUids) throw new Error('Incomplete join plan');
     const update = (path: string, data: any, prior: any, mask?: string[]) => ({
       update: { name: `${database}/documents/${path}`, fields: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, encode(value)])) },
       ...(mask ? { updateMask: { fieldPaths: mask } } : {}),
@@ -189,15 +190,42 @@ async function startLocation(spaceId: string, uid: string, body: any): Promise<R
   for (let attempt = 0; attempt < 3; attempt++) {
     const space = await get(`spaces/${spaceId}`);
     const session = locationSession({ ...body, uid, space: space ? fields(space) : null, now: new Date() });
+    // One account may share with only one space, including across devices.
+    // The anchor's precondition makes concurrent starts serialize at commit.
+    const anchorPath = `accounts/${uid}/locationState/current`;
+    const anchor = await get(anchorPath);
+    const active = anchor ? fields(anchor) : {};
+    if (active.spaceId !== spaceId && Date.parse(active.expiresAt ?? '') > Date.now()) {
+      return json(409, { error: 'You are already sharing in another space. End that session first.' });
+    }
+    // Include sessions created before this account-wide anchor was introduced.
+    if (!anchor) {
+      const account = await get(`accounts/${uid}`);
+      for (const id of (account ? fields(account).spaceIds ?? [] : [])) {
+        if (id === spaceId) continue;
+        const prior = await get(`spaces/${id}/locationSessions/${uid}`);
+        if (prior && Date.parse(fields(prior).expiresAt ?? '') > Date.now()) {
+          return json(409, { error: 'You are already sharing in another space. End that session first.' });
+        }
+      }
+    }
     const sessionFields = Object.fromEntries(Object.entries(session).map(([key, value]) =>
       [key, ['startedAt','updatedAt','expiresAt'].includes(key) ? { timestampValue: value } : encode(value)]));
     const result = await fetch(`https://firestore.googleapis.com/v1/${database}/documents:commit`, {
       method: 'POST', headers: { authorization: `Bearer ${await accessToken()}`, 'content-type': 'application/json' },
       body: JSON.stringify({ writes: [
+        { update: { name: `${database}/documents/${anchorPath}`, fields: {
+          spaceId: encode(spaceId), expiresAt: { timestampValue: session.expiresAt },
+          startedAt: { timestampValue: session.startedAt },
+        } }, currentDocument: anchor ? { updateTime: anchor.updateTime } : { exists: false } },
         // Assert the recipient/membership snapshot atomically without changing it.
         { update: { name: space.name, fields: { memberUids: space.fields.memberUids } },
           updateMask: { fieldPaths: ['memberUids'] }, currentDocument: { updateTime: space.updateTime } },
         { update: { name: `${database}/documents/spaces/${spaceId}/locationSessions/${uid}`, fields: sessionFields } },
+        { update: { name: `${database}/documents/spaces/${spaceId}/events/locationStarted_${uid}_${Date.parse(session.startedAt)}`, fields: {
+          type: encode('locationStarted'), actorUid: encode(uid), entityId: encode(uid),
+          recipientUids: encode(session.recipientUids), createdAt: { timestampValue: session.startedAt },
+        } }, currentDocument: { exists: false } },
       ] }),
     });
     if (result.status === 409 || result.status === 412) continue;
@@ -209,6 +237,26 @@ async function startLocation(spaceId: string, uid: string, body: any): Promise<R
     return json(200, { ok: true, expiresAt: session.expiresAt });
   }
   return json(409, { error: 'This space changed. Please try sharing again.' });
+}
+
+async function stopLocation(spaceId:string,uid:string):Promise<Response> {
+  const session=await get(`spaces/${spaceId}/locationSessions/${uid}`);
+  if(!session)return json(200,{ok:true});
+  const data=fields(session);
+  const eventId=`locationEnded_${uid}_${Date.parse(data.startedAt)}`;
+  const eventPath=`${database}/documents/spaces/${spaceId}/events/${eventId}`;
+  const ended=await get(`spaces/${spaceId}/events/${eventId}`);
+  const writes:any[]=[{delete:session.name,currentDocument:{updateTime:session.updateTime}}];
+  const anchor = await get(`accounts/${uid}/locationState/current`);
+  if (anchor && fields(anchor).spaceId === spaceId && fields(anchor).startedAt === data.startedAt) {
+    writes.push({delete:anchor.name,currentDocument:{updateTime:anchor.updateTime}});
+  }
+  if(!ended)writes.push({update:{name:eventPath,fields:{type:encode('locationEnded'),actorUid:encode(uid),entityId:encode(uid),recipientUids:encode(data.recipientUids??[]),createdAt:{timestampValue:new Date().toISOString()}}},currentDocument:{exists:false}});
+  const result=await fetch(`https://firestore.googleapis.com/v1/${database}/documents:commit`,{
+    method:'POST',headers:{authorization:`Bearer ${await accessToken()}`,'content-type':'application/json'},body:JSON.stringify({writes}),
+  });
+  if(!result.ok)return json(409,{error:'Sharing changed. Please retry stopping.'});
+  return json(200,{ok:true});
 }
 
 Deno.serve(async (req) => {
@@ -229,6 +277,7 @@ Deno.serve(async (req) => {
       return json(400, { error: 'Invalid space.' });
     }
     if (body.action === 'startLocation') return await startLocation(body.spaceId, uid, body);
+    if (body.action === 'stopLocation') return await stopLocation(body.spaceId, uid);
     if (body.action === 'rename') {
       const name = typeof body.name === 'string' ? body.name.trim() : '';
       if (!name || name.length > 80) return json(400, { error: 'Enter a shorter space name.' });

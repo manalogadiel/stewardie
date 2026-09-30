@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'online_backend.dart';
 import '../core/member_avatar.dart';
 import '../core/theme.dart';
+import 'operator_review_sheet.dart';
 
 /// Task requests remain visible even if scheduled notifications are unavailable.
 class ActivityInboxSheet extends StatelessWidget {
@@ -163,6 +164,13 @@ class ActivityInboxSheet extends StatelessWidget {
         ].where((text) => text.isNotEmpty).join(' · '),
       ),
       onTap: () async {
+        if ((doc.data()['reportId'] is String ||
+                doc.data()['deletionReview'] == true) &&
+            backend.auth.currentUser?.email == 'gadielmanalo19@gmail.com' &&
+            backend.auth.currentUser?.emailVerified == true) {
+          await OperatorReviewSheet.show(context, backend);
+          if (!context.mounted) return;
+        }
         final cleanupId = doc.data()['cleanupSpaceId'];
         if (doc.data()['accountNotice'] == true && cleanupId is String) {
           try {

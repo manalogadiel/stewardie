@@ -1,6 +1,7 @@
 import { importPKCS8, SignJWT } from 'https://esm.sh/jose@5.9.6';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { eventInboxId, eventRecipients } from './event_delivery.mjs';
+import { socialEligible, pushEnabled, notificationRollout } from './notification_policy.mjs';
 
 // Invoked by Supabase Cron with a private shared secret. Firebase Admin REST
 // bypasses client rules; never expose this endpoint to an app or browser.
@@ -96,11 +97,11 @@ async function get(path: string): Promise<Doc | null> {
   return result.json();
 }
 
-async function list(path: string): Promise<Doc[]> {
+async function list(path: string, showMissing = false): Promise<Doc[]> {
   const docs: Doc[] = [];
   let page: string | undefined;
   do {
-    const qs = new URLSearchParams({ pageSize: '100' });
+    const qs = new URLSearchParams({ pageSize: '100', ...(showMissing ? { showMissing: 'true' } : {}) });
     if (page) qs.set('pageToken', page);
     const result = await request(`${path}?${qs}`);
     if (!result.ok) throw new Error(`Firestore list ${path}: ${result.status}`);
@@ -157,7 +158,7 @@ async function collectionIds(path: string): Promise<string[]> {
 
 async function deleteTree(path: string): Promise<void> {
   for (const collection of await collectionIds(path)) {
-    for (const child of await list(`${path}/${collection}`)) {
+    for (const child of await list(`${path}/${collection}`, true)) {
       await deleteTree(docPath(child));
     }
   }
@@ -252,7 +253,7 @@ async function accountNotice(uid: string, id: string, title: string, body: strin
   if (!await get(`accounts/${uid}`)) return;
   await create(`accounts/${uid}/activity/${id}`, {
     accountNotice: true, kind: 'accountNotice', title, body,
-    createdAt: now, readAt: null, pushState: 'none', ...extra,
+    createdAt: now, readAt: null, pushState: 'pending', pushId: id, ...extra,
   });
 }
 
@@ -260,7 +261,7 @@ async function activityForJoin(spaceId: string, space: Fields, join: Doc, now: D
   const j = fields(join);
   const requested = Date.parse(String(j.requestedAt ?? ''));
   // Do not manufacture historical notices for requests predating this rollout.
-  if (!Number.isFinite(requested) || requested < Date.parse('2026-09-30T00:00:00Z')) return;
+  if (!Number.isFinite(requested) || requested < notificationRollout) return;
   const uid = String(j.uid ?? '');
   const key = `${spaceId}_${uid}_${requested}`;
   if (j.status === 'pending' && typeof space.ownerUid === 'string' && space.ownerUid !== uid) {
@@ -305,12 +306,14 @@ function quiet(minute: number, start: number, end: number): boolean {
 async function socialActivity(spaceId: string, space: Fields, now: Date): Promise<void> {
   const members = space.memberUids as string[] ?? [];
   const prefs = new Map<string, Fields>();
+  const joined = new Map<string, unknown>();
+  for (const uid of members) joined.set(uid, fields(await get(`spaces/${spaceId}/members/${uid}`) ?? { name: '' }).joinedAt);
   for (const uid of members) prefs.set(uid, fields(await get(`accounts/${uid}/notificationPrefs/${spaceId}`) ?? { name: '' }));
   const eligible = (uid: string, category: string, time: string) => {
     const p = prefs.get(uid) ?? {};
-    return p[category] === true && Date.parse(time) >= Math.max(Date.parse(String(p.updatedAt ?? '')), Date.parse('2026-09-30T00:00:00Z'));
+    return socialEligible(p, category, time, joined.get(uid));
   };
-  if ([...prefs.values()].some((p) => p.moods === true)) {
+  if ([...prefs.values()].some((p) => p.moods !== false)) {
     for (const mood of await list(`spaces/${spaceId}/checkIns`)) {
       const m = fields(mood), author = String(m.uid ?? '');
       const at = String(m.updatedAt ?? '');
@@ -319,12 +322,12 @@ async function socialActivity(spaceId: string, space: Fields, now: Date): Promis
         if (uid === author || !eligible(uid, 'moods', at)) continue;
         await create(`accounts/${uid}/activity/mood_${spaceId}_${author}_${local(now, String(space.timeZone ?? 'UTC')).date}`, {
           spaceId, kind: 'mood', actorUid: author, title: 'Mood check-in', body: 'A member checked in today.',
-          createdAt: new Date(at), readAt: null, pushState: 'none',
+          createdAt: new Date(at), readAt: null, pushState: 'pending', pushId: `mood_${spaceId}_${author}_${local(now, String(space.timeZone ?? 'UTC')).date}`,
         });
       }
     }
   }
-  if (![...prefs.values()].some((p) => p.photos === true || p.reactions === true)) return;
+  if (![...prefs.values()].some((p) => p.photos !== false || p.reactions !== false)) return;
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   for (let offset = 0; ; offset += 100) {
     const { data, error } = await sb.from('media_items').select('id,uploader_uid,published_at')
@@ -341,9 +344,12 @@ async function socialActivity(spaceId: string, space: Fields, now: Date): Promis
         readAt: null, pushState: 'pending', pushId: `photo_${spaceId}_${photo.id}`,
       });
     }
-    if (prefs.get(photo.uploader_uid)?.reactions !== true) continue;
     for (const reaction of await list(`spaces/${spaceId}/moments/${photo.id}/reactions`)) {
       const r = fields(reaction), actor = String(r.uid ?? ''), at = String(r.createdAt ?? '');
+      if (!members.includes(actor) || await get(`accounts/${actor}/blocks/${photo.uploader_uid}`) || await get(`accounts/${photo.uploader_uid}/blocks/${actor}`)) {
+        if (reaction.updateTime) await remove(reaction.name.replace(`${nameRoot}/`, ''), reaction.updateTime);
+        continue;
+      }
       if (!members.includes(actor) || actor === photo.uploader_uid || !eligible(photo.uploader_uid, 'reactions', at)) continue;
       const day = local(new Date(at), String(space.timeZone ?? 'UTC')).date;
       await create(`accounts/${photo.uploader_uid}/activity/reactions_${spaceId}_${photo.id}_${day}`, {
@@ -433,6 +439,8 @@ async function activityForTask(
 
 async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc, now: Date): Promise<void> {
   const e = fields(event);
+  const at = Date.parse(String(e.createdAt ?? ''));
+  if (!Number.isFinite(at) || at < notificationRollout) return;
   const eventId = event.name.split('/').pop()!;
   const type = String(e.type ?? '');
   const actor = String(e.actorUid ?? '');
@@ -449,6 +457,9 @@ async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc,
     removed: ['A member was removed', 'Your space membership changed.'],
     ownershipOffered: ['Ownership offer', 'Review the offer in your space.'],
     ownershipAccepted: ['Ownership transferred', 'Your space has a new owner.'],
+    ownershipCancelled: ['Ownership offer ended', 'An ownership offer was cancelled.'],
+    locationStarted: ['Location sharing started', 'A member is sharing with this space.'],
+    locationEnded: ['Location sharing ended', 'A member stopped sharing with this space.'],
     spaceRenamed: ['Space renamed', 'Your space has a new name.'],
     taskAssigned: ['Task assigned', 'A task needs your response.'],
     helpRequested: ['Help requested', 'A member asked for help with a task.'],
@@ -549,13 +560,14 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
     await update(path, { pushState: 'cancelled', pushLeaseUntil: null }, item.updateTime!);
   };
   const spaceId = String(data.spaceId ?? '');
-  const space = await get(`spaces/${spaceId}`);
-  if (!space || !(fields(space).memberUids as string[] ?? []).includes(uid)) {
+  const space = spaceId ? await get(`spaces/${spaceId}`) : null;
+  const currentSpace = space ? fields(space) : {};
+  if (data.accountNotice !== true && (!space || !(fields(space).memberUids as string[] ?? []).includes(uid))) {
     await cancel();
     return;
   }
-  if ((data.kind === 'ownershipOffered' && fields(space).pendingOwnerUid !== uid) ||
-      (data.kind === 'joinRequested' && fields(space).ownerUid !== uid)) {
+  if ((data.kind === 'ownershipOffered' && currentSpace.pendingOwnerUid !== uid) ||
+      (data.kind === 'joinRequested' && currentSpace.ownerUid !== uid)) {
     await cancel(); return;
   }
   if (data.kind === 'joinRequested') {
@@ -567,7 +579,7 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
     const t: Fields = task ? fields(task) : {};
     const invalidDue = data.kind === 'due' &&
       (String(t.scheduledLocalDate ?? '') !== String(data.dueDate) ||
-       String(data.dueDate) > local(now, String(fields(space).timeZone ?? 'UTC')).date);
+       String(data.dueDate) > local(now, String(currentSpace.timeZone ?? 'UTC')).date);
     const invalidAction = data.kind === 'action' &&
       t.status !== 'requested' && !t.offeredUid;
     const reminder = ['due', 'action', 'taskAssigned'].includes(String(data.kind));
@@ -596,7 +608,16 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
     }
   }
   const global = fields((await get(`accounts/${uid}/notificationPrefs/global`)) ?? { name: '' });
-  const perSpace = fields((await get(`accounts/${uid}/notificationPrefs/${spaceId}`)) ?? { name: '' });
+  const perSpace = spaceId ? fields((await get(`accounts/${uid}/notificationPrefs/${spaceId}`)) ?? { name: '' }) : {};
+  if (data.kind === 'mood') {
+    const checkin = fields(await get(`spaces/${spaceId}/checkIns/${data.actorUid}`) ?? { name: '' });
+    if (perSpace.moods === false || !checkin.expiresAt || Date.parse(String(checkin.expiresAt)) <= now.getTime()) { await cancel(); return; }
+  }
+  if (data.kind === 'locationStarted') {
+    const session = fields(await get(`spaces/${spaceId}/locationSessions/${data.actorUid}`) ?? { name: '' });
+    if (!Array.isArray(session.recipientUids) || !session.recipientUids.includes(uid) ||
+        Date.parse(String(session.expiresAt)) <= now.getTime() || session.startedAt !== data.createdAt) { await cancel(); return; }
+  }
   if (['photo','reaction'].includes(String(data.kind))) {
     const category = data.kind === 'photo' ? 'photos' : 'reactions';
     const url = Deno.env.get('SUPABASE_URL'), key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -604,15 +625,15 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
     const sb = createClient(url, key, { auth: { persistSession: false } });
     const { data: photo, error } = await sb.from('media_items').select('state,published_at,uploader_uid').eq('space_id', spaceId).eq('id', data.entityId).maybeSingle();
     if (error) throw error;
-    if (perSpace[category] !== true || !photo || photo.state !== 'ready' || !photo.published_at ||
+    if (perSpace[category] === false || !photo || photo.state !== 'ready' || !photo.published_at ||
         (data.kind === 'reaction' && photo.uploader_uid !== uid)) { await cancel(); return; }
   }
-  if (global.enabled !== true || perSpace.enabled === false) {
+  if (!pushEnabled(global, perSpace)) {
     // Notification preferences only mute push, not the in-app activity inbox.
     await update(path, { pushState: 'muted', pushLeaseUntil: null }, item.updateTime!);
     return;
   }
-  const zone = String(global.timeZone ?? 'UTC');
+  const zone = String(global.timeZone ?? 'Asia/Manila');
   if (quiet(local(now, zone).minute, Number(global.quietStart ?? 1320), Number(global.quietEnd ?? 420))) return;
   const devices = await list(`accounts/${uid}/pushDevices`);
   if (devices.length === 0) {
@@ -635,7 +656,7 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
         token: deviceToken,
         notification: { title: 'Stewardie', body: 'You have an update in your space.' },
         data: { activityId: path.split('/').pop()!, spaceId },
-        android: { collapse_key: String(data.pushId ?? path).slice(0, 64) },
+        android: { collapse_key: String(data.pushId ?? path).slice(0, 64), notification: { channel_id: 'stewardie_updates', tag: `stewardie_${path.split('/').pop()}` } },
         apns: { headers: { 'apns-collapse-id': String(data.pushId ?? path).slice(0, 64) } },
       } }),
     });
@@ -681,7 +702,19 @@ async function run(): Promise<{ spaces: number; errors: number }> {
       for (const session of await list(`spaces/${id}/locationSessions`)) {
         const expiry = Date.parse(String(fields(session).expiresAt ?? ''));
         if (expiry <= now.getTime() && session.updateTime) {
-          await remove(docPath(session), session.updateTime);
+          const data = fields(session), uid = String(data.uid ?? '');
+          const eventPath = `spaces/${id}/events/locationEnded_${uid}_${Date.parse(String(data.startedAt))}`;
+          const exists = await get(eventPath);
+          const result = await fetch(`${root}:commit`, {
+            method: 'POST', headers: { authorization: `Bearer ${await token()}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ writes: [
+              { delete: session.name, currentDocument: { updateTime: session.updateTime } },
+              ...(!exists ? [{ update: { name: `${nameRoot}/${eventPath}`, fields: packed({
+                type: 'locationEnded', actorUid: uid, entityId: uid, recipientUids: data.recipientUids ?? [], createdAt: new Date(expiry),
+              }) }, currentDocument: { exists: false } }] : []),
+            ] }),
+          });
+          if (![200,409,412].includes(result.status)) throw new Error('Could not expire location session.');
         }
       }
       if (s.routineCount == null) {
@@ -734,6 +767,21 @@ async function run(): Promise<{ spaces: number; errors: number }> {
   }
   // Delivery is a separate pass so a push failure never rolls back task creation.
   const accounts = await list('accounts');
+  // Private review notices never reach reported people or ordinary members.
+  const operatorUid = fields(await get('config/founderPlusGrant') ?? { name: '' }).uid;
+  const operators = accounts.filter((account) => account.name.split('/').pop() === operatorUid);
+  for (const report of await list('safetyReports')) {
+    const r = fields(report), at = Date.parse(String(r.createdAt ?? ''));
+    if (r.status !== 'open' || at < notificationRollout || !Number.isFinite(at)) continue;
+    for (const operator of operators) await accountNotice(operator.name.split('/').pop()!, `review_${report.name.split('/').pop()}`,
+      'Private review needed', 'A report is waiting in your private review queue.', new Date(at), { reportId: report.name.split('/').pop() });
+  }
+  for (const deletion of await list('deletionRequests')) {
+    const r = fields(deletion), at = Date.parse(String(r.createdAt ?? ''));
+    if (!['pending','needsAttention'].includes(String(r.status)) || !Number.isFinite(at) || at < notificationRollout) continue;
+    for (const operator of operators) await accountNotice(operator.name.split('/').pop()!, `deletion_review_${deletion.name.split('/').pop()}`,
+      'Account deletion requested', 'An account deletion is waiting for private review.', new Date(at), { deletionReview: true });
+  }
   for (const account of accounts) {
     const uid = account.name.split('/').pop()!;
     try {

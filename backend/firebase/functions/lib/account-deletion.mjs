@@ -132,8 +132,9 @@ async function scrubSharedSpace(db, space, uid) {
     if (routine.get('creatorUid') === uid) await routine.ref.delete();
     else if (routine.get('assignedUid') === uid) await routine.ref.update({ assignedUid: null });
   }
-  for (const moment of (await ref.collection('moments').get()).docs) {
-    const data = moment.data();
+  for (const momentRef of await ref.collection('moments').listDocuments()) {
+    const moment = await momentRef.get();
+    const data = moment.data() ?? {};
     if ([data.uid, data.creatorUid, data.uploaderUid].includes(uid)) {
       await db.recursiveDelete(moment.ref);
     } else {
@@ -215,8 +216,9 @@ async function hasHistoricalData(space, uid) {
     if ([event.get('actorUid'), event.get('targetUid')].includes(uid) ||
         event.get('recipientUids')?.includes(uid)) return true;
   }
-  for (const moment of (await ref.collection('moments').get()).docs) {
-    const data = moment.data();
+  for (const momentRef of await ref.collection('moments').listDocuments()) {
+    const moment = await momentRef.get();
+    const data = moment.data() ?? {};
     if ([data.uid, data.creatorUid, data.uploaderUid].includes(uid) ||
       (await moment.ref.collection('reactions').doc(uid).get()).exists) return true;
   }
@@ -296,6 +298,9 @@ export async function processDeletion({ db, auth, sb, uid, apply = false }) {
     for (const space of spaces) await revokeSpaceAccess(db, space, uid, soloSpaceIds);
     for (const space of spaces) {
       if (!soloSpaceIds.has(space.id)) await scrubSharedSpace(db, space, uid);
+    }
+    for (const photo of await mediaRows(sb, 'uploader_uid', uid)) {
+      await db.recursiveDelete(db.doc(`spaces/${photo.space_id}/moments/${photo.id}`));
     }
     await clearMedia(sb, uid,
       new Set([...spaces.map((space) => space.id), ...mediaSpaceIds,

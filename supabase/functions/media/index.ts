@@ -1,6 +1,30 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { decodeProtectedHeader, importX509, jwtVerify } from "https://esm.sh/jose@5.9.6";
-import { AccessFailure, authorizedTask } from '../_shared/firebase.ts';
+import { AccessFailure, authorizedTask, authorizedSpace, adminToken, root, fields } from '../_shared/firebase.ts';
+import { reactionTypes, assertReactionAccess, ReactionFailure } from './reaction_policy.mjs';
+
+async function reactionRequest(path:string, init:RequestInit={}) {
+ const response=await fetch(`${root}/${path}`, {...init,headers:{authorization:`Bearer ${await adminToken()}`,'content-type':'application/json'}});
+ if(response.status===404)return null;
+ if(!response.ok)throw new Failure('Could not save reactions. Try again.',503);
+ return response.status===204?null:response.json();
+}
+async function reactions(space:string,id:string,memberUids:string[]) {
+ const result:any[]=[];let page='';
+ do {
+  const body=await reactionRequest(`spaces/${space}/moments/${id}/reactions?pageSize=100${page?`&pageToken=${encodeURIComponent(page)}`:''}`);
+  for(const doc of body?.documents??[]) {const row=fields(doc);if(memberUids.includes(row.uid)&&reactionTypes.has(row.type))result.push(row);}
+  page=body?.nextPageToken??'';
+ }while(page);
+ return result;
+}
+async function clearReactions(space:string,id:string) {
+ while(true) {
+  const rows=await reactionRequest(`spaces/${space}/moments/${id}/reactions?pageSize=100`);
+  if(!rows?.documents?.length)return;
+  for(const doc of rows.documents)await reactionRequest(doc.name.split('/documents/')[1],{method:'DELETE'});
+ }
+}
 
 const project = "stewardie";
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {auth:{persistSession:false,autoRefreshToken:false}});
@@ -171,12 +195,40 @@ Deno.serve(async req=>{
   }
   if(body.action==="delete"){
    if(row.uploader_uid!==auth.uid)throw new Failure("Only the uploader can remove this photo.",403);
-   if(row.state==="deleted")return json({ok:true});
+   if(row.state==="deleted"){await clearReactions(space,row.id);return json({ok:true});}
    check(await sb.from("media_items").update({state:"deleting"}).eq("id",row.id));
    const prefix=`${space}/${auth.uid}/${row.id}`;
    check(await bucket.remove([`${prefix}/photo.jpg`,`${prefix}/thumb.jpg`]));
    check(await sb.from("media_items").update({state:"deleted"}).eq("id",row.id));
+   await clearReactions(space,row.id);
    return json({ok:true});
+  }
+  if(body.action==='reactions'||body.action==='react') {
+   if(row.state!=='ready'||!row.published_at)throw new Failure('This photo is unavailable.',404);
+   const parent=await authorizedSpace(space,auth.uid);
+   const members=parent.memberUids as string[];
+   assertReactionAccess({photo:row,photoId:body.id,spaceId:space,uid:auth.uid,members,type:body.type,change:body.action==='react'});
+   // Both participants' account blocks apply to new social interactions.
+   if(auth.uid!==row.uploader_uid && body.action==='react' && body.type!==null) {
+    const blocked=await reactionRequest(`accounts/${row.uploader_uid}/blocks/${auth.uid}`);
+    const reverse=await reactionRequest(`accounts/${auth.uid}/blocks/${row.uploader_uid}`);
+    if(blocked||reverse)throw new Failure('Reactions are unavailable for this photo.',403);
+   }
+   if(body.action==='react') {
+    if(body.type!==null&&!reactionTypes.has(body.type))throw new Failure('Choose a valid reaction.');
+    const path=`spaces/${space}/moments/${row.id}/reactions/${auth.uid}`;
+    if(body.type===null)await reactionRequest(path,{method:'DELETE'});
+    else {
+     const previous=fields(await reactionRequest(path));
+     if(previous.type!==body.type)await reactionRequest(path,{method:'PATCH',body:JSON.stringify({fields:{
+      uid:{stringValue:auth.uid},type:{stringValue:body.type},createdAt:{timestampValue:new Date().toISOString()},
+     }})});
+    }
+    // Removal or deletion racing the mutation must never leave a usable reaction.
+    try {const current=await getItem(row.id,space);await authorizedSpace(space,auth.uid);if(current.state!=='ready'||!current.published_at)throw new Failure('Photo unavailable.',404);}
+    catch(error){await reactionRequest(`spaces/${space}/moments/${row.id}/reactions/${auth.uid}`,{method:'DELETE'});throw error;}
+   }
+   return json({reactions:await reactions(space,row.id,members)});
   }
   if(body.action==="download"){
    if(row.state!=="ready")throw new Failure("Photo is unavailable.",404);
@@ -186,6 +238,7 @@ Deno.serve(async req=>{
   }
   throw new Failure("Unknown photo action.");
  }catch(error){
+  if(error instanceof ReactionFailure)return json({error:error.message},error.status);
   if(error instanceof AccessFailure)return json({error:error.message},error.status);
   if(error instanceof Failure)return json({error:error.message},error.status);
   // Never expose tokens, database details or stack traces to the client/log.

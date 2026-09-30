@@ -14,6 +14,8 @@ class LiveLocationService {
 
   OnlineBackend? _backend;
   String? _activeSpaceId;
+  String _activeSpaceName = 'your space';
+  String get activeSpaceName => _activeSpaceName;
   StreamSubscription<Position>? _positions;
   Timer? _countdownTimer;
   Timer? _retryTimer;
@@ -30,7 +32,8 @@ class LiveLocationService {
   final ValueNotifier<int> remainingMinutes = ValueNotifier(0);
   final ValueNotifier<Position?> currentPosition = ValueNotifier(null);
   String? get activeSpaceId => _activeSpaceId;
-  String get presentationSessionKey => '$_activeSpaceId/$_expiresAt';
+  String get presentationSessionKey =>
+      '${_backend?.auth.currentUser?.uid}/$_activeSpaceId/$_expiresAt';
   bool get _hasCurrentAccountStops => _pendingStops.keys.any(
     (key) => key.$1 == _backend?.auth.currentUser?.uid,
   );
@@ -69,6 +72,11 @@ class LiveLocationService {
             continue;
           }
           _activeSpaceId = spaceId;
+          final space = await backend.firestore.doc('spaces/$spaceId').get();
+          if (revision != _sharingRevision ||
+              backend.auth.currentUser?.uid != uid)
+            return;
+          _activeSpaceName = space.data()?['name'] as String? ?? 'your space';
           _expiresAt = expiry;
           _lastSent = (session.data()?['updatedAt'] as Timestamp?)?.toDate();
           isSharing.value = true;
@@ -161,6 +169,19 @@ class LiveLocationService {
       throw ArgumentError('Choose 15, 30, or 60 minutes.');
     }
     if (isSharing.value) await stopSharing();
+    if (_hasCurrentAccountStops) {
+      await _retryStops();
+      if (_hasCurrentAccountStops)
+        throw StateError(
+          'Your previous sharing session is still stopping. Retry once the server confirms.',
+        );
+    }
+    final space = await backend.firestore
+        .doc('spaces/$spaceId')
+        .get(const GetOptions(source: Source.server));
+    if (backend.auth.currentUser?.uid != uid)
+      throw StateError('Sign in again.');
+    _activeSpaceName = space.data()?['name'] as String? ?? 'your space';
     final revision = ++_sharingRevision;
     bool current() =>
         revision == _sharingRevision &&
@@ -270,7 +291,17 @@ class LiveLocationService {
     };
     _positions = Geolocator.getPositionStream(locationSettings: settings)
         .listen((position) async {
-          if (!isSharing.value || _activeSpaceId == null || _sending) return;
+          final backend = _backend;
+          final spaceId = _activeSpaceId;
+          final uid = backend?.auth.currentUser?.uid;
+          bool current() =>
+              revision == _sharingRevision &&
+              isSharing.value &&
+              identical(backend, _backend) &&
+              uid == backend?.auth.currentUser?.uid &&
+              spaceId == _activeSpaceId;
+          if (!current() || spaceId == null || backend == null || _sending)
+            return;
           final now = DateTime.now().toUtc();
           if (_lastSent != null &&
               now.difference(_lastSent!) < const Duration(seconds: 15)) {
@@ -278,17 +309,18 @@ class LiveLocationService {
           }
           _sending = true;
           try {
-            await _backend!.call('updateLocation', {
-              'spaceId': _activeSpaceId,
+            await backend.call('updateLocation', {
+              'spaceId': spaceId,
               'lat': position.latitude,
               'lng': position.longitude,
               'accuracy': position.accuracy,
             });
+            if (!current()) return;
             _lastSent = now;
             currentPosition.value = position;
             updatesUnavailable.value = false;
           } catch (_) {
-            updatesUnavailable.value = true;
+            if (current()) updatesUnavailable.value = true;
             // The next position retries; never substitute a made-up coordinate.
           } finally {
             _sending = false;

@@ -89,10 +89,10 @@ class _LiveLocationPillState extends State<LiveLocationPill> {
                             ),
                             child: Text(
                               minimized
-                                  ? '${minutes}m left'
+                                  ? '${service.activeSpaceName} · ${minutes}m left'
                                   : unavailable
-                                  ? 'Updates unavailable · ${minutes}m left'
-                                  : 'Sharing location · ${minutes}m left',
+                                  ? '${service.activeSpaceName} · updates unavailable · ${minutes}m left'
+                                  : 'Sharing in ${service.activeSpaceName} · ${minutes}m left',
                               key: ValueKey(minimized),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,

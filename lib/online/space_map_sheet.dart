@@ -39,6 +39,7 @@ class SpaceMapSheet extends StatefulWidget {
   }) {
     return showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: const Color(0xFFFAF9F6),
       showDragHandle: true,
@@ -280,7 +281,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
         builder: (dialog) => AlertDialog(
           title: Text('Share for $_selectedDuration minutes?'),
           content: Text(
-            'Your latest location will be visible in this space to: '
+            '${LiveLocationService.instance.isSharing.value && LiveLocationService.instance.activeSpaceId != widget.spaceId ? 'This will end sharing in ${LiveLocationService.instance.activeSpaceName}. ' : ''}'
+            'Your latest location will be visible in ${space.data()?['name'] ?? 'this space'} to: '
             '${recipientNames.isEmpty ? 'no other members yet' : recipientNames}. '
             'You can stop at any time.',
           ),
@@ -321,7 +323,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
     return SafeArea(
       top: false,
       child: SizedBox(
-        height: media.size.height * .9 - media.padding.top,
+        height:
+            media.size.height * .9 - media.padding.top - media.padding.bottom,
         child: Padding(
           padding: EdgeInsets.fromLTRB(20, 0, 20, 24 + media.viewInsets.bottom),
           child: SingleChildScrollView(
@@ -374,10 +377,28 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                   ),
                 ),
                 if (_locationStatus != 'Your private device location')
-                  TextButton.icon(
-                    onPressed: _recoverLocation,
-                    icon: const Icon(Icons.location_on_outlined),
-                    label: const Text('Enable location / Retry'),
+                  Wrap(
+                    spacing: 12,
+                    children: [
+                      TextButton.icon(
+                        onPressed: _recoverLocation,
+                        icon: const Icon(Icons.location_on_outlined),
+                        label: const Text('Enable location'),
+                      ),
+                      Tooltip(
+                        message: 'Refresh device location',
+                        child: ElevatedButton(
+                          onPressed: _initUserLocation,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFBEBC5),
+                            foregroundColor: const Color(0xFF202633),
+                            elevation: 2,
+                            minimumSize: const Size(48, 48),
+                          ),
+                          child: const Icon(Icons.my_location_rounded),
+                        ),
+                      ),
+                    ],
                   ),
                 const SizedBox(height: 16),
                 StreamBuilder<List<Map<String, dynamic>>>(
@@ -693,13 +714,55 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                     valueListenable: locationService.isSharing,
                     builder: (context, sharing, _) {
                       if (sharing) {
+                        if (locationService.activeSpaceId != widget.spaceId) {
+                          return Column(
+                            children: [
+                              Text(
+                                'Sharing in ${locationService.activeSpaceName}, not this space.',
+                              ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 12,
+                                runSpacing: 8,
+                                children: [
+                                  FilledButton(
+                                    onPressed: _startSharing,
+                                    child: const Text(
+                                      'Share in this space instead',
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        locationService.stopSharing(),
+                                    child: const Text('End sharing'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      final id = locationService.activeSpaceId;
+                                      if (id == null) return;
+                                      final host = Navigator.of(context)
+                                          .context;
+                                      Navigator.pop(context);
+                                      SpaceMapSheet.show(
+                                        host,
+                                        backend: widget.backend,
+                                        spaceId: id,
+                                      );
+                                    },
+                                    child: const Text('View shared space'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        }
                         return ValueListenableBuilder<int>(
                           valueListenable: locationService.remainingMinutes,
                           builder: (context, remaining, _) {
                             return Column(
                               children: [
                                 Text(
-                                  'Sharing your live location (${remaining}m left)',
+                                  'Sharing in ${locationService.activeSpaceName} (${remaining}m left)',
                                   style: const TextStyle(
                                     fontFamily: 'NunitoSans',
                                     fontSize: 14,
@@ -711,16 +774,16 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                                 SizedBox(
                                   width: double.infinity,
                                   height: 50,
-                                  child: OutlinedButton(
+                                  child: ElevatedButton(
                                     onPressed: () =>
                                         locationService.stopSharing(),
-                                    style: OutlinedButton.styleFrom(
+                                    style: ElevatedButton.styleFrom(
                                       foregroundColor: const Color(0xFFD32F2F),
-                                      side: const BorderSide(
-                                        color: Color(0xFFD32F2F),
-                                      ),
+                                      backgroundColor: const Color(0xFFF9DCE4),
+                                      elevation: 2,
+                                      shadowColor: const Color(0x337D5260),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
+                                        borderRadius: BorderRadius.circular(26),
                                       ),
                                     ),
                                     child: const Text(

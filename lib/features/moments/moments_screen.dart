@@ -6,6 +6,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:flutter/material.dart';
+
+import 'moments_loader.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -168,12 +171,20 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
               ),
             ),
             const SizedBox(width: 12),
-            const ClayArt('mascot-moments-camera', height: 80, width: 80),
+            const ClayArt('moments-selfie-group', height: 88, width: 100),
           ],
         ),
         if (repo.isShared && !library.supportsSharing)
           const Text('Photos stay on this device.'),
-        if (library.syncing) const LinearProgressIndicator(),
+        SizedBox(
+          height: 36,
+          child: library.syncing
+              ? MomentsLoader(
+                  sharing: library.pendingIds.isNotEmpty,
+                  compact: library.items.any((p) => p.spaceId == space.id),
+                )
+              : null,
+        ),
         if (library.syncError != null)
           Text(
             library.syncError!,
