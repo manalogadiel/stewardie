@@ -73,6 +73,9 @@ class _TaskCompletionPromptSheetState
   final Map<String, String> _attachmentIds = {};
   final Map<String, CapturedPhoto> _captures = {};
   final Map<String, PlacePin> _capturePins = {};
+  final Set<String> _locationOff = {};
+  final Set<String> _locating = {};
+  late final String? _accountUid = widget.backend.auth.currentUser?.uid;
   Future<void> _pickPhotos() async {
     if (_loading || _confirmed) return;
     final picker = ImagePicker();
@@ -98,7 +101,7 @@ class _TaskCompletionPromptSheetState
       return;
     }
 
-    if (!mounted) return;
+    if (!mounted || widget.backend.auth.currentUser?.uid != _accountUid) return;
 
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
@@ -128,25 +131,39 @@ class _TaskCompletionPromptSheetState
     XFile? picked;
     if (source == ImageSource.camera) {
       if (!mounted) return;
-      final capture = await Navigator.of(context).push<CapturedPhoto>(MaterialPageRoute(
-        builder: (_) => const CameraScreen(spaceName: 'Task photo')));
+      final capture = await Navigator.of(context).push<CapturedPhoto>(
+        MaterialPageRoute(
+          builder: (_) => const CameraScreen(spaceName: 'Task photo'),
+        ),
+      );
       if (capture != null) {
         final path = 'capture-${DateTime.now().microsecondsSinceEpoch}.jpg';
         picked = XFile.fromData(capture.bytes, path: path, name: path);
         _captures[path] = capture;
         if (capture.pin != null) _capturePins[path] = capture.pin!;
+        if (capture.pendingPin != null) _locating.add(path);
         capture.pendingPin?.then((pin) {
-          if (mounted && !_loading && !_confirmed && pin != null) {
-            _capturePins[path] = pin;
+          if (mounted &&
+              !_confirmed &&
+              widget.backend.auth.currentUser?.uid == _accountUid) {
+            setState(() {
+              _locating.remove(path);
+              if (pin != null) _capturePins[path] = pin;
+            });
           }
         });
       }
     } else {
-      picked = await picker.pickImage(source: source, requestFullMetadata: false);
+      picked = await picker.pickImage(
+        source: source,
+        requestFullMetadata: false,
+      );
     }
 
     final selected = picked;
-    if (selected != null && mounted) {
+    if (selected != null &&
+        mounted &&
+        widget.backend.auth.currentUser?.uid == _accountUid) {
       setState(() {
         _selectedFiles.add(selected);
       });
@@ -157,12 +174,15 @@ class _TaskCompletionPromptSheetState
     if (_loading) return;
     setState(() => _loading = true);
     final uid = widget.backend.auth.currentUser?.uid;
-    if (uid == null) {
+    if (uid == null || uid != _accountUid) {
       setState(() => _loading = false);
       return;
     }
     final library = ref.read(mediaLibraryProvider);
-    final capturePins = Map<String, PlacePin>.from(_capturePins);
+    final capturePins = {
+      for (final entry in _capturePins.entries)
+        if (!_locationOff.contains(entry.key)) entry.key: entry.value,
+    };
     try {
       if (!_confirmed) {
         await widget.backend.call('actOnTask', {
@@ -172,7 +192,8 @@ class _TaskCompletionPromptSheetState
           'action': 'complete',
         });
         _confirmed = true;
-        widget.onCompleted();
+        if (widget.backend.auth.currentUser?.uid != uid) return;
+        if (mounted) widget.onCompleted();
       }
       for (final file in _selectedFiles) {
         if (widget.backend.auth.currentUser?.uid != uid) return;
@@ -183,8 +204,10 @@ class _TaskCompletionPromptSheetState
         final draft = await compute(processPhoto, {
           'bytes': await file.readAsBytes(),
           'source': _captures[file.path]?.source ?? 'library',
-          if (_captures[file.path]?.cropRatio != null) 'cropRatio': _captures[file.path]!.cropRatio!,
+          if (_captures[file.path]?.cropRatio != null)
+            'cropRatio': _captures[file.path]!.cropRatio!,
         });
+        if (widget.backend.auth.currentUser?.uid != uid) return;
         await library.add(
           draft,
           widget.spaceId,
@@ -195,7 +218,9 @@ class _TaskCompletionPromptSheetState
           pin: capturePins[file.path],
         );
       }
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && widget.backend.auth.currentUser?.uid == uid) {
+        Navigator.of(context).pop();
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _loading = false);
@@ -320,9 +345,11 @@ class _TaskCompletionPromptSheetState
                             top: 2,
                             right: 2,
                             child: InkWell(
-                              onTap: _loading || _confirmed ? null : () => setState(
-                                () => _selectedFiles.removeAt(index),
-                              ),
+                              onTap: _loading || _confirmed
+                                  ? null
+                                  : () => setState(
+                                      () => _selectedFiles.removeAt(index),
+                                    ),
                               child: Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: const BoxDecoration(
@@ -342,6 +369,39 @@ class _TaskCompletionPromptSheetState
                     },
                   ),
                 ),
+                const SizedBox(height: 16),
+                for (final file in _selectedFiles)
+                  if (_captures[file.path]?.source == 'camera')
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        _selectedFiles.length == 1
+                            ? 'Attach capture location'
+                            : 'Photo ${_selectedFiles.indexOf(file) + 1} location',
+                      ),
+                      subtitle: Text(
+                        _locating.contains(file.path)
+                            ? 'Locating…'
+                            : _capturePins[file.path] == null
+                            ? 'No fresh capture location available'
+                            : 'Taken here · ±${_capturePins[file.path]!.accuracy?.round() ?? 0} m',
+                      ),
+                      value:
+                          _capturePins[file.path] != null &&
+                          !_locationOff.contains(file.path),
+                      onChanged:
+                          _loading ||
+                              _confirmed ||
+                              _capturePins[file.path] == null
+                          ? null
+                          : (on) => setState(() {
+                              if (on) {
+                                _locationOff.remove(file.path);
+                              } else {
+                                _locationOff.add(file.path);
+                              }
+                            }),
+                    ),
                 const SizedBox(height: 16),
               ],
               if (_loading)

@@ -66,9 +66,12 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   final FocusNode _destinationFocus = FocusNode();
 
   String? _selectedAssignee;
+  String? _savedAssignee;
+  late String? _ownerUid = widget.task['ownerUid'] as String?;
   bool _busy = false;
   bool _saving = false;
   bool _saveAgain = false;
+  bool _disposing = false;
   String? _saveError;
   late int _expectedVersion = widget.task['version'] as int? ?? 1;
   bool _helpNeeded = false;
@@ -95,6 +98,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     _selectedAssignee =
         widget.task['requestedUid'] as String? ??
         widget.task['ownerUid'] as String?;
+    _savedAssignee = _selectedAssignee;
     _helpNeeded =
         widget.task['helpNeeded'] == true ||
         widget.task['status'] == 'needsHelp';
@@ -133,9 +137,13 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
 
     final note = _noteController.text.trim();
     final destination = _destinationController.text.trim();
+    final assignee = _selectedAssignee;
+    final subtasks = _subtasks
+        .map((s) => Map<String, dynamic>.from(s))
+        .toList();
 
     _saving = true;
-    if (mounted) setState(() => _saveError = null);
+    if (mounted && !_disposing) setState(() => _saveError = null);
     try {
       final result = await widget.backend.call('updateTask', {
         'spaceId': widget.spaceId,
@@ -144,18 +152,23 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
         'title': title,
         'note': note,
         'destination': destination,
-        if (_selectedAssignee !=
-            (widget.task['requestedUid'] ?? widget.task['ownerUid']))
-          'requestedUid': _selectedAssignee,
+        'subtasks': subtasks,
+        if (assignee != _savedAssignee) 'requestedUid': assignee,
       });
       _expectedVersion = result['version'] as int? ?? _expectedVersion;
-      widget.onChanged();
+      _savedAssignee = assignee;
+      if (mounted && !_disposing) widget.onChanged();
     } catch (error) {
-      if (mounted)
-        setState(() => _saveError = error is StateError ? error.message.toString() : 'Changes not saved. Tap to retry.');
+      if (mounted && !_disposing) {
+        setState(
+          () => _saveError = error is StateError
+              ? error.message.toString()
+              : 'Changes not saved. Tap to retry.',
+        );
+      }
     } finally {
       _saving = false;
-      if (_saveAgain && mounted) {
+      if (_saveAgain && mounted && !_disposing) {
         _saveAgain = false;
         await _autoSave();
       }
@@ -166,10 +179,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     setState(() {
       _subtasks[index]['done'] = !(_subtasks[index]['done'] == true);
     });
-    try {
-      await widget.backend.setSubtasks(widget.spaceId, _taskId, _subtasks);
-      widget.onChanged();
-    } catch (_) {}
+    await _autoSave();
   }
 
   Future<void> _addSubtask() async {
@@ -183,23 +193,18 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
         'done': false,
       });
     });
-    try {
-      await widget.backend.setSubtasks(widget.spaceId, _taskId, _subtasks);
-      widget.onChanged();
-    } catch (_) {}
+    await _autoSave();
   }
 
   Future<void> _removeSubtask(int index) async {
     setState(() {
       _subtasks.removeAt(index);
     });
-    try {
-      await widget.backend.setSubtasks(widget.spaceId, _taskId, _subtasks);
-      widget.onChanged();
-    } catch (_) {}
+    await _autoSave();
   }
 
   Future<void> _requestHelp() async {
+    if (_busy || _saving) return;
     setState(() => _busy = true);
     try {
       await widget.backend.requestHelp(widget.spaceId, _taskId);
@@ -226,6 +231,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   }
 
   Future<void> _takeOverTask() async {
+    if (_busy || _saving) return;
     setState(() => _busy = true);
     try {
       await widget.backend.takeOverTask(widget.spaceId, _taskId);
@@ -233,6 +239,8 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
       setState(() {
         _helpNeeded = false;
         _selectedAssignee = widget.backend.auth.currentUser?.uid;
+        _savedAssignee = _selectedAssignee;
+        _ownerUid = _selectedAssignee;
         _activity.insert(0, {
           'action': 'taken_over',
           'uid': widget.backend.auth.currentUser?.uid,
@@ -254,6 +262,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
 
   @override
   void dispose() {
+    _disposing = true;
     _autoSave();
     _titleFocus.dispose();
     _noteFocus.dispose();
@@ -331,7 +340,11 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   Future<void> _markDone() async {
     if (_busy) return;
     if (_saving) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wait for your changes to save, then finish the task.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wait for your changes to save, then finish the task.'),
+        ),
+      );
       return;
     }
     setState(() => _busy = true);
@@ -342,13 +355,15 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
       return;
     }
     final parentContext = Navigator.of(context).context;
+    final title = _titleController.text.trim();
     Navigator.of(context).pop();
+    if (!parentContext.mounted) return;
     TaskCompletionPromptSheet.show(
       parentContext,
       backend: widget.backend,
       spaceId: widget.spaceId,
       taskId: _taskId,
-      taskTitle: _titleController.text.trim(),
+      taskTitle: title,
       momentStore: widget.momentStore,
       onCompleted: widget.onChanged,
     );
@@ -359,7 +374,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     final media = MediaQuery.of(context);
     final status = widget.task['status'] as String? ?? 'unclaimed';
     final myUid = widget.backend.auth.currentUser?.uid;
-    final isOwner = widget.task['ownerUid'] == myUid;
+    final isOwner = _ownerUid == myUid;
 
     return SafeArea(
       top: false,
@@ -370,6 +385,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_saving) const LinearProgressIndicator(),
               if (_saveError != null)
                 TextButton.icon(
                   onPressed: _autoSave,

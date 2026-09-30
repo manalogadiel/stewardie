@@ -131,19 +131,37 @@ void main() {
       await waitForPhoto(tester);
       await tester.enterText(find.byType(TextField), 'Made together');
       await tester.testTextInput.receiveAction(TextInputAction.done);
-      (container.read(repositoryProvider) as DemoRepository).nextOutcome = DemoOutcome.failure;
+      (container.read(repositoryProvider) as DemoRepository).nextOutcome =
+          DemoOutcome.failure;
       await reveal(tester, find.text('Finish & share photo'));
       await tester.tap(find.text('Finish & share photo'));
       await tester.pumpAndSettle();
       expect(container.read(mediaLibraryProvider).items, isEmpty);
-      expect(container.read(repositoryProvider).tasks.firstWhere((t) => t.id == 'dinner').isDone, isFalse);
+      expect(
+        container
+            .read(repositoryProvider)
+            .tasks
+            .firstWhere((t) => t.id == 'dinner')
+            .isDone,
+        isFalse,
+      );
       expect(find.text('Finish & share photo'), findsOneWidget);
       await reveal(tester, find.text('Finish & share photo'));
       await tester.tap(find.text('Finish & share photo'));
       await tester.pumpAndSettle();
       expect(container.read(mediaLibraryProvider).items, hasLength(1));
-      expect(container.read(mediaLibraryProvider).items.single.publishedAt, isNotNull);
-      expect(container.read(repositoryProvider).tasks.firstWhere((t) => t.id == 'dinner').isDone, isTrue);
+      expect(
+        container.read(mediaLibraryProvider).items.single.publishedAt,
+        isNotNull,
+      );
+      expect(
+        container
+            .read(repositoryProvider)
+            .tasks
+            .firstWhere((t) => t.id == 'dinner')
+            .isDone,
+        isTrue,
+      );
     },
   );
   testWidgets(
@@ -183,25 +201,37 @@ void main() {
       );
       expect(
         tester
-            .widget<IconButton>(
-              find.byWidgetPredicate(
-                (w) => w is IconButton && w.tooltip == 'Choose photo',
+            .widget<InkWell>(
+              find.descendant(
+                of: find.byTooltip('Choose photo'),
+                matching: find.byType(InkWell),
               ),
             )
-            .onPressed,
+            .onTap,
         isNotNull,
       );
       expect(
         tester
-            .widget<IconButton>(
-              find.byWidgetPredicate(
-                (w) => w is IconButton && w.tooltip == 'Take photo',
+            .widget<InkWell>(
+              find.descendant(
+                of: find.byTooltip('Take photo'),
+                matching: find.byType(InkWell),
               ),
             )
-            .onPressed,
+            .onTap,
         isNull,
       );
-      expect(find.byTooltip('Turn flash on'), findsNothing);
+      expect(
+        tester
+            .widget<InkWell>(
+              find.descendant(
+                of: find.byTooltip('Turn flash on'),
+                matching: find.byType(InkWell),
+              ),
+            )
+            .onTap,
+        isNull,
+      );
       await screenshot(tester, 'camera-unavailable-360-2x');
       expect(tester.takeException(), isNull);
     },

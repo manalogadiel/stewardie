@@ -115,6 +115,11 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
         body: const Center(child: Text('This space is no longer available.')),
       );
     }
+    final space = ref
+        .read(repositoryProvider)
+        .spaces
+        .firstWhere((s) => s.id == widget.photo.spaceId);
+    final author = space.member(widget.photo.uploaderId).name;
     return Scaffold(
       backgroundColor: SoftPop.canvas,
       appBar: AppBar(
@@ -190,6 +195,13 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                         ),
                       ),
                     ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Text(
+                    author,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
                 if (widget.photo.caption.isNotEmpty ||

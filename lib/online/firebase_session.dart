@@ -196,7 +196,10 @@ class _SignedInAppState extends State<_SignedInApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(outbox.flush());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(outbox.flush());
+      unawaited(_loadedLibrary?.retryPending());
+    }
   }
 
   void _checkInviteOnLaunch(BuildContext context) {

@@ -271,7 +271,25 @@ void main() {
       await library.retryPending();
       expect(library.pendingIds, contains(photo.id));
       expect(library.syncError, isNotNull);
+      final retained = library.items;
       library.dispose();
+      final restartedUpload = Completer<void>();
+      final restored = CloudMediaLibrary(
+        _FakeTimelineRepository(),
+        user: _FakeUser(),
+        database: db,
+        records: stringMapStoreFactory.store('pending-photos'),
+        initial: retained,
+        pending: {photo.id},
+        client: MockClient((request) async {
+          if (!restartedUpload.isCompleted) restartedUpload.complete();
+          return http.Response('{}', 503);
+        }),
+      );
+      await restartedUpload.future.timeout(const Duration(seconds: 1));
+      await restored.retryPending();
+      expect(restored.pendingIds, contains(photo.id));
+      restored.dispose();
       await db.close();
     },
   );

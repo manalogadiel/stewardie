@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
-import '../mascot_stage.dart';
 
 /// Compact modal invitation displayed once after account setup:
 /// "A quick look around?" with "Show me around" and "Explore on my own".
@@ -39,7 +38,11 @@ class TutorialInvitationSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const MascotStage(pose: MascotPose.butterWelcome, compact: true),
+            Image.asset(
+              'assets/illustrations/clay-navigation.png',
+              height: 96,
+              semanticLabel: 'A guided look around Stewardie',
+            ),
             const SizedBox(height: 12),
             const Text(
               'A quick look around?',

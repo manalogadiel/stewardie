@@ -31,6 +31,17 @@ Updated September 30, 2026. Companion to [the implementation plan](media-tour-so
 
 ## Still needs owner verification
 
+### Follow-up review repairs
+
+The follow-up code review identified remaining gaps, now repaired locally:
+
+- Task takeover updates the sheet's saved-assignee and owner state, so later content/checklist saves do not request a prohibited reassignment. Subtask changes now share serialized revision-checked saving, retain failed drafts and expose Retry. Saving is visible. Regression tests also exposed and fixed a disposal-time `setState` from the final autosave.
+- Restored photo queues retry on initialization and foreground resume, with a 30-second retry interval while the signed-in library is active. Attempts remain serialized and use the same attachment ID; disposal cancels the interval. This is foreground/session recovery, not guaranteed OS background upload.
+- Completion photos expose individual reversible capture-location switches with locating/unavailable states. Gallery photos receive no new pin. Completion freezes selected pins; async callbacks and upload preparation check the originating account, and dismissed sheets do not invoke their parent completion callback.
+- The initial tour invitation now uses the same clay-navigation asset as continuation/replay. Expanded photos show the resolved author below the image.
+
+Changed-file analysis passed with no issues. Two new task regression tests passed. Five cloud framing/outbox tests passed, including automatic retry of a restored pending attachment. Seven media UI tests passed across the initial run and the corrected camera recovery rerun; the old camera test expected IconButtons and a hidden flash control, and now checks the current clay controls and disabled fixed flash slot. No backend-rule changes or additional deployment were needed for these repairs. Real capture-location switching and account departure during a live network request still require device acceptance.
+
 Run a fresh `flutter run` on the intended devices. Test portrait and both landscape captures with recognizable content, resulting pixel orientation, preview-to-shutter speed, upload completion/retry, and second-account photo/task visibility. Test permission denial, disabled GPS, map close/reopen, sharing under lock/background/network loss, minimize/expand/End and expiry. Check once-per-account tour behavior across sign-out, reinstall and a second device.
 
 Use two authorized accounts and a nonmember for invitations, task save/completion, stale edit conflicts, membership caps and privacy. Widget/emulator checks do not establish real device latency or guarantee uninterrupted OS background execution. No measured performance comparison or broad physical-device acceptance run was performed in this round. Google OAuth, public purchases and store-release setup retain their separate gates.

@@ -34,6 +34,10 @@ class CloudMediaLibrary extends MediaLibrary {
       _remote.removeWhere((_, value) => !allowed.contains(value.spaceId));
       if (!_closed) notifyListeners();
     });
+    _retryTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!_closed && _pending.isNotEmpty) unawaited(retryPending());
+    });
+    unawaited(retryPending());
   }
   final User user;
   final FirebaseAuth? _auth;
@@ -43,6 +47,7 @@ class CloudMediaLibrary extends MediaLibrary {
   final Set<String> _pending, _refreshing = {};
   final Map<String, DateTime> _lastRefresh = {};
   StreamSubscription<void>? _subscription;
+  Timer? _retryTimer;
   bool _closed = false, _uploading = false;
   String? _error;
   final _outbox = stringMapStoreFactory.store('shared-photo-outbox');
@@ -244,7 +249,8 @@ class CloudMediaLibrary extends MediaLibrary {
   @override
   Future<void> retryPending() {
     if (_closed) return Future.value();
-    return _uploadRun ??= Future<void>(() => _drainPending()).whenComplete(() => _uploadRun = null);
+    return _uploadRun ??= Future<void>(() => _drainPending())
+        .whenComplete(() => _uploadRun = null);
   }
 
   Future<void>? _uploadRun;
@@ -376,6 +382,7 @@ class CloudMediaLibrary extends MediaLibrary {
   @override
   void dispose() {
     _closed = true;
+    _retryTimer?.cancel();
     _client.close();
     _fullCache.clear();
     unawaited(_subscription?.cancel());
