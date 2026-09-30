@@ -24,7 +24,7 @@ if (releaseRequested && !uploadKeyFile.exists()) {
 
 android {
     namespace = "dev.stewardie.demo.stewardie"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

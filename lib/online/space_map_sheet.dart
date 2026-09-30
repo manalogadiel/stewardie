@@ -5,7 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../core/stewardie_map.dart';
-import '../core/member_avatar.dart';
+import 'member_location_pin.dart';
 import 'external_launcher.dart';
 import 'live_location_service.dart';
 import 'online_backend.dart';
@@ -374,8 +374,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                       markers.add(
                         Marker(
                           point: LatLng(lat, lng),
-                          width: 88,
-                          height: 90,
+                          width: 96,
+                          height: MemberLocationPin.sizeFor(context).height,
                           child: GestureDetector(
                             onTap: () {
                               setState(() => _selectedMember = s);
@@ -400,8 +400,8 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                       markers.add(
                         Marker(
                           point: userPoint,
-                          width: 88,
-                          height: 90,
+                          width: 96,
+                          height: MemberLocationPin.sizeFor(context).height,
                           child: GestureDetector(
                             onTap: () {
                               setState(() {
@@ -783,35 +783,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
     required bool isSelected,
     required bool isMe,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        MemberAvatar(uid: uid, name: name, radius: 19, selected: isSelected),
-        Container(
-          margin: const EdgeInsets.only(top: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-          decoration: BoxDecoration(
-            color: isMe ? const Color(0xFF244BFF) : const Color(0xFF202633),
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 3,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Text(
-            label.length > 7 ? '${label.substring(0, 7)}..' : label,
-            style: const TextStyle(
-              fontFamily: 'NunitoSans',
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ],
-    );
+    return MemberLocationPin(uid: uid, name: name, label: label,
+      selected: isSelected, isMe: isMe);
   }
 }

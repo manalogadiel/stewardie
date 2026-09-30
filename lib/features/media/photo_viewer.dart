@@ -49,7 +49,12 @@ Future<void> showPhotoLocation(
           height: MediaQuery.sizeOf(sheet).height * .8,
           child: Column(
             children: [
-              Padding(padding: const EdgeInsets.all(16), child: Text(details)),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheet).height * .25),
+                child: SingleChildScrollView(
+                  child: Padding(padding: const EdgeInsets.all(16), child: Text(details)),
+                ),
+              ),
               Expanded(
                 child: StewardieMap(
                   center: point,
@@ -167,7 +172,8 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
                 ),
               ),
             ),
-            if (widget.photo.pin != null) _photoLocation(context),
+            if (widget.photo.pin != null)
+              Flexible(child: SingleChildScrollView(child: _photoLocation(context))),
             if (saving) const LinearProgressIndicator(),
             if (message != null)
               Padding(
