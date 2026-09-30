@@ -1,6 +1,6 @@
 # Task actions and single-page moment viewer
 
-Status: proposed — October 1, 2026. Planning only; implementation has not started.
+Status: implemented locally — October 1, 2026. See the [verification record](task-actions-and-moment-viewer-verification.md); live two-account authorization and native gesture checks remain open.
 
 ## Confirmed requests
 
