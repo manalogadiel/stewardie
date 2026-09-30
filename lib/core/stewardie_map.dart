@@ -103,6 +103,32 @@ class _StewardieMapState extends State<StewardieMap> {
             onSelected: widget.onStyleChanged!,
           ),
         ),
+      Positioned(
+        top: 12,
+        left: 12,
+        child: Tooltip(
+          message: 'Refresh map',
+          child: ElevatedButton(
+            onPressed: () => setState(() {
+              failed = false;
+              retry++;
+            }),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFBEBC5),
+              foregroundColor: const Color(0xFF202633),
+              minimumSize: const Size(48, 48),
+              elevation: 2,
+              side: BorderSide.none,
+              shape: const CircleBorder(),
+              padding: EdgeInsets.zero,
+            ),
+            child: const Icon(
+              Icons.refresh_rounded,
+              semanticLabel: 'Refresh map',
+            ),
+          ),
+        ),
+      ),
       if (mapTilerKey.isNotEmpty)
         Positioned(
           left: 8,
@@ -161,7 +187,7 @@ class _StewardieMapState extends State<StewardieMap> {
       ),
       if (failed)
         Positioned(
-          top: 8,
+          top: 72,
           left: 8,
           right: widget.onStyleChanged == null ? 8 : 72,
           child: Material(
@@ -176,29 +202,6 @@ class _StewardieMapState extends State<StewardieMap> {
                   Text(
                     satellite ? 'Satellite unavailable' : 'Map unavailable',
                     style: const TextStyle(fontSize: 12),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Tooltip(
-                      message: 'Refresh map',
-                      child: ElevatedButton(
-                        onPressed: () => setState(() {
-                          failed = false;
-                          retry++;
-                        }),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFBEBC5),
-                          foregroundColor: const Color(0xFF202633),
-                          minimumSize: const Size(48, 48),
-                          elevation: 2,
-                          side: BorderSide.none,
-                        ),
-                        child: const Icon(
-                          Icons.refresh_rounded,
-                          semanticLabel: 'Refresh map',
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),

@@ -16,7 +16,7 @@ const photoReactionLabels = {
   'mad': 'Mad',
 };
 
-/// Canonical photo mutations are acknowledged by the trusted media gateway.
+/// Immediate local feedback; serialized canonical mutations reconcile or roll back.
 class PhotoReactions extends ConsumerStatefulWidget {
   const PhotoReactions({super.key, required this.photo});
   final MediaAttachment photo;
@@ -27,8 +27,13 @@ class PhotoReactions extends ConsumerStatefulWidget {
 class _PhotoReactionsState extends ConsumerState<PhotoReactions>
     with WidgetsBindingObserver {
   List<Map<String, dynamic>> rows = [];
-  bool busy = false;
+  List<Map<String, dynamic>> confirmed = [];
+  bool reading = false;
   bool saving = false;
+  int revision = 0;
+  String? desired;
+  String? retryType;
+  bool retryMutation = false;
   String? error;
   Timer? timer;
   CloudMediaLibrary? get library =>
@@ -55,49 +60,85 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
   }
 
   Future<void> load() async {
-    if (busy || library == null) return;
-    busy = true;
+    if (reading || saving || library == null) return;
+    reading = true;
+    final started = revision;
     try {
       final result = await library!.reactions(widget.photo);
-      if (mounted)
+      if (mounted && started == revision)
         setState(() {
           rows = result;
+          confirmed = result;
           error = null;
         });
     } catch (_) {
-      if (mounted) setState(() => error = 'Could not load reactions.');
+      if (mounted && started == revision)
+        setState(() => error = 'Could not load reactions.');
     } finally {
-      busy = false;
+      reading = false;
     }
   }
 
   Future<void> react(String id) async {
-    if (busy || library == null) return;
+    if (library == null) return;
     final selected = rows.any(
       (row) => row['uid'] == library!.user.uid && row['type'] == id,
     );
+    _choose(selected ? null : id);
+  }
+
+  List<Map<String, dynamic>> _withChoice(
+    List<Map<String, dynamic>> source,
+    String? type,
+  ) => [
+    ...source.where((r) => r['uid'] != library!.user.uid),
+    if (type != null) {'uid': library!.user.uid, 'type': type},
+  ];
+
+  void _choose(String? type) {
     setState(() {
-      busy = true;
-      saving = true;
+      desired = type;
+      revision++;
+      rows = _withChoice(rows, type);
       error = null;
+      retryMutation = false;
     });
-    try {
-      final result = await library!.reactions(
-        widget.photo,
-        change: true,
-        type: selected ? null : id,
-      );
-      if (mounted) setState(() => rows = result);
-    } catch (_) {
-      if (mounted)
-        setState(() => error = 'Could not save your reaction. Try again.');
-    } finally {
-      if (mounted)
-        setState(() {
-          busy = false;
-          saving = false;
-        });
+    unawaited(_save());
+  }
+
+  Future<void> _save() async {
+    if (saving || library == null) return;
+    setState(() => saving = true);
+    while (mounted) {
+      final sentRevision = revision;
+      final sentType = desired;
+      try {
+        final result = await library!.reactions(
+          widget.photo,
+          change: true,
+          type: sentType,
+        );
+        if (!mounted) return;
+        confirmed = result;
+        setState(
+          () => rows = sentRevision == revision
+              ? result
+              : _withChoice(result, desired),
+        );
+      } catch (_) {
+        if (!mounted) return;
+        if (sentRevision == revision) {
+          setState(() {
+            rows = confirmed;
+            error = 'Could not save your reaction.';
+            retryType = sentType;
+            retryMutation = true;
+          });
+        }
+      }
+      if (sentRevision == revision) break;
     }
+    if (mounted) setState(() => saving = false);
   }
 
   @override
@@ -141,7 +182,7 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
                         borderRadius: BorderRadius.circular(26),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(26),
-                          onTap: busy ? null : () => react(entry.key),
+                          onTap: () => react(entry.key),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: ConstrainedBox(
@@ -156,9 +197,7 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
                                     excludeFromSemantics: true,
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    '${entry.value}${count > 0 ? ' $count' : ''}',
-                                  ),
+                                  Text('$count'),
                                 ],
                               ),
                             ),
@@ -173,10 +212,26 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
           if (saving)
             const Padding(
               padding: EdgeInsets.only(top: 8),
-              child: Text('Saving…'),
+              child: Semantics(
+                label: 'Syncing reactions',
+                child: SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             ),
           if (error != null)
-            TextButton(onPressed: load, child: Text('$error Retry')),
+            TextButton(
+              onPressed: () {
+                if (retryMutation) {
+                  _choose(retryType);
+                } else {
+                  unawaited(load());
+                }
+              },
+              child: Text('$error Retry'),
+            ),
         ],
       ),
     );

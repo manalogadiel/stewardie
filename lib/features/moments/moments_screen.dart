@@ -152,204 +152,219 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
       );
     }
 
-    return PageBody(
-      padding: EdgeInsets.fromLTRB(20, topControlsClearance(context), 20, 160),
+    return Stack(
       children: [
-        Row(
+        PageBody(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            topControlsClearance(context),
+            20,
+            160,
+          ),
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Little moments',
-                    style: Theme.of(context).textTheme.headlineLarge,
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Little moments',
+                        style: Theme.of(context).textTheme.headlineLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text('The good bits from ${space.name}.'),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text('The good bits from ${space.name}.'),
+                ),
+                const SizedBox(width: 12),
+                const ClayArt('moments-selfie-group', height: 88, width: 100),
+              ],
+            ),
+            if (repo.isShared && !library.supportsSharing)
+              const Text('Photos stay on this device.'),
+            if (library.syncError != null)
+              Text(
+                library.syncError!,
+                style: const TextStyle(color: SoftPop.secondary),
+              ),
+            if (library.syncError != null && library.supportsSharing)
+              TextButton.icon(
+                onPressed: library.syncing
+                    ? null
+                    : () => library.refresh(space.id),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Retry loading moments'),
+              ),
+            if (library.pendingIds.isNotEmpty)
+              TextButton.icon(
+                onPressed: library.syncing
+                    ? null
+                    : () => library.retryPending(),
+                icon: const Icon(Icons.cloud_upload_outlined),
+                label: Text('Retry sharing (${library.pendingIds.length})'),
+              ),
+            if (photo != null &&
+                !photo.cloud &&
+                library.supportsSharing &&
+                !library.pendingIds.contains(photo.id))
+              TextButton.icon(
+                onPressed: () => library.share(photo),
+                icon: const Icon(Icons.cloud_upload_outlined),
+                label: const Text('Share this photo to space'),
+              ),
+            if (photo != null && library.pendingIds.contains(photo.id))
+              const Text('Saved on this device · waiting to share'),
+            const SizedBox(height: 8),
+            PeopleFilter(space),
+            const SizedBox(height: 12),
+            if (recovered != null)
+              ClayPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Your photo is ready to review'),
+                    Text('Review it before sharing with ${space.name}.'),
+                    TextButton(
+                      onPressed: () async {
+                        final saved = await showPhotoComposer(
+                          context,
+                          space,
+                          recovered: recovered,
+                        );
+                        if (saved == true && mounted) {
+                          await discardRecovery();
+                        }
+                      },
+                      child: const Text('Review photo'),
+                    ),
+                    TextButton(
+                      onPressed: discardRecovery,
+                      child: const Text('Discard recovered photo'),
+                    ),
+                  ],
+                ),
+              ),
+            FilledButton.icon(
+              key: TutorialTargetRegistry.momentsTabTarget,
+              onPressed: () => showPhotoComposer(context, space),
+              icon: const Icon(Icons.add_a_photo_outlined),
+              label: const Text('Add moment'),
+            ),
+            const SizedBox(height: 24),
+            if (photo == null)
+              const ClayPanel(
+                child: Column(
+                  children: [
+                    ClayArt('mascot-moments-camera', height: 160),
+                    SizedBox(height: 16),
+                    Text('Room for the good bits'),
+                    SizedBox(height: 8),
+                    Text(
+                      'A meal made together. A tiny victory. A moment worth keeping.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              SizedBox(
+                height: (width - 32) * .75 + 70,
+                child: PageView.builder(
+                  key: ValueKey(scope),
+                  controller: pages,
+                  itemCount: posts.length,
+                  onPageChanged: (i) => setState(() => index = i),
+                  itemBuilder: (context, i) => ClayTelevision(
+                    photo: posts[i],
+                    onOpen: () => viewPhoto(context, posts[i]),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Previous moment',
+                    onPressed: index == 0 ? null : () => move(-1),
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  Text('${index + 1} of ${posts.length}'),
+                  IconButton.filledTonal(
+                    tooltip: 'Next moment',
+                    onPressed: index >= posts.length - 1 ? null : () => move(1),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: 12),
-            const ClayArt('moments-selfie-group', height: 88, width: 100),
+              const SizedBox(height: 12),
+              Text(
+                photo.heading,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              if (photo.taskTitle != null && photo.caption.isNotEmpty)
+                Text(photo.caption),
+              const SizedBox(height: 8),
+              Text(
+                '${personName(space, photo.uploaderId)} · ${MaterialLocalizations.of(context).formatMediumDate(photo.publishedAt!.toLocal())}',
+              ),
+              if (photo.pin != null)
+                ClayAction(
+                  onPressed: () => showPhotoLocation(context, photo),
+                  icon: const Icon(Icons.place_outlined),
+                  label: Text(
+                    photo.pin!.source == 'capture'
+                        ? 'Taken here · view location'
+                        : 'Place tag · view location',
+                  ),
+                ),
+              if (task != null && repo.canView(task))
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: ClayAction(
+                    onPressed: () => context.push('/task/${task.id}'),
+                    icon: const Icon(Icons.task_alt_rounded),
+                    label: const Text('View task'),
+                  ),
+                ),
+              if (photo.uploaderId == repo.currentUserId)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: ClayAction(
+                    onPressed: () => removePhoto(context, ref, photo),
+                    color: SoftPop.rose,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                    label: const Text('Remove photo'),
+                  ),
+                ),
+              if (photo.uploaderId != repo.currentUserId &&
+                  ref.read(sharedBackendProvider) != null)
+                TextButton.icon(
+                  onPressed: () => SafetySheet.report(
+                    context,
+                    ref.read(sharedBackendProvider)!,
+                    spaceId: space.id,
+                    kind: 'moment',
+                    contentId: photo.id,
+                    targetUid: photo.uploaderId,
+                  ),
+                  icon: const Icon(Icons.flag_outlined),
+                  label: const Text('Report or hide moment'),
+                ),
+            ],
           ],
         ),
-        if (repo.isShared && !library.supportsSharing)
-          const Text('Photos stay on this device.'),
-        SizedBox(
-          height: 36,
-          child: library.syncing
-              ? MomentsLoader(
-                  sharing: library.pendingIds.isNotEmpty,
-                  compact: library.items.any((p) => p.spaceId == space.id),
-                )
-              : null,
-        ),
-        if (library.syncError != null)
-          Text(
-            library.syncError!,
-            style: const TextStyle(color: SoftPop.secondary),
-          ),
-        if (library.syncError != null && library.supportsSharing)
-          TextButton.icon(
-            onPressed: library.syncing ? null : () => library.refresh(space.id),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Retry loading moments'),
-          ),
-        if (library.pendingIds.isNotEmpty)
-          TextButton.icon(
-            onPressed: library.syncing ? null : () => library.retryPending(),
-            icon: const Icon(Icons.cloud_upload_outlined),
-            label: Text('Retry sharing (${library.pendingIds.length})'),
-          ),
-        if (photo != null &&
-            !photo.cloud &&
-            library.supportsSharing &&
-            !library.pendingIds.contains(photo.id))
-          TextButton.icon(
-            onPressed: () => library.share(photo),
-            icon: const Icon(Icons.cloud_upload_outlined),
-            label: const Text('Share this photo to space'),
-          ),
-        if (photo != null && library.pendingIds.contains(photo.id))
-          const Text('Saved on this device · waiting to share'),
-        const SizedBox(height: 16),
-        PeopleFilter(space),
-        const SizedBox(height: 16),
-        if (recovered != null)
-          ClayPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Your photo is ready to review'),
-                Text('Review it before sharing with ${space.name}.'),
-                TextButton(
-                  onPressed: () async {
-                    final saved = await showPhotoComposer(
-                      context,
-                      space,
-                      recovered: recovered,
-                    );
-                    if (saved == true && mounted) {
-                      await discardRecovery();
-                    }
-                  },
-                  child: const Text('Review photo'),
-                ),
-                TextButton(
-                  onPressed: discardRecovery,
-                  child: const Text('Discard recovered photo'),
-                ),
-              ],
-            ),
-          ),
-        FilledButton.icon(
-          key: TutorialTargetRegistry.momentsTabTarget,
-          onPressed: () => showPhotoComposer(context, space),
-          icon: const Icon(Icons.add_a_photo_outlined),
-          label: const Text('Add moment'),
-        ),
-        const SizedBox(height: 24),
-        if (photo == null)
-          const ClayPanel(
-            child: Column(
-              children: [
-                ClayArt('mascot-moments-camera', height: 160),
-                SizedBox(height: 16),
-                Text('Room for the good bits'),
-                SizedBox(height: 8),
-                Text(
-                  'A meal made together. A tiny victory. A moment worth keeping.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          )
-        else ...[
-          SizedBox(
-            height: (width - 32) * .75 + 70,
-            child: PageView.builder(
-              key: ValueKey(scope),
-              controller: pages,
-              itemCount: posts.length,
-              onPageChanged: (i) => setState(() => index = i),
-              itemBuilder: (context, i) => ClayTelevision(
-                photo: posts[i],
-                onOpen: () => viewPhoto(context, posts[i]),
+        if (library.syncing)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: MomentsLoader(sharing: library.pendingIds.isNotEmpty),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.center,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            children: [
-              IconButton.filledTonal(
-                tooltip: 'Previous moment',
-                onPressed: index == 0 ? null : () => move(-1),
-                icon: const Icon(Icons.chevron_left_rounded),
-              ),
-              Text('${index + 1} of ${posts.length}'),
-              IconButton.filledTonal(
-                tooltip: 'Next moment',
-                onPressed: index >= posts.length - 1 ? null : () => move(1),
-                icon: const Icon(Icons.chevron_right_rounded),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(photo.heading, style: Theme.of(context).textTheme.titleLarge),
-          if (photo.taskTitle != null && photo.caption.isNotEmpty)
-            Text(photo.caption),
-          const SizedBox(height: 8),
-          Text(
-            '${personName(space, photo.uploaderId)} · ${MaterialLocalizations.of(context).formatMediumDate(photo.publishedAt!.toLocal())}',
-          ),
-          if (photo.pin != null)
-            ClayAction(
-              onPressed: () => showPhotoLocation(context, photo),
-              icon: const Icon(Icons.place_outlined),
-              label: Text(
-                photo.pin!.source == 'capture'
-                    ? 'Taken here · view location'
-                    : 'Place tag · view location',
-              ),
-            ),
-          if (task != null && repo.canView(task))
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: ClayAction(
-                onPressed: () => context.push('/task/${task.id}'),
-                icon: const Icon(Icons.task_alt_rounded),
-                label: const Text('View task'),
-              ),
-            ),
-          if (photo.uploaderId == repo.currentUserId)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: ClayAction(
-                onPressed: () => removePhoto(context, ref, photo),
-                color: SoftPop.rose,
-                icon: const Icon(Icons.delete_outline_rounded),
-                label: const Text('Remove photo'),
-              ),
-            ),
-          if (photo.uploaderId != repo.currentUserId &&
-              ref.read(sharedBackendProvider) != null)
-            TextButton.icon(
-              onPressed: () => SafetySheet.report(
-                context,
-                ref.read(sharedBackendProvider)!,
-                spaceId: space.id,
-                kind: 'moment',
-                contentId: photo.id,
-                targetUid: photo.uploaderId,
-              ),
-              icon: const Icon(Icons.flag_outlined),
-              label: const Text('Report or hide moment'),
-            ),
-        ],
       ],
     );
   }

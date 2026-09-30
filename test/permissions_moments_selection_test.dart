@@ -53,6 +53,7 @@ class TestUser extends Fake implements User {
 class HeldReactions extends Fake implements CloudMediaLibrary {
   final requests = <String?>[];
   final ack = Completer<List<Map<String, dynamic>>>();
+  final nextAck = Completer<List<Map<String, dynamic>>>();
   @override
   User get user => TestUser();
   @override
@@ -63,7 +64,7 @@ class HeldReactions extends Fake implements CloudMediaLibrary {
   }) async {
     if (!change) return [];
     requests.add(type);
-    return ack.future;
+    return requests.length == 1 ? ack.future : nextAck.future;
   }
 }
 
@@ -166,40 +167,69 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-  testWidgets('reaction waits for acknowledgement and suppresses double taps', (
-    tester,
-  ) async {
-    final library = HeldReactions();
-    final photo = MediaAttachment(
-      id: 'p',
-      spaceId: 'home',
-      uploaderId: 'other',
-      caption: '',
-      createdAt: DateTime(2026),
-      cloud: true,
-      photo: PhotoDraft(Uint8List(0), Uint8List(0), 1, 1, 'camera'),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [mediaLibraryProvider.overrideWithValue(library)],
-        child: MaterialApp(
-          theme: SoftPop.theme,
-          home: Scaffold(body: PhotoReactions(photo: photo)),
+  testWidgets(
+    'reaction feedback is immediate and latest choice saves serially',
+    (tester) async {
+      final library = HeldReactions();
+      final photo = MediaAttachment(
+        id: 'p',
+        spaceId: 'home',
+        uploaderId: 'other',
+        caption: '',
+        createdAt: DateTime(2026),
+        cloud: true,
+        photo: PhotoDraft(Uint8List(0), Uint8List(0), 1, 1, 'camera'),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [mediaLibraryProvider.overrideWithValue(library)],
+          child: MaterialApp(
+            theme: SoftPop.theme,
+            home: Scaffold(body: PhotoReactions(photo: photo)),
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Like'));
-    await tester.pump();
-    await tester.tap(find.text('Like'));
-    expect(library.requests, ['like']);
-    expect(find.text('Like 1'), findsNothing);
-    library.ack.complete([
-      {'uid': 'me', 'type': 'like'},
-    ]);
-    await tester.pumpAndSettle();
-    expect(find.text('Like 1'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
+      );
+      await tester.pumpAndSettle();
+      Finder reaction(String label) => find.byWidgetPredicate(
+        (w) =>
+            w is Semantics && w.properties.label?.startsWith('$label,') == true,
+      );
+      await tester.tap(reaction('Like'));
+      await tester.pump();
+      expect(
+        find.descendant(of: reaction('Like'), matching: find.text('1')),
+        findsOneWidget,
+      );
+      expect(find.text('Like'), findsNothing);
+      await tester.tap(reaction('Heart'));
+      await tester.pump();
+      expect(library.requests, ['like']);
+      expect(
+        find.descendant(of: reaction('Heart'), matching: find.text('1')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: reaction('Like'), matching: find.text('0')),
+        findsOneWidget,
+      );
+      library.ack.complete([
+        {'uid': 'me', 'type': 'like'},
+      ]);
+      await tester.pump();
+      expect(library.requests, ['like', 'heart']);
+      library.nextAck.completeError(StateError('Network unavailable'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: reaction('Like'), matching: find.text('1')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: reaction('Heart'), matching: find.text('0')),
+        findsOneWidget,
+      );
+      expect(find.text('Could not save your reaction. Retry'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }

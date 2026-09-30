@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'profile_photo.dart';
 
 /// A stable identity chip: names may change, but color follows the account UID.
-class MemberAvatar extends StatelessWidget {
+class MemberAvatar extends StatefulWidget {
   const MemberAvatar({
     super.key,
     required this.uid,
@@ -51,27 +51,75 @@ class MemberAvatar extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: EdgeInsets.all(selected ? 3 : 0),
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: selected ? const Color(0xFFFFF7EB) : null,
-    ),
-    child: Firebase.apps.isEmpty || FirebaseAuth.instance.currentUser == null
-        ? _face(null)
-        : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance.doc('profiles/$uid').snapshots(),
-            builder: (context, snapshot) => _face(
-              ProfilePhoto.decode(
-                snapshot.data?.data()?['imageBase64'] as String?,
-              ),
+  State<MemberAvatar> createState() => _MemberAvatarState();
+}
+
+class _MemberAvatarState extends State<MemberAvatar> {
+  // Reuse decoded bytes across routes, bounded and scoped to the signed-in UID.
+  static final Map<String, Uint8List?> _photos = {};
+  static String? _cacheAccount;
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _stream;
+  String? _identity;
+  String? _encoded;
+  Uint8List? _bytes;
+  String get uid => widget.uid;
+  String get name => widget.name;
+  double get radius => widget.radius;
+  bool get selected => widget.selected;
+
+  void _bind() {
+    final account = Firebase.apps.isEmpty
+        ? null
+        : FirebaseAuth.instance.currentUser?.uid;
+    if (_cacheAccount != account) {
+      _photos.clear();
+      _cacheAccount = account;
+    }
+    final identity = '$account/$uid';
+    if (_identity == identity) return;
+    _identity = identity;
+    _encoded = null;
+    _bytes = account == null ? null : _photos[uid];
+    _stream = account == null
+        ? null
+        : FirebaseFirestore.instance.doc('profiles/$uid').snapshots();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _bind();
+    return Container(
+      padding: EdgeInsets.all(selected ? 3 : 0),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? const Color(0xFFFFF7EB) : null,
+      ),
+      child: _stream == null
+          ? _face(null)
+          : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              key: ValueKey(_identity),
+              stream: _stream,
+              builder: (context, snapshot) {
+                if (snapshot.hasData) {
+                  final encoded =
+                      snapshot.data!.data()?['imageBase64'] as String?;
+                  if (encoded != _encoded || encoded == null) {
+                    _encoded = encoded;
+                    _bytes = ProfilePhoto.decode(encoded);
+                    if (_photos.length >= 100 && !_photos.containsKey(uid))
+                      _photos.remove(_photos.keys.first);
+                    _photos[uid] = _bytes;
+                  }
+                }
+                return _face(_bytes);
+              },
             ),
-          ),
-  );
+    );
+  }
 
   Widget _face(Uint8List? bytes) => CircleAvatar(
     radius: radius,
-    backgroundColor: colorFor(uid),
+    backgroundColor: MemberAvatar.colorFor(uid),
     child: bytes == null
         ? _initials()
         : ClipOval(
@@ -81,8 +129,7 @@ class MemberAvatar extends StatelessWidget {
               child: Image.memory(
                 bytes,
                 fit: BoxFit.cover,
-                frameBuilder: (context, child, frame, synchronous) =>
-                    synchronous || frame != null ? child : _initials(),
+                gaplessPlayback: true,
                 errorBuilder: (context, error, stack) => _initials(),
               ),
             ),
@@ -94,7 +141,7 @@ class MemberAvatar extends StatelessWidget {
     height: radius * 2,
     child: Center(
       child: Text(
-        initialsFor(name),
+        MemberAvatar.initialsFor(name),
         textScaler: TextScaler.noScaling,
         maxLines: 1,
         textAlign: TextAlign.center,
