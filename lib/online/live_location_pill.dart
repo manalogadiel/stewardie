@@ -27,7 +27,7 @@ class _LiveLocationPillState extends State<LiveLocationPill> {
                 ? const Padding(
                     padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                     child: Text(
-                      'Location stopped here · waiting for server confirmation',
+                      'Sharing stopped. Confirming with server…',
                       textAlign: TextAlign.center,
                     ),
                   )
@@ -94,6 +94,8 @@ class _LiveLocationPillState extends State<LiveLocationPill> {
                                   ? '${service.activeSpaceName} · updates unavailable · ${minutes}m left'
                                   : 'Sharing in ${service.activeSpaceName} · ${minutes}m left',
                               key: ValueKey(minimized),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: SoftPop.ink,

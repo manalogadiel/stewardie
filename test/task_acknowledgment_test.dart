@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,24 +9,6 @@ import 'package:stewardie/features/timeline/domain/models.dart';
 import 'package:stewardie/online/edit_outbox.dart';
 import 'package:stewardie/online/firebase_repository.dart';
 import 'package:stewardie/online/online_backend.dart';
-
-class _Document extends Fake
-    implements DocumentReference<Map<String, dynamic>> {
-  @override
-  String get id => 'operation';
-}
-
-class _Collection extends Fake
-    implements CollectionReference<Map<String, dynamic>> {
-  @override
-  DocumentReference<Map<String, dynamic>> doc([String? path]) => _Document();
-}
-
-class _Firestore extends Fake implements FirebaseFirestore {
-  @override
-  CollectionReference<Map<String, dynamic>> collection(String path) =>
-      _Collection();
-}
 
 class _Outbox extends Fake implements EditOutbox {
   @override
@@ -41,7 +22,7 @@ class _Backend extends Fake implements OnlineBackend {
   bool failRead = false, failWrite = false;
   String status = 'accepted';
   @override
-  FirebaseFirestore get firestore => _Firestore();
+  String newOperationId() => 'operation';
   @override
   Future<Map<String, dynamic>> call(
     String name, [

@@ -36,9 +36,13 @@ class _EqualRow extends RenderBox
     var x = 0.0;
     while (child != null) {
       child.layout(
-        BoxConstraints.tight(Size(width, height)),
+        // Keep height loose so a descendant's content change (for example a
+        // six-week calendar month) can invalidate this row's measurement.
+        // A tight height makes that child a relayout boundary with stale size.
+        BoxConstraints(minWidth: width, maxWidth: width, minHeight: height),
         parentUsesSize: true,
       );
+      height = math.max(height, child.size.height);
       (child.parentData! as _CardData).offset = Offset(x, 0);
       x += width + 12;
       child = childAfter(child);

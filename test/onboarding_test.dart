@@ -27,6 +27,9 @@ class TestPermissionAdapter extends PermissionAdapter {
   PermissionStatusState notificationsStatus;
 
   @override
+  Future<bool> locationServicesEnabled() async => true;
+
+  @override
   Future<PermissionStatusState> checkStatus(
     PermissionCapability capability,
   ) async {
@@ -367,6 +370,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
       expect(continued, isTrue);
     });
   });
@@ -544,15 +548,15 @@ void main() {
       );
       expect(
         MascotPose.butterTask.assetPath,
-        'assets/illustrations/onboarding-butter-task.png',
+        'assets/illustrations/tour-task-helper.png',
       );
       expect(
         MascotPose.roseCamera.assetPath,
-        'assets/illustrations/onboarding-rose-camera.png',
+        'assets/illustrations/tour-moment-camera.png',
       );
       expect(
         MascotPose.mintCalendar.assetPath,
-        'assets/illustrations/onboarding-mint-calendar.png',
+        'assets/illustrations/tour-calendar-planner.png',
       );
       expect(
         MascotPose.done.assetPath,

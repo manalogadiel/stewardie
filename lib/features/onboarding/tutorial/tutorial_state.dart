@@ -76,7 +76,7 @@ class TutorialStops {
     TutorialStopData(
       id: TutorialStopId.calendar,
       title: 'Make room for your plans',
-      explanation: 'See shared plans for everyone or one person. Open the calendar and choose a month or year to look ahead.',
+      explanation: 'See shared plans and jump to any month or year.',
       pose: MascotPose.mintCalendar,
       targetKeyGetter: TutorialTargetRegistry.calendarKey,
       destinationTab: 0,
@@ -108,7 +108,7 @@ class TutorialStops {
     TutorialStopData(
       id: TutorialStopId.placesSharing,
       title: 'Places and sharing',
-      explanation: 'Photo pins mark a fixed place. Live location is separate: choose who can see it and for how long.',
+      explanation: 'Photo pins stay fixed. Share live location separately, for a limited time.',
       pose: MascotPose.mapExplorer,
       targetKeyGetter: TutorialTargetRegistry.mapButtonKey,
       destinationTab: 0,

@@ -106,6 +106,7 @@ class OnlineBackend {
 
   FirebaseAuth get auth => FirebaseAuth.instance;
   FirebaseFirestore get firestore => FirebaseFirestore.instance;
+  String newOperationId() => firestore.collection('operationIds').doc().id;
   FirebaseFunctions get functions =>
       FirebaseFunctions.instanceFor(region: functionsRegion);
 

@@ -66,51 +66,42 @@ class CalendarTile extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 ExcludeSemantics(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final cell = (constraints.maxWidth - 18) / 7;
-                      return Wrap(
-                        spacing: 3,
-                        runSpacing: 3,
-                        children: List.generate(
-                          ((days + offset) / 7).ceil() * 7,
-                          (index) {
-                            final day = index - offset + 1;
-                            final date = DateTime(
-                              state.month.year,
-                              state.month.month,
-                              day,
-                            );
-                            final count = state
-                                .forDay(space.id, person, date)
-                                .length;
-                            final today = dateOnly(DateTime.now()) == date;
-                            return Container(
-                              width: cell,
-                              height: cell,
-                              decoration: BoxDecoration(
-                                color: day < 1 || day > days
-                                    ? Colors.transparent
-                                    : count == 0
-                                    ? const Color(0xFFDDE2F1)
-                                    : count == 1
-                                    ? SoftPop.sky
-                                    : count == 2
-                                    ? const Color(0xFF809AFB)
-                                    : SoftPop.blue,
-                                borderRadius: BorderRadius.circular(3),
-                                border: today
-                                    ? Border.all(
-                                        color: SoftPop.blue,
-                                        width: 1.5,
-                                      )
-                                    : null,
-                              ),
-                            );
-                          },
+                  child: GridView.count(
+                    crossAxisCount: 7,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    crossAxisSpacing: 3,
+                    mainAxisSpacing: 3,
+                    children: List.generate(((days + offset) / 7).ceil() * 7, (
+                      index,
+                    ) {
+                      final day = index - offset + 1;
+                      final date = DateTime(
+                        state.month.year,
+                        state.month.month,
+                        day,
+                      );
+                      final count = state.forDay(space.id, person, date).length;
+                      final today = dateOnly(DateTime.now()) == date;
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: day < 1 || day > days
+                              ? Colors.transparent
+                              : count == 0
+                              ? const Color(0xFFDDE2F1)
+                              : count == 1
+                              ? SoftPop.sky
+                              : count == 2
+                              ? const Color(0xFF809AFB)
+                              : SoftPop.blue,
+                          borderRadius: BorderRadius.circular(3),
+                          border: today
+                              ? Border.all(color: SoftPop.blue, width: 1.5)
+                              : null,
                         ),
                       );
-                    },
+                    }),
                   ),
                 ),
                 const SizedBox(height: 10),

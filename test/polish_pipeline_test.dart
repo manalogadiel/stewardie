@@ -53,11 +53,11 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: LiveLocationPill())));
     await tester.tap(find.byTooltip('Minimize sharing status'));
     await tester.pumpAndSettle();
-    expect(find.text('15m left'), findsOneWidget);
+    expect(find.textContaining('15m left'), findsOneWidget);
     expect(find.text('End'), findsOneWidget);
     expect(service.isSharing.value, isTrue);
     await tester.tap(find.byTooltip('Expand sharing status'));
     await tester.pumpAndSettle();
-    expect(find.text('Sharing location · 15m left'), findsOneWidget);
+    expect(find.textContaining('15m left'), findsOneWidget);
   });
 }

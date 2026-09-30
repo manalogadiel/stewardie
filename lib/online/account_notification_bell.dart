@@ -51,6 +51,7 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
     subscriptions.clear();
     requests.clear();
     activity.clear();
+    if (widget.backend.auth.currentUser?.uid != widget.uid) return;
     final ids = widget.spaceIds.toSet().toList()..sort();
     for (final spaceId in ids) {
       subscriptions.add(

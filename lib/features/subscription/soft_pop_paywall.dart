@@ -249,7 +249,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                       )
                     : Text(
                         !RevenueCatService.purchasesEnabled
-                            ? 'Purchases are not available yet'
+                            ? 'Purchases unavailable'
                             : _isAnnual
                             ? 'Start Annual Plus'
                             : 'Start Monthly Plus',

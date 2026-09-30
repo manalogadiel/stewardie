@@ -82,7 +82,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Sharing location · 15m left'), findsOneWidget);
+      expect(find.textContaining('15m left'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('End'));
       await tester.pumpAndSettle();

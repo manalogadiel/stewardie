@@ -26,7 +26,7 @@ void main() {
       expect(find.text('Save 27%'), findsNothing);
       final button = find.widgetWithText(
         FilledButton,
-        'Purchases are not available yet',
+        'Purchases unavailable',
       );
       expect(tester.widget<FilledButton>(button).onPressed, isNull);
       expect(purchased, isFalse);

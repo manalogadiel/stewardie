@@ -142,7 +142,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
               const StaggeredEntrance(
                 order: 2,
                 child: Text(
-                  'Choose what Stewardie can help with. These are completely optional.',
+                  'Choose your permissions. You can skip these.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,

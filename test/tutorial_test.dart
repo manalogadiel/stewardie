@@ -220,7 +220,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.text('A quick look around?'), findsOneWidget);
+        expect(find.text('Ready to look around?'), findsOneWidget);
         expect(find.text('Show me around'), findsOneWidget);
         expect(find.text('Explore on my own'), findsOneWidget);
 

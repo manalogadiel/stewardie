@@ -464,7 +464,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
     final operationKey = '$taskId/${action.name}';
     final operationId = _operationIds.putIfAbsent(
       operationKey,
-      () => backend.firestore.collection('operationIds').doc().id,
+      backend.newOperationId,
     );
     final result =
         _acknowledgedActions[operationKey] ??

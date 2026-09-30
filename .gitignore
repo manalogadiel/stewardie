@@ -32,6 +32,10 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/android/.kotlin/
+/android/key.properties
+*.jks
+*.keystore
 /.local/
 /backend/firebase/functions/node_modules/
 /backend/firebase/functions/.env*

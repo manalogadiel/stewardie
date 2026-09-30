@@ -89,11 +89,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.scrollUntilVisible(
-      find.text('Use this place'),
-      200,
-      scrollable: find.byType(Scrollable).last,
+    final sheetScroll = tester.state<ScrollableState>(
+      find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     );
+    sheetScroll.position.jumpTo(sheetScroll.position.maxScrollExtent);
+    await tester.pumpAndSettle();
     expect(find.text('Use this place'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

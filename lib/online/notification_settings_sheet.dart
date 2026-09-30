@@ -163,9 +163,9 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('Reminders', style: Theme.of(context).textTheme.titleLarge),
-              const Text('Your activity inbox works even without push alerts.'),
+              const Text('Updates stay in your inbox.'),
               if (!PushService.instance.available)
-                const Text('Push is not configured in this build yet.'),
+                const Text('Device alerts are unavailable.'),
               SwitchListTile.adaptive(
                 title: const Text('Push reminders'),
                 value: enabled,
@@ -196,7 +196,7 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
                 onChanged: (value) => setState(() => reactions = value),
               ),
               SwitchListTile.adaptive(
-                title: const Text('Mood check-ins in my inbox'),
+                title: const Text('Mood check-ins'),
                 subtitle: const Text('No mood push alerts'),
                 value: moods,
                 onChanged: (value) => setState(() => moods = value),

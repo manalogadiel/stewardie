@@ -461,8 +461,8 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  SizedBox(
-                    height: 50,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 50),
                     child: OutlinedButton.icon(
                       onPressed: () {
                         Navigator.of(context).pop();
@@ -491,8 +491,8 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    height: 50,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 50),
                     child: OutlinedButton(
                       onPressed: _signOut,
                       style: OutlinedButton.styleFrom(

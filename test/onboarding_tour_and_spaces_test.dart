@@ -149,7 +149,7 @@ void main() {
 
         // 1. Tutorial invitation sheet should be shown
         expect(find.byType(TutorialInvitationSheet), findsOneWidget);
-        expect(find.text('A quick look around?'), findsOneWidget);
+        expect(find.text('Ready to look around?'), findsOneWidget);
         expect(find.text('Show me around'), findsOneWidget);
         expect(find.text('Explore on my own'), findsOneWidget);
 
