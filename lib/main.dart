@@ -8,6 +8,8 @@ import 'online/online_backend.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Paint edge to edge; each shell keeps interactive controls in safe areas.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   try {
     final database = await openLocalDatabase();

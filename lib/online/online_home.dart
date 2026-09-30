@@ -3,6 +3,7 @@ import 'rename_space_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'dart:async';
 
@@ -362,163 +363,169 @@ class _OnlineHomeState extends State<OnlineHome> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: widget.backend.spaces(widget.user.uid),
-        builder: (context, snapshot) {
-          final refs = snapshot.data?.docs ?? [];
-          if (snapshot.hasData) {
-            _hasSpaces = refs.isNotEmpty;
-            if (!widget.spaceOnly && !_entryPromptsStarted) {
-              _entryPromptsStarted = true;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) _runEntryPrompts();
-              });
-            }
-          }
-          final requestedSpace = widget.spaceId ?? _spaceId;
-          final selected = refs.any((doc) => doc.id == requestedSpace)
-              ? requestedSpace
-              : (refs.isEmpty ? null : refs.first.id);
-          final space = selected == null
-              ? null
-              : refs.firstWhere((doc) => doc.id == selected);
-          if (widget.spaceOnly) return _space(selected, space);
-          return Scaffold(
-            extendBody: true,
-            body: Stack(
-              children: [
-                const Positioned.fill(child: SoftPopBackdrop()),
-                Positioned.fill(
-                  child: SafeArea(
-                    top: false,
-                    bottom: false,
-                    child: switch (_destination) {
-                      0 => _today(selected, snapshot),
-                      1 => _moments(selected, space),
-                      _ => _space(selected, space),
-                    },
-                  ),
+  Widget build(
+    BuildContext context,
+  ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    stream: widget.backend.spaces(widget.user.uid),
+    builder: (context, snapshot) {
+      final refs = snapshot.data?.docs ?? [];
+      if (snapshot.hasData) {
+        _hasSpaces = refs.isNotEmpty;
+        if (!widget.spaceOnly && !_entryPromptsStarted) {
+          _entryPromptsStarted = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _runEntryPrompts();
+          });
+        }
+      }
+      final requestedSpace = widget.spaceId ?? _spaceId;
+      final selected = refs.any((doc) => doc.id == requestedSpace)
+          ? requestedSpace
+          : (refs.isEmpty ? null : refs.first.id);
+      final space = selected == null
+          ? null
+          : refs.firstWhere((doc) => doc.id == selected);
+      if (widget.spaceOnly) return _space(selected, space);
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark.copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: Colors.transparent,
+        ),
+        child: Scaffold(
+          extendBody: true,
+          body: Stack(
+            children: [
+              const Positioned.fill(child: SoftPopBackdrop()),
+              Positioned.fill(
+                child: SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: switch (_destination) {
+                    0 => _today(selected, snapshot),
+                    1 => _moments(selected, space),
+                    _ => _space(selected, space),
+                  },
                 ),
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 48,
-                            child: IconButton(
-                              key: TutorialTargetRegistry.mapButtonTarget,
-                              tooltip: selected == null
-                                  ? 'Private map'
-                                  : 'Space map',
-                              style: IconButton.styleFrom(
-                                backgroundColor: SoftPop.surface,
-                                shape: const CircleBorder(),
-                              ),
-                              onPressed: () => SpaceMapSheet.show(
-                                context,
-                                backend: widget.backend,
-                                spaceId: selected,
-                                onJoinSpace: selected == null
-                                    ? () => _chooseSpace(refs, null)
-                                    : null,
-                              ),
-                              icon: const Icon(
-                                Icons.map_outlined,
-                                color: SoftPop.ink,
-                                size: 22,
-                              ),
+              ),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 48,
+                          child: IconButton(
+                            key: TutorialTargetRegistry.mapButtonTarget,
+                            tooltip: selected == null
+                                ? 'Private map'
+                                : 'Space map',
+                            style: IconButton.styleFrom(
+                              backgroundColor: SoftPop.surface,
+                              shape: const CircleBorder(),
+                            ),
+                            onPressed: () => SpaceMapSheet.show(
+                              context,
+                              backend: widget.backend,
+                              spaceId: selected,
+                              onJoinSpace: selected == null
+                                  ? () => _chooseSpace(refs, null)
+                                  : null,
+                            ),
+                            icon: const Icon(
+                              Icons.map_outlined,
+                              color: SoftPop.ink,
+                              size: 22,
                             ),
                           ),
-                          Expanded(
-                            child: Center(
-                              child: TextButton(
-                                key: TutorialTargetRegistry.spaceSelectorTarget,
-                                style: TextButton.styleFrom(
-                                  backgroundColor: SoftPop.surface,
-                                  shape: const StadiumBorder(),
-                                  minimumSize: const Size(48, 48),
-                                ),
-                                onPressed: () => _chooseSpace(refs, selected),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        space?.data()['name'] as String? ??
-                                            'My spaces',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: SoftPop.ink,
-                                          fontWeight: FontWeight.w800,
-                                        ),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: TextButton(
+                              key: TutorialTargetRegistry.spaceSelectorTarget,
+                              style: TextButton.styleFrom(
+                                backgroundColor: SoftPop.surface,
+                                shape: const StadiumBorder(),
+                                minimumSize: const Size(48, 48),
+                              ),
+                              onPressed: () => _chooseSpace(refs, selected),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      space?.data()['name'] as String? ??
+                                          'My spaces',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: SoftPop.ink,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
-                                    const Icon(
-                                      Icons.expand_more_rounded,
-                                      color: SoftPop.ink,
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                  const Icon(
+                                    Icons.expand_more_rounded,
+                                    color: SoftPop.ink,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                          SizedBox(
-                            width: 48,
-                            child: IconButton(
-                              key:
-                                  TutorialTargetRegistry.notificationBellTarget,
-                              tooltip: 'Notifications',
-                              style: IconButton.styleFrom(
-                                backgroundColor: SoftPop.surface,
-                                shape: const CircleBorder(),
-                              ),
-                              onPressed: () => _showInbox(refs),
-                              icon: _notificationBell(refs),
+                        ),
+                        SizedBox(
+                          width: 48,
+                          child: IconButton(
+                            key: TutorialTargetRegistry.notificationBellTarget,
+                            tooltip: 'Notifications',
+                            style: IconButton.styleFrom(
+                              backgroundColor: SoftPop.surface,
+                              shape: const CircleBorder(),
                             ),
+                            onPressed: () => _showInbox(refs),
+                            icon: _notificationBell(refs),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
-            bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
-                ? null
-                : SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                      child: Center(
-                        heightFactor: 1,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 360),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const LiveLocationPill(),
-                              GlassDock(
-                                index: _destination,
-                                onSelected: (index) =>
-                                    setState(() => _destination = index),
-                              ),
-                            ],
-                          ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+              ? null
+              : SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: Center(
+                      heightFactor: 1,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const LiveLocationPill(),
+                            GlassDock(
+                              index: _destination,
+                              onSelected: (index) =>
+                                  setState(() => _destination = index),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-          );
-        },
+                ),
+        ),
       );
+    },
+  );
 
   Widget _page(List<Widget> children, {double? topPadding}) => Align(
     alignment: Alignment.topCenter,

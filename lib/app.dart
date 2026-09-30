@@ -89,7 +89,7 @@ class AppShell extends ConsumerWidget {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark.copyWith(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: SoftPop.canvas,
+        systemNavigationBarColor: Colors.transparent,
       ),
       child: Scaffold(
         extendBody: true,
