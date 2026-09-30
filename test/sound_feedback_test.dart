@@ -65,8 +65,8 @@ void main() {
     database = await databaseFactoryMemory.openDatabase('sound-${run++}');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
-        calls.add(call);
-        return null;
+          calls.add(call);
+          return null;
         });
     SoundFeedback.foreground(true);
     await SoundFeedback.bind(database, 'alice');
@@ -113,6 +113,34 @@ void main() {
     SoundFeedback.clearAccount();
     expect(SoundFeedback.captureIntent(), isNull);
     expect(calls.last.method, 'stop');
+  });
+  test('pending opt-out survives an immediate account switch', () async {
+    final save = SoundFeedback.update(
+      const SoundSettings(enabled: false, volume: .2),
+    );
+    await SoundFeedback.bind(database, 'bob');
+    await SoundFeedback.bind(database, 'alice');
+    await save;
+    expect(SoundFeedback.ready.value, isTrue);
+    expect(SoundFeedback.settings.value.enabled, isFalse);
+    expect(SoundFeedback.settings.value.volume, .2);
+    await SoundFeedback.emit(SoundCue.saved);
+    expect(plays(), isEmpty);
+  });
+  test('malformed receipt does not disable saved sound preferences', () async {
+    await stringMapStoreFactory.store('app-sound-receipts').record('bad').put(
+      database,
+      {'account': 'alice', 'operation': 123},
+    );
+    await SoundFeedback.bind(database, null);
+    await SoundFeedback.bind(database, 'alice');
+    expect(SoundFeedback.ready.value, isTrue);
+    await SoundFeedback.confirmed(
+      SoundCue.saved,
+      'valid-save',
+      SoundFeedback.captureIntent(),
+    );
+    expect(plays(), hasLength(1));
   });
   test(
     'late account and background responses never chime after resuming',

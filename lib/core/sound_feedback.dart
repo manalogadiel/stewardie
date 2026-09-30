@@ -103,8 +103,12 @@ abstract final class SoundFeedback {
     _heard.clear();
     _busyUntil = _reactionAt = _notificationUntil = DateTime(1970);
     await _native('stop');
-    if (account == null) return;
+    if (account == null || bindingVersion != _bindingVersion) return;
     try {
+      // A quick account switch must not reload preferences before a pending
+      // opt-out/volume write has finished.
+      await _writes;
+      if (bindingVersion != _bindingVersion) return;
       final data = await _store.record(account).get(database);
       final receipts = await _receipts.find(
         database,
@@ -112,7 +116,9 @@ abstract final class SoundFeedback {
       );
       if (bindingVersion != _bindingVersion) return;
       settings.value = SoundSettings.fromMap(data);
-      _heard.addAll(receipts.map((r) => r.value['operation'] as String));
+      _heard.addAll(
+        receipts.map((r) => r.value['operation']).whereType<String>(),
+      );
       ready.value = true;
     } catch (_) {
       // Unreadable preferences stay quiet, preserving an existing opt-out.
