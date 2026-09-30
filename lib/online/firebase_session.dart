@@ -359,7 +359,8 @@ class _SignedInAppState extends State<_SignedInApp>
               ),
             );
           }
-          if (!photoSnapshot.hasData || timeline.loading) {
+          if (!photoSnapshot.hasData ||
+              (timeline.loading && timeline.spaces.isEmpty)) {
             return _standalone(
               const Center(child: CircularProgressIndicator()),
             );

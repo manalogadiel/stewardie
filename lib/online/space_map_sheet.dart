@@ -377,28 +377,30 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                   ),
                 ),
                 if (_locationStatus != 'Your private device location')
-                  Wrap(
-                    spacing: 12,
-                    children: [
-                      TextButton.icon(
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Center(
+                      child: ElevatedButton.icon(
                         onPressed: _recoverLocation,
                         icon: const Icon(Icons.location_on_outlined),
                         label: const Text('Enable location'),
-                      ),
-                      Tooltip(
-                        message: 'Refresh device location',
-                        child: ElevatedButton(
-                          onPressed: _initUserLocation,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFBEBC5),
-                            foregroundColor: const Color(0xFF202633),
-                            elevation: 2,
-                            minimumSize: const Size(48, 48),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF202633),
+                          surfaceTintColor: Colors.transparent,
+                          shadowColor: const Color(0x26202633),
+                          elevation: 2,
+                          minimumSize: const Size(48, 48),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
                           ),
-                          child: const Icon(Icons.my_location_rounded),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(28),
+                          ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 const SizedBox(height: 16),
                 StreamBuilder<List<Map<String, dynamic>>>(

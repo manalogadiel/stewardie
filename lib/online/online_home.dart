@@ -2374,9 +2374,8 @@ class _OnlineHomeState extends State<OnlineHome> {
       context,
       backend: widget.backend,
       onJoined: (newSpaceId) {
+        if (!mounted) return;
         _switchSpace(newSpaceId);
-
-        widget.onSpaceSelected?.call(newSpaceId);
       },
     );
   }

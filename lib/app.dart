@@ -74,13 +74,9 @@ class AppShell extends ConsumerWidget {
         body: Center(child: Text('Your spaces are loading…')),
       );
     }
-    if (space.id != state.spaceId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          ref.read(demoProvider.notifier).switchSpace(space.id);
-        }
-      });
-    }
+    // Membership streams may lag a successful create/join. Display the
+    // available space temporarily without replacing the requested selection;
+    // DemoController handles fallback when an established membership is removed.
     final index = path == '/moments'
         ? 1
         : path == '/space'

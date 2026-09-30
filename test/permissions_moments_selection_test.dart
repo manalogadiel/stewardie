@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:stewardie/app.dart';
 import 'package:stewardie/core/demo_state.dart';
 import 'package:stewardie/core/theme.dart';
 import 'package:stewardie/core/task_name.dart';
@@ -152,6 +153,38 @@ void main() {
     repo.available = [old];
     controller.refresh();
     expect(container.read(demoProvider).spaceId, old.id);
+  });
+  testWidgets('shell preserves a newly selected space while membership loads', (
+    tester,
+  ) async {
+    final repo = MutableSpaces();
+    final old = repo.spaces.first;
+    repo.available = [old];
+    final container = ProviderContainer(
+      overrides: [repositoryProvider.overrideWithValue(repo)],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(demoProvider.notifier);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: AppShell(path: '/today', child: SizedBox()),
+        ),
+      ),
+    );
+    controller.switchSpace('new-space');
+    await tester.pump();
+    await tester.pump();
+    expect(container.read(demoProvider).spaceId, 'new-space');
+    repo.available = [old, const Space('new-space', 'New space', 'friends', [])];
+    controller.refresh();
+    await tester.pump();
+    expect(find.text('New space'), findsOneWidget);
+    expect(container.read(demoProvider).spaceId, 'new-space');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
   });
   testWidgets(
     'native permission prompts serialize without dimming unrelated cards',

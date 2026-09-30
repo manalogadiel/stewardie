@@ -206,6 +206,19 @@ test('Spark creation preserves Plus and enforces protected account lists',async(
  await assertSucceeds(b.commit());
  await assertFails(d.doc('accounts/alice').update({ownedSpaceIds:[],spaceIds:[],changedSpaceId:'home'}));
 });
+test('Spark first-space creation supports a verified account without an account record',async()=>{
+ const d=db('new-owner');
+ await assertSucceeds(d.runTransaction(async tx=>{
+  const account=d.doc('accounts/new-owner');
+  const before=await tx.get(account);
+  if(before.exists) throw new Error('Expected a new account');
+  tx.set(d.doc('spaces/first'),{name:'First',kind:'family',timeZone:'Asia/Manila',ownerUid:'new-owner',memberUids:['new-owner'],memberCount:1,activeTaskCount:0,createdAt:now()});
+  tx.set(d.doc('spaces/first/members/new-owner'),{uid:'new-owner',name:'New owner',role:'owner',status:'active',joinedAt:now()});
+  tx.set(account,{tier:'basic',spaceIds:['first'],ownedSpaceIds:['first'],changedSpaceId:'first'});
+  tx.set(d.doc('accounts/new-owner/spaceRefs/first'),{spaceId:'first',name:'First',kind:'family',joinedAt:now()});
+ }));
+ await assertSucceeds(d.doc('spaces/first').get());
+});
 test('Spark invitation redemption is atomic, one-use, and owner issued',async()=>{
  const token='a'.repeat(32), invite={spaceId:'home',spaceName:'Home',kind:'family',creatorUid:'alice',createdAt:now(),expiresAt:ClientTimestamp.fromMillis(Date.now()+86400000),redeemedUid:null,revoked:false,requireApproval:false};
  await assertFails(db('bob').doc(`invites/${token}`).set({...invite,creatorUid:'bob'}));
