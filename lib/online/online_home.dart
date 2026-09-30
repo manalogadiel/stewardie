@@ -1833,8 +1833,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                                             doc.data()['status'] == 'pending',
                                       )
                                       .toList();
-                              if (pendingDocs.isEmpty)
+                              if (pendingDocs.isEmpty) {
                                 return const SizedBox.shrink();
+                              }
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -2134,7 +2135,7 @@ class _OnlineHomeState extends State<OnlineHome> {
       final members = List<String>.from(
         space.data()?['memberUids'] as List? ?? [],
       );
-      if (!members.contains(widget.user.uid))
+      if (!members.contains(widget.user.uid)) {
         throw StateError('Space access ended.');
       final result = await widget.backend.call('getTask', {
         'spaceId': spaceId,
@@ -2142,7 +2143,9 @@ class _OnlineHomeState extends State<OnlineHome> {
       });
       final task = Map<String, dynamic>.from(result['task'] as Map);
       final people = await widget.backend.members(spaceId).first;
-      if (!mounted || !sheet.mounted) return;
+      if (!mounted || !sheet.mounted) {
+        return;
+      }
       Navigator.pop(sheet);
       _switchSpace(spaceId);
       setState(() {

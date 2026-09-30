@@ -101,27 +101,28 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'A little less\nto juggle',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Fredoka',
-                  fontSize: 30,
-                  fontWeight: FontWeight.w600,
-                  height: 1.15,
-                  color: SoftPop.ink,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'A little less\nto juggle',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Fredoka',
+                    fontSize: 30,
+                    fontWeight: FontWeight.w600,
+                    height: 1.15,
+                    color: SoftPop.ink,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 310,
-                child: PageView.builder(
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 350,
+                  child: PageView.builder(
                   controller: _pageController,
                   itemCount: _features.length,
                   onPageChanged: (index) {
@@ -205,6 +206,7 @@ class _FeaturesScreenState extends State<FeaturesScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

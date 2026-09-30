@@ -41,7 +41,9 @@ class _NameScreenState extends State<NameScreen> {
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
     final trimmed = _nameController.text.trim();
     widget.onContinue(trimmed);
   }

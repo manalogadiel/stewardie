@@ -33,16 +33,21 @@ class PlacePin {
   };
 
   static PlacePin? fromMap(Object? raw) {
-    if (raw is! Map) return null;
+    if (raw is! Map) {
+      return null;
+    }
     final lat = raw['lat'], lng = raw['lng'];
-    if (lat is! num || lng is! num) return null;
+    if (lat is! num || lng is! num) {
+      return null;
+    }
     if (!lat.isFinite ||
         !lng.isFinite ||
         lat < -90 ||
         lat > 90 ||
         lng < -180 ||
-        lng > 180)
+        lng > 180) {
       return null;
+    }
     return PlacePin(
       lat: lat.toDouble(),
       lng: lng.toDouble(),
@@ -126,10 +131,11 @@ class _PlacePickerState extends State<_PlacePicker> {
         _pendingCenter = true;
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = 'Could not find your location. Tap the map instead.',
         );
+      }
     }
   }
 

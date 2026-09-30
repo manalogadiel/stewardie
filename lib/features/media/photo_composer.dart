@@ -891,8 +891,9 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                 OutlinedButton.icon(
                   onPressed: () async {
                     final selected = await showPlacePicker(context);
-                    if (selected != null && mounted)
+                    if (selected != null && mounted) {
                       setState(() => pin = selected);
+                    }
                   },
                   icon: const Icon(Icons.place_outlined),
                   label: const Text('Add a manual place (optional)'),
