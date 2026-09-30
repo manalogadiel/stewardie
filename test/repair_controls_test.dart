@@ -11,8 +11,37 @@ import 'package:stewardie/features/subscription/soft_pop_paywall.dart';
 import 'package:stewardie/online/rename_space_dialog.dart';
 import 'package:stewardie/online/member_location_pin.dart';
 import 'package:stewardie/features/media/camera_screen.dart';
+import 'package:stewardie/features/onboarding/permission_adapter.dart';
+import 'package:stewardie/features/onboarding/screens/permissions_screen.dart';
 
 import 'demo_ui_test.dart' show captureKey, screenshot;
+
+class _PermissionState extends PermissionAdapter {
+  final values = {
+    PermissionCapability.camera: PermissionStatusState.denied,
+    PermissionCapability.location: PermissionStatusState.granted,
+    PermissionCapability.notifications: PermissionStatusState.granted,
+  };
+  final requested = <PermissionCapability>[];
+  int settingsOpens = 0;
+  bool servicesEnabled = false;
+  @override
+  Future<PermissionStatusState> checkStatus(
+    PermissionCapability capability,
+  ) async => values[capability]!;
+  @override
+  Future<PermissionStatusState> requestPermission(
+    PermissionCapability capability,
+  ) async {
+    requested.add(capability);
+    return values[capability] = PermissionStatusState.granted;
+  }
+
+  @override
+  Future<bool> locationServicesEnabled() async => servicesEnabled;
+  @override
+  Future<void> openLocationSettings() async => settingsOpens++;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +58,7 @@ void main() {
     WidgetTester tester,
     Widget Function(BuildContext) content, {
     double width = 360,
+    double height = 720,
     double scale = 1,
   }) async {
     tester.view.physicalSize = Size(width, height);
@@ -125,6 +155,38 @@ void main() {
     },
   );
 
+  testWidgets(
+    'permission revisit reflects OS state and retains settings recovery',
+    (tester) async {
+      final permissions = _PermissionState();
+      Widget screen() => PermissionsScreen(
+        key: UniqueKey(),
+        adapter: permissions,
+        onContinue: () {},
+      );
+      await host(tester, (_) => screen());
+      await tester.pumpAndSettle();
+      final allow = find.widgetWithText(FilledButton, 'Allow');
+      await tester.ensureVisible(allow);
+      await tester.tap(allow);
+      await tester.pumpAndSettle();
+      expect(permissions.requested, [PermissionCapability.camera]);
+      await host(tester, (_) => screen());
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(FilledButton, 'Allow'), findsNothing);
+      expect(find.text('Allowed'), findsNWidgets(3));
+      final settings = find.text('Open location settings');
+      await tester.ensureVisible(settings);
+      await tester.tap(settings);
+      expect(permissions.settingsOpens, 1);
+      permissions.servicesEnabled = true;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.text('Location services are off.'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('month selector chooses month and year at enlarged text', (
     tester,
   ) async {
@@ -208,6 +270,116 @@ void main() {
     expect(tester.takeException(), isNull);
     await screenshot(tester, 'map-member-pin-360-3x');
   });
+
+  testWidgets(
+    'physical rotation turns camera icons without moving slots and size expands centrally',
+    (tester) async {
+      const cameraChannel = MethodChannel('plugins.flutter.io/camera');
+      const orientation = MethodChannel('stewardie/device_orientation');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        cameraChannel,
+        (_) async => <Object>[],
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        orientation,
+        (_) async => null,
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          cameraChannel,
+          null,
+        );
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          orientation,
+          null,
+        );
+      });
+      await host(tester, (_) => const CameraScreen(spaceName: 'Family'));
+      await tester.pumpAndSettle();
+      final gallery = find.byTooltip('Choose photo');
+      final capture = find.byTooltip('Take photo');
+      final before = tester.getCenter(gallery);
+      final shutterBefore = tester.getCenter(capture);
+      await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+        orientation.name,
+        const StandardMethodCodec().encodeSuccessEnvelope(.25),
+        (_) {},
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getCenter(gallery), before);
+      expect(tester.getCenter(capture), shutterBefore);
+      final rotation = find.ancestor(
+        of: find.byIcon(Icons.photo_library_outlined),
+        matching: find.byType(AnimatedRotation),
+      );
+      expect(tester.widget<AnimatedRotation>(rotation).turns, .25);
+      expect(
+        tester.getCenter(find.byTooltip('Photo location on')).dx,
+        lessThan(shutterBefore.dx),
+      );
+      await tester.tap(find.byTooltip('Photo size'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byTooltip('Use 16:9 photo size'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Use 16:9 photo size'));
+      await tester.pumpAndSettle();
+      expect(find.text('16:9'), findsOneWidget);
+      expect(find.byTooltip('Use 1:1 photo size'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await screenshot(tester, 'camera-clay-controls-360');
+    },
+  );
+
+  testWidgets(
+    'camera denied access exposes a working settings action and gallery',
+    (tester) async {
+      const cameraChannel = MethodChannel('plugins.flutter.io/camera');
+      const permissionsChannel = MethodChannel(
+        'flutter.baseflow.com/permissions/methods',
+      );
+      var settingsOpened = false;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        cameraChannel,
+        (_) async => throw PlatformException(
+          code: 'CameraAccessDenied',
+          message: 'Denied',
+        ),
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        permissionsChannel,
+        (call) async {
+          if (call.method == 'openAppSettings') settingsOpened = true;
+          return true;
+        },
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          cameraChannel,
+          null,
+        );
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          permissionsChannel,
+          null,
+        );
+      });
+      await host(
+        tester,
+        (_) => const CameraScreen(spaceName: 'Family'),
+        width: 640,
+        height: 360,
+        scale: 2,
+      );
+      await tester.pumpAndSettle();
+      final settings = find.text('Open camera settings');
+      expect(settings, findsOneWidget);
+      await tester.ensureVisible(settings);
+      await tester.tap(settings);
+      await tester.pumpAndSettle();
+      expect(settingsOpened, isTrue);
+      expect(find.byTooltip('Choose photo'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'camera recovery remains scrollable in landscape with enlarged text',

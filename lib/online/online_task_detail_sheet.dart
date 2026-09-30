@@ -36,6 +36,7 @@ class OnlineTaskDetailSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       backgroundColor: const Color(0xFFFAF9F6),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -66,6 +67,10 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
 
   String? _selectedAssignee;
   bool _busy = false;
+  bool _saving = false;
+  bool _saveAgain = false;
+  String? _saveError;
+  late int _expectedVersion = widget.task['version'] as int? ?? 1;
   bool _helpNeeded = false;
   late List<Map<String, dynamic>> _subtasks;
   late List<Map<String, dynamic>> _activity;
@@ -119,23 +124,42 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
 
   Future<void> _autoSave() async {
     if (_completed) return;
+    if (_saving) {
+      _saveAgain = true;
+      return;
+    }
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
     final note = _noteController.text.trim();
     final destination = _destinationController.text.trim();
 
+    _saving = true;
+    if (mounted) setState(() => _saveError = null);
     try {
-      await widget.backend.call('updateTask', {
+      final result = await widget.backend.call('updateTask', {
         'spaceId': widget.spaceId,
         'taskId': _taskId,
+        'expectedVersion': _expectedVersion,
         'title': title,
         'note': note,
         'destination': destination,
-        'requestedUid': _selectedAssignee,
+        if (_selectedAssignee !=
+            (widget.task['requestedUid'] ?? widget.task['ownerUid']))
+          'requestedUid': _selectedAssignee,
       });
+      _expectedVersion = result['version'] as int? ?? _expectedVersion;
       widget.onChanged();
-    } catch (_) {}
+    } catch (error) {
+      if (mounted)
+        setState(() => _saveError = error is StateError ? error.message.toString() : 'Changes not saved. Tap to retry.');
+    } finally {
+      _saving = false;
+      if (_saveAgain && mounted) {
+        _saveAgain = false;
+        await _autoSave();
+      }
+    }
   }
 
   Future<void> _toggleSubtask(int index) async {
@@ -179,6 +203,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     setState(() => _busy = true);
     try {
       await widget.backend.requestHelp(widget.spaceId, _taskId);
+      if (!mounted) return;
       setState(() {
         _helpNeeded = true;
         _activity.insert(0, {
@@ -204,6 +229,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     setState(() => _busy = true);
     try {
       await widget.backend.takeOverTask(widget.spaceId, _taskId);
+      if (!mounted) return;
       setState(() {
         _helpNeeded = false;
         _selectedAssignee = widget.backend.auth.currentUser?.uid;
@@ -303,9 +329,22 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   }
 
   Future<void> _markDone() async {
+    if (_busy) return;
+    if (_saving) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wait for your changes to save, then finish the task.')));
+      return;
+    }
+    setState(() => _busy = true);
+    await _autoSave();
+    if (!mounted) return;
+    if (_saveError != null || _titleController.text.trim().isEmpty) {
+      setState(() => _busy = false);
+      return;
+    }
+    final parentContext = Navigator.of(context).context;
     Navigator.of(context).pop();
     TaskCompletionPromptSheet.show(
-      context,
+      parentContext,
       backend: widget.backend,
       spaceId: widget.spaceId,
       taskId: _taskId,
@@ -331,6 +370,12 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (_saveError != null)
+                TextButton.icon(
+                  onPressed: _autoSave,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(_saveError!),
+                ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [

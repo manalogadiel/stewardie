@@ -1,95 +1,125 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme.dart';
 import 'live_location_service.dart';
 
-/// Floating pill strip rendered above the bottom navigation dock when location sharing is active.
-class LiveLocationPill extends StatelessWidget {
+/// A presentation-only minimizer: GPS, audience and expiry stay in the service.
+class LiveLocationPill extends StatefulWidget {
   const LiveLocationPill({super.key});
+  @override
+  State<LiveLocationPill> createState() => _LiveLocationPillState();
+}
 
+class _LiveLocationPillState extends State<LiveLocationPill> {
+  static bool minimized = false;
+  static String? session;
   @override
   Widget build(BuildContext context) {
     final service = LiveLocationService.instance;
-
     return ValueListenableBuilder<bool>(
       valueListenable: service.isSharing,
       builder: (context, sharing, _) {
         if (!sharing) {
+          session = null;
           return ValueListenableBuilder<bool>(
             valueListenable: service.stopPending,
-            builder: (context, pending, _) => pending
+            builder: (_, pending, _) => pending
                 ? const Padding(
-                    padding: EdgeInsets.only(bottom: 8),
-                    child: Center(child: Text('Location stopped here · waiting for server confirmation')),
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      'Location stopped here · waiting for server confirmation',
+                      textAlign: TextAlign.center,
+                    ),
                   )
                 : const SizedBox.shrink(),
           );
         }
-
+        if (session != service.presentationSessionKey) {
+          session = service.presentationSessionKey;
+          minimized = false;
+        }
         return ValueListenableBuilder<int>(
           valueListenable: service.remainingMinutes,
-          builder: (context, minutes, _) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Center(
-                child: Container(
-                  height: 44,
-                  constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width - 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF202633),
-                    borderRadius: BorderRadius.circular(22),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
+          builder: (context, minutes, _) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: AnimatedSize(
+              duration: Duration(
+                milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 240,
+              ),
+              curve: Curves.easeOutCubic,
+              child: Material(
+                color: SoftPop.surface,
+                elevation: 5,
+                shadowColor: SoftPop.ink.withValues(alpha: .16),
+                borderRadius: BorderRadius.circular(26),
+                child: Padding(
+                  padding: EdgeInsets.all(minimized ? 8 : 14),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF244BFF),
-                          shape: BoxShape.circle,
+                      IconButton(
+                        tooltip: minimized
+                            ? 'Expand sharing status'
+                            : 'Minimize sharing status',
+                        onPressed: () => setState(() => minimized = !minimized),
+                        style: IconButton.styleFrom(
+                          backgroundColor: SoftPop.lightSky,
+                        ),
+                        icon: Icon(
+                          minimized
+                              ? Icons.expand_more_rounded
+                              : Icons.expand_less_rounded,
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Flexible(child: ValueListenableBuilder<bool>(
-                        valueListenable: service.updatesUnavailable,
-                        builder: (_, unavailable, _) => Text(
-                          unavailable
-                              ? 'Location updates unavailable • ${minutes}m'
-                              : 'Sharing location • ${minutes}m',
-                          style: const TextStyle(
-                            fontFamily: 'NunitoSans',
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                      const Icon(
+                        Icons.location_on_rounded,
+                        size: 20,
+                        color: SoftPop.secondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: service.updatesUnavailable,
+                          builder: (_, unavailable, _) => AnimatedSwitcher(
+                            duration: Duration(
+                              milliseconds:
+                                  MediaQuery.disableAnimationsOf(context)
+                                  ? 80
+                                  : 200,
+                            ),
+                            child: Text(
+                              minimized
+                                  ? '${minutes}m left'
+                                  : unavailable
+                                  ? 'Updates unavailable · ${minutes}m left'
+                                  : 'Sharing location · ${minutes}m left',
+                              key: ValueKey(minimized),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: SoftPop.ink,
+                              ),
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      )),
-                      const SizedBox(width: 12),
-                      TextButton(
-                        onPressed: () => service.stopSharing(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFFFFB4A8),
-                          minimumSize: const Size(48, 44),
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: service.stopSharing,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: SoftPop.rose,
+                          foregroundColor: SoftPop.ink,
+                          minimumSize: const Size(48, 48),
+                          elevation: 2,
+                          shadowColor: SoftPop.ink.withValues(alpha: .16),
                         ),
-                        child: const Text('Stop'),
+                        child: const Text('End'),
                       ),
                     ],
                   ),
                 ),
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );

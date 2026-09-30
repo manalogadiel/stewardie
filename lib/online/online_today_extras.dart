@@ -1,4 +1,5 @@
 import '../core/month_year_picker.dart';
+import '../features/onboarding/tutorial/tutorial_target_registry.dart';
 
 import 'dart:async';
 
@@ -53,9 +54,24 @@ class OnlineTodayExtras extends StatelessWidget {
     return large
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [mood, const SizedBox(height: 12), calendar],
+            children: [
+              KeyedSubtree(key: TutorialTargetRegistry.moodTarget, child: mood),
+              const SizedBox(height: 12),
+              KeyedSubtree(
+                key: TutorialTargetRegistry.calendarTarget,
+                child: calendar,
+              ),
+            ],
           )
-        : EqualHeightRow(children: [mood, calendar]);
+        : EqualHeightRow(
+            children: [
+              KeyedSubtree(key: TutorialTargetRegistry.moodTarget, child: mood),
+              KeyedSubtree(
+                key: TutorialTargetRegistry.calendarTarget,
+                child: calendar,
+              ),
+            ],
+          );
   }
 }
 

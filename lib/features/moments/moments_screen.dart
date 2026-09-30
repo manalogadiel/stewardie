@@ -152,12 +152,25 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
     return PageBody(
       padding: EdgeInsets.fromLTRB(20, topControlsClearance(context), 20, 160),
       children: [
-        Text(
-          'Little moments',
-          style: Theme.of(context).textTheme.headlineLarge,
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Little moments',
+                    style: Theme.of(context).textTheme.headlineLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text('The good bits from ${space.name}.'),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            const ClayArt('mascot-moments-camera', height: 80, width: 80),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text('The good bits from ${space.name}.'),
         if (repo.isShared && !library.supportsSharing)
           const Text('Photos stay on this device.'),
         if (library.syncing) const LinearProgressIndicator(),
@@ -230,7 +243,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
           const ClayPanel(
             child: Column(
               children: [
-                ClayArt('moments-selfie-group', height: 160),
+                ClayArt('mascot-moments-camera', height: 160),
                 SizedBox(height: 16),
                 Text('Room for the good bits'),
                 SizedBox(height: 8),
@@ -283,7 +296,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
             '${personName(space, photo.uploaderId)} · ${MaterialLocalizations.of(context).formatMediumDate(photo.publishedAt!.toLocal())}',
           ),
           if (photo.pin != null)
-            TextButton.icon(
+            ClayAction(
               onPressed: () => showPhotoLocation(context, photo),
               icon: const Icon(Icons.place_outlined),
               label: Text(
@@ -293,15 +306,23 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
               ),
             ),
           if (task != null && repo.canView(task))
-            TextButton.icon(
-              onPressed: () => context.push('/task/${task.id}'),
-              icon: const Icon(Icons.task_alt_rounded),
-              label: const Text('View task'),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: ClayAction(
+                onPressed: () => context.push('/task/${task.id}'),
+                icon: const Icon(Icons.task_alt_rounded),
+                label: const Text('View task'),
+              ),
             ),
           if (photo.uploaderId == repo.currentUserId)
-            TextButton(
-              onPressed: () => removePhoto(context, ref, photo),
-              child: const Text('Remove photo'),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: ClayAction(
+                onPressed: () => removePhoto(context, ref, photo),
+                color: SoftPop.rose,
+                icon: const Icon(Icons.delete_outline_rounded),
+                label: const Text('Remove photo'),
+              ),
             ),
           if (photo.uploaderId != repo.currentUserId &&
               ref.read(sharedBackendProvider) != null)

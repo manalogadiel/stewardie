@@ -7,7 +7,9 @@ class InviteLinks {
   /// Unambiguous uppercase character set for 6-letter invite codes
   /// (excludes easily confused letters like I and O).
   static const String codeCharset = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  static final RegExp _validCode = RegExp(r'^[A-HJ-NP-Z]{6}$|^[A-HJ-NP-Z]{10}$');
+  static final RegExp _validCode = RegExp(
+    r'^[A-HJ-NP-Z]{6}$|^[A-HJ-NP-Z]{10}$',
+  );
 
   static bool isValidCode(String value) => _validCode.hasMatch(sanitize(value));
 
@@ -16,7 +18,8 @@ class InviteLinks {
     final raw = value.trim();
     if (raw.contains('://')) {
       final uri = Uri.tryParse(raw);
-      if (uri == null || uri.scheme != 'https' ||
+      if (uri == null ||
+          uri.scheme != 'https' ||
           uri.host != 'stewardie.web.app') {
         return null;
       }
@@ -42,7 +45,8 @@ class InviteLinks {
       try {
         final uri = Uri.parse(raw);
         // Check query parameters in main URI
-        final queryParam = uri.queryParameters['invite'] ??
+        final queryParam =
+            uri.queryParameters['invite'] ??
             uri.queryParameters['token'] ??
             uri.queryParameters['code'];
         if (queryParam != null && queryParam.trim().isNotEmpty) {
@@ -54,7 +58,8 @@ class InviteLinks {
             final fragmentQuery = Uri.splitQueryString(
               uri.fragment.substring(fragmentIndex + 1),
             );
-            final fragParam = fragmentQuery['invite'] ??
+            final fragParam =
+                fragmentQuery['invite'] ??
                 fragmentQuery['token'] ??
                 fragmentQuery['code'];
             if (fragParam != null && fragParam.trim().isNotEmpty) {
@@ -83,7 +88,7 @@ class InviteLinks {
     }
 
     // Strip all whitespace (including internal spaces, tabs, newlines) and uppercase
-    return raw.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+    return raw.replaceAll(RegExp(r'[\s-]+'), '').toUpperCase();
   }
 
   /// Builds a shareable web invitation URL for the given [token].

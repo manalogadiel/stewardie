@@ -74,9 +74,12 @@ void main() {
         }
         expect(find.text('This part has not loaded.'), findsNothing);
         expect(tester.takeException(), isNull);
-        await tester.tap(
-          find.text(stop == TutorialStops.all.last ? 'Got it' : 'Next'),
+        final advance = find.text(
+          stop == TutorialStops.all.last ? 'Got it' : 'Next',
         );
+        await tester.ensureVisible(advance);
+        await tester.pumpAndSettle();
+        await tester.tap(advance);
         await tester.pumpAndSettle();
       }
       await running;

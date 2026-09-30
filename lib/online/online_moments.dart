@@ -257,7 +257,7 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
               const ClayPanel(
                 child: Column(
                   children: [
-                    ClayArt('moments-selfie-group', height: 160),
+                    ClayArt('mascot-moments-camera', height: 160),
                     SizedBox(height: 16),
                     Text('Room for the good bits'),
                     SizedBox(height: 8),

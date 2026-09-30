@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'core/theme.dart';
 import 'features/media/store.dart';
@@ -7,6 +8,7 @@ import 'online/online_backend.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   try {
     final database = await openLocalDatabase();
     final backend = await OnlineBackend.start();

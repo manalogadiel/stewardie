@@ -17,10 +17,12 @@ class LiveLocationService {
   StreamSubscription<Position>? _positions;
   Timer? _countdownTimer;
   Timer? _retryTimer;
-  final Map<String, DateTime> _pendingStops = {};
+  final Map<(String, String), DateTime> _pendingStops = {};
   DateTime? _expiresAt;
   DateTime? _lastSent;
   bool _sending = false;
+  int _sharingRevision = 0;
+  bool _startPending = false;
 
   final ValueNotifier<bool> isSharing = ValueNotifier(false);
   final ValueNotifier<bool> stopPending = ValueNotifier(false);
@@ -28,31 +30,54 @@ class LiveLocationService {
   final ValueNotifier<int> remainingMinutes = ValueNotifier(0);
   final ValueNotifier<Position?> currentPosition = ValueNotifier(null);
   String? get activeSpaceId => _activeSpaceId;
+  String get presentationSessionKey => '$_activeSpaceId/$_expiresAt';
+  bool get _hasCurrentAccountStops => _pendingStops.keys.any(
+    (key) => key.$1 == _backend?.auth.currentUser?.uid,
+  );
 
-  void init(OnlineBackend backend) => _backend = backend;
+  void init(OnlineBackend backend) {
+    _backend = backend;
+    stopPending.value = _hasCurrentAccountStops;
+  }
 
   Future<void> restore() async {
     final backend = _backend;
     final uid = backend?.auth.currentUser?.uid;
-    if (backend == null || uid == null || isSharing.value) return;
+    final revision = _sharingRevision;
+    if (backend == null || uid == null || isSharing.value || _startPending) {
+      return;
+    }
     try {
-      final account = await backend.firestore.doc('accounts/$uid')
+      final account = await backend.firestore
+          .doc('accounts/$uid')
           .get(const GetOptions(source: Source.server));
-      for (final spaceId in List<String>.from(account.data()?['spaceIds'] as List? ?? [])) {
+      for (final spaceId in List<String>.from(
+        account.data()?['spaceIds'] as List? ?? [],
+      )) {
         try {
           final session = await backend.firestore
               .doc('spaces/$spaceId/locationSessions/$uid')
               .get(const GetOptions(source: Source.server));
-          if (isSharing.value || backend.auth.currentUser?.uid != uid) return;
+          if (isSharing.value ||
+              _startPending ||
+              revision != _sharingRevision ||
+              backend.auth.currentUser?.uid != uid) {
+            return;
+          }
           final expiry = (session.data()?['expiresAt'] as Timestamp?)?.toDate();
-          if (expiry == null || !expiry.isAfter(DateTime.now().toUtc())) continue;
+          if (expiry == null || !expiry.isAfter(DateTime.now().toUtc())) {
+            continue;
+          }
           _activeSpaceId = spaceId;
           _expiresAt = expiry;
           _lastSent = (session.data()?['updatedAt'] as Timestamp?)?.toDate();
           isSharing.value = true;
           _tick();
           _countdownTimer?.cancel();
-          _countdownTimer = Timer.periodic(const Duration(seconds: 15), (_) => _tick());
+          _countdownTimer = Timer.periodic(
+            const Duration(seconds: 15),
+            (_) => _tick(),
+          );
           await _beginUpdates();
           return;
         } catch (_) {
@@ -64,7 +89,21 @@ class LiveLocationService {
     }
   }
 
+  Future<Position?>? _positionRequest;
+
   Future<Position?> determinePosition() async {
+    final pending = _positionRequest;
+    if (pending != null) return pending;
+    final request = _determinePosition();
+    _positionRequest = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_positionRequest, request)) _positionRequest = null;
+    }
+  }
+
+  Future<Position?> _determinePosition() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return null;
       var permission = await Geolocator.checkPermission();
@@ -74,6 +113,12 @@ class LiveLocationService {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         return null;
+      }
+      final recent = currentPosition.value;
+      if (recent != null &&
+          DateTime.now().toUtc().difference(recent.timestamp.toUtc()).abs() <
+              const Duration(seconds: 30)) {
+        return recent;
       }
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -92,41 +137,78 @@ class LiveLocationService {
     required String spaceId,
     required int durationMinutes,
   }) async {
-    if (_backend == null) throw StateError('Location is unavailable.');
+    if (_startPending) {
+      throw StateError('A sharing request is still finishing.');
+    }
+    _startPending = true;
+    try {
+      await _startSharing(spaceId: spaceId, durationMinutes: durationMinutes);
+    } finally {
+      _startPending = false;
+    }
+  }
+
+  Future<void> _startSharing({
+    required String spaceId,
+    required int durationMinutes,
+  }) async {
+    final backend = _backend;
+    final uid = backend?.auth.currentUser?.uid;
+    if (backend == null || uid == null) {
+      throw StateError('Sign in before sharing.');
+    }
     if (![15, 30, 60].contains(durationMinutes)) {
       throw ArgumentError('Choose 15, 30, or 60 minutes.');
     }
-    if (_pendingStops.containsKey(spaceId)) {
+    if (isSharing.value) await stopSharing();
+    final revision = ++_sharingRevision;
+    bool current() =>
+        revision == _sharingRevision &&
+        identical(backend, _backend) &&
+        backend.auth.currentUser?.uid == uid;
+    if (_pendingStops.containsKey((uid, spaceId))) {
       await _retryStops();
-      if (_pendingStops.containsKey(spaceId)) {
+      if (_pendingStops.containsKey((uid, spaceId))) {
         throw StateError(
           'Waiting for the previous sharing session to stop. Try again shortly.',
         );
       }
     }
     final position = await determinePosition();
+    if (!current()) throw StateError('Sharing was cancelled.');
     if (position == null) {
       throw StateError('Turn on location access before sharing.');
     }
-    if (isSharing.value) await stopSharing();
+    if (!position.accuracy.isFinite ||
+        position.accuracy < 0 ||
+        position.accuracy > 10000) {
+      throw StateError(
+        'Your location fix is too imprecise to share. Enable precise location or try again where GPS is available.',
+      );
+    }
     late final Map<String, dynamic> result;
     try {
-      result = await _backend!.call('startLocationSession', {
+      result = await backend.call('startLocationSession', {
         'spaceId': spaceId,
         'durationMinutes': durationMinutes,
         'lat': position.latitude,
         'lng': position.longitude,
         'accuracy': position.accuracy,
       });
+      if (!current()) throw StateError('Sharing was cancelled.');
     } catch (_) {
       // A lost acknowledgement could follow a successful write. Try to undo it.
-      try {
-        await _backend!.call('stopLocationSession', {'spaceId': spaceId});
-      } catch (_) {
-        _queueStop(
-          spaceId,
-          DateTime.now().toUtc().add(Duration(minutes: durationMinutes)),
-        );
+      // Never issue an old account's cleanup as the newly signed-in account.
+      if (backend.auth.currentUser?.uid == uid) {
+        try {
+          await backend.call('stopLocationSession', {'spaceId': spaceId});
+        } catch (_) {
+          _queueStop(
+            uid,
+            spaceId,
+            DateTime.now().toUtc().add(Duration(minutes: durationMinutes)),
+          );
+        }
       }
       rethrow;
     }
@@ -143,12 +225,21 @@ class LiveLocationService {
       const Duration(seconds: 15),
       (_) => _tick(),
     );
-    await _beginUpdates();
+    try {
+      await _beginUpdates();
+    } catch (_) {
+      // The server acknowledged sharing. A native stream failure must not
+      // hide the active session or its End action from the member.
+      updatesUnavailable.value = true;
+    }
   }
 
   Future<void> _beginUpdates() async {
+    final revision = _sharingRevision;
     await _positions?.cancel();
+    if (!isSharing.value || revision != _sharingRevision) return;
     final permission = await Geolocator.checkPermission();
+    if (!isSharing.value || revision != _sharingRevision) return;
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       updatesUnavailable.value = true;
@@ -217,9 +308,12 @@ class LiveLocationService {
   }
 
   Future<void> stopSharing() async {
+    final backend = _backend;
+    final uid = backend?.auth.currentUser?.uid;
+    _sharingRevision++;
     _countdownTimer?.cancel();
     _countdownTimer = null;
-    await _positions?.cancel();
+    final positions = _positions;
     _positions = null;
     isSharing.value = false;
     updatesUnavailable.value = false;
@@ -228,22 +322,25 @@ class LiveLocationService {
     _expiresAt = null;
     final spaceId = _activeSpaceId;
     _activeSpaceId = null;
-    if (_backend == null || spaceId == null) return;
+    await positions?.cancel();
+    if (backend == null || uid == null || spaceId == null) return;
     try {
-      await _backend!.call('stopLocationSession', {'spaceId': spaceId});
-      _pendingStops.remove(spaceId);
-      stopPending.value = _pendingStops.isNotEmpty;
+      if (backend.auth.currentUser?.uid != uid) return;
+      await backend.call('stopLocationSession', {'spaceId': spaceId});
+      _pendingStops.remove((uid, spaceId));
+      stopPending.value = _hasCurrentAccountStops;
     } catch (_) {
       _queueStop(
+        uid,
         spaceId,
         expiry ?? DateTime.now().toUtc().add(const Duration(minutes: 60)),
       );
     }
   }
 
-  void _queueStop(String spaceId, DateTime expiry) {
-    _pendingStops[spaceId] = expiry;
-    stopPending.value = true;
+  void _queueStop(String uid, String spaceId, DateTime expiry) {
+    _pendingStops[(uid, spaceId)] = expiry;
+    stopPending.value = _hasCurrentAccountStops;
     _retryTimer ??= Timer.periodic(
       const Duration(seconds: 15),
       (_) => _retryStops(),
@@ -258,14 +355,15 @@ class LiveLocationService {
         _pendingStops.remove(entry.key);
         continue;
       }
+      if (backend.auth.currentUser?.uid != entry.key.$1) continue;
       try {
-        await backend.call('stopLocationSession', {'spaceId': entry.key});
+        await backend.call('stopLocationSession', {'spaceId': entry.key.$2});
         _pendingStops.remove(entry.key);
       } catch (_) {
         // Retry while signed in; server rules deny reads once expiry is reached.
       }
     }
-    stopPending.value = _pendingStops.isNotEmpty;
+    stopPending.value = _hasCurrentAccountStops;
     if (_pendingStops.isEmpty) {
       _retryTimer?.cancel();
       _retryTimer = null;

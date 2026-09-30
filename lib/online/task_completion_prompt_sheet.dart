@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../features/media/media_library.dart';
+import '../features/media/camera_screen.dart';
+import '../core/place_pin.dart';
 import 'online_backend.dart';
 import 'online_moments.dart';
 
 /// Minimalist celebration bottom sheet when a user marks a task done.
-class TaskCompletionPromptSheet extends StatefulWidget {
+class TaskCompletionPromptSheet extends ConsumerStatefulWidget {
   const TaskCompletionPromptSheet({
     super.key,
     required this.backend,
@@ -37,6 +40,7 @@ class TaskCompletionPromptSheet extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       backgroundColor: const Color(0xFFFAF9F6),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -53,33 +57,30 @@ class TaskCompletionPromptSheet extends StatefulWidget {
   }
 
   @override
-  State<TaskCompletionPromptSheet> createState() =>
+  ConsumerState<TaskCompletionPromptSheet> createState() =>
       _TaskCompletionPromptSheetState();
 }
 
 class _TaskCompletionPromptSheetState
-    extends State<TaskCompletionPromptSheet> {
+    extends ConsumerState<TaskCompletionPromptSheet> {
   final List<XFile> _selectedFiles = [];
   bool _loading = false;
-  bool _attachLocation = false;
-  late final TextEditingController _locationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _locationController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _locationController.dispose();
-    super.dispose();
-  }
-
+  late final String _operationId = widget.backend.firestore
+      .collection('operationIds')
+      .doc()
+      .id;
+  bool _confirmed = false;
+  final Map<String, String> _attachmentIds = {};
+  final Map<String, CapturedPhoto> _captures = {};
+  final Map<String, PlacePin> _capturePins = {};
   Future<void> _pickPhotos() async {
+    if (_loading || _confirmed) return;
     final picker = ImagePicker();
     final uid = widget.backend.auth.currentUser?.uid ?? '';
-    final accDoc = await widget.backend.firestore.collection('accounts').doc(uid).get();
+    final accDoc = await widget.backend.firestore
+        .collection('accounts')
+        .doc(uid)
+        .get();
     final isPlus = accDoc.data()?['tier'] == 'plus';
     final maxPhotos = isPlus ? 5 : 1;
 
@@ -124,65 +125,92 @@ class _TaskCompletionPromptSheetState
     );
     if (source == null) return;
 
-    final picked = await picker.pickImage(
-      source: source,
-      maxWidth: 1600,
-      imageQuality: 85,
-    );
+    XFile? picked;
+    if (source == ImageSource.camera) {
+      if (!mounted) return;
+      final capture = await Navigator.of(context).push<CapturedPhoto>(MaterialPageRoute(
+        builder: (_) => const CameraScreen(spaceName: 'Task photo')));
+      if (capture != null) {
+        final path = 'capture-${DateTime.now().microsecondsSinceEpoch}.jpg';
+        picked = XFile.fromData(capture.bytes, path: path, name: path);
+        _captures[path] = capture;
+        if (capture.pin != null) _capturePins[path] = capture.pin!;
+        capture.pendingPin?.then((pin) {
+          if (mounted && !_loading && !_confirmed && pin != null) {
+            _capturePins[path] = pin;
+          }
+        });
+      }
+    } else {
+      picked = await picker.pickImage(source: source, requestFullMetadata: false);
+    }
 
-    if (picked != null) {
+    final selected = picked;
+    if (selected != null && mounted) {
       setState(() {
-        _selectedFiles.add(picked);
+        _selectedFiles.add(selected);
       });
     }
   }
 
   Future<void> _completeTask() async {
+    if (_loading) return;
     setState(() => _loading = true);
+    final uid = widget.backend.auth.currentUser?.uid;
+    if (uid == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    final library = ref.read(mediaLibraryProvider);
+    final capturePins = Map<String, PlacePin>.from(_capturePins);
     try {
-      final myUid = widget.backend.auth.currentUser?.uid ?? '';
-
-      // If photos were selected, process each and save to store
-      for (final file in _selectedFiles) {
-        final bytes = await file.readAsBytes();
-        final draft = await compute(processPhoto, {
-          'bytes': bytes,
-          'source': 'library',
+      if (!_confirmed) {
+        await widget.backend.call('actOnTask', {
+          'spaceId': widget.spaceId,
+          'taskId': widget.taskId,
+          'operationId': _operationId,
+          'action': 'complete',
         });
-        var caption = widget.taskTitle;
-        if (_attachLocation && _locationController.text.trim().isNotEmpty) {
-          caption = '$caption • ${_locationController.text.trim()}';
-        }
-        await widget.momentStore.add(
-          myUid,
-          widget.spaceId,
+        _confirmed = true;
+        widget.onCompleted();
+      }
+      for (final file in _selectedFiles) {
+        if (widget.backend.auth.currentUser?.uid != uid) return;
+        final id = _attachmentIds.putIfAbsent(
+          file.path,
+          () => widget.backend.firestore.collection('photoIds').doc().id,
+        );
+        final draft = await compute(processPhoto, {
+          'bytes': await file.readAsBytes(),
+          'source': _captures[file.path]?.source ?? 'library',
+          if (_captures[file.path]?.cropRatio != null) 'cropRatio': _captures[file.path]!.cropRatio!,
+        });
+        await library.add(
           draft,
-          caption,
+          widget.spaceId,
+          uid,
+          widget.taskTitle,
+          taskId: widget.taskId,
+          attachmentId: id,
+          pin: capturePins[file.path],
         );
       }
-
-      final operationId = widget.backend.firestore
-          .collection('operationIds')
-          .doc()
-          .id;
-      await widget.backend.call('actOnTask', {
-        'spaceId': widget.spaceId,
-        'taskId': widget.taskId,
-        'operationId': operationId,
-        'action': 'complete',
-      });
-
-      if (mounted) {
-        widget.onCompleted();
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not complete task: $e')),
+          SnackBar(
+            content: Text(
+              _confirmed
+                  ? 'Task finished. Photo preparation failed; retry or close to finish without photos.'
+                  : 'Task could not be finished. Check your connection and retry.',
+            ),
+          ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -240,7 +268,7 @@ class _TaskCompletionPromptSheetState
                     itemBuilder: (context, index) {
                       if (index == _selectedFiles.length) {
                         return InkWell(
-                          onTap: _pickPhotos,
+                          onTap: _loading || _confirmed ? null : _pickPhotos,
                           borderRadius: BorderRadius.circular(16),
                           child: Container(
                             width: 80,
@@ -248,10 +276,16 @@ class _TaskCompletionPromptSheetState
                             decoration: BoxDecoration(
                               color: const Color(0xFFE8EEFF),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFF244BFF).withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: const Color(0xFF244BFF)
+                                    .withValues(alpha: 0.3),
+                              ),
                             ),
                             alignment: Alignment.center,
-                            child: const Icon(Icons.add_a_photo_outlined, color: Color(0xFF244BFF)),
+                            child: const Icon(
+                              Icons.add_a_photo_outlined,
+                              color: Color(0xFF244BFF),
+                            ),
                           ),
                         );
                       }
@@ -269,9 +303,16 @@ class _TaskCompletionPromptSheetState
                               future: _selectedFiles[index].readAsBytes(),
                               builder: (context, snapshot) {
                                 if (snapshot.hasData) {
-                                  return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                                  return Image.memory(
+                                    snapshot.data!,
+                                    fit: BoxFit.cover,
+                                  );
                                 }
-                                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                                return const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                );
                               },
                             ),
                           ),
@@ -279,14 +320,20 @@ class _TaskCompletionPromptSheetState
                             top: 2,
                             right: 2,
                             child: InkWell(
-                              onTap: () => setState(() => _selectedFiles.removeAt(index)),
+                              onTap: _loading || _confirmed ? null : () => setState(
+                                () => _selectedFiles.removeAt(index),
+                              ),
                               child: Container(
                                 padding: const EdgeInsets.all(4),
                                 decoration: const BoxDecoration(
                                   color: Colors.black54,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
@@ -296,55 +343,6 @@ class _TaskCompletionPromptSheetState
                   ),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _attachLocation,
-                      onChanged: (val) => setState(() => _attachLocation = val ?? false),
-                      activeColor: const Color(0xFF244BFF),
-                    ),
-                    const Text(
-                      'Attach location label',
-                      style: TextStyle(
-                        fontFamily: 'NunitoSans',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF202633),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_attachLocation) ...[
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: _locationController,
-                    style: const TextStyle(
-                      fontFamily: 'NunitoSans',
-                      fontSize: 14,
-                      color: Color(0xFF202633),
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Living room, Grocery store...',
-                      hintStyle: const TextStyle(color: Color(0xFF8E95A5)),
-                      filled: true,
-                      fillColor: const Color(0xFFFFFEFB),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF244BFF)),
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
               ],
               if (_loading)
                 const Center(
@@ -358,7 +356,7 @@ class _TaskCompletionPromptSheetState
                   SizedBox(
                     height: 52,
                     child: FilledButton(
-                      onPressed: _pickPhotos,
+                      onPressed: _confirmed ? null : _pickPhotos,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(0xFF244BFF),
                         foregroundColor: Colors.white,

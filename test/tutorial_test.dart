@@ -114,13 +114,15 @@ void main() {
       await db.close();
     });
 
-    test('TutorialStops contains exactly 7 defined stops with correct destinations', () {
-      expect(TutorialStops.all.length, 7);
+    test('TutorialStops contains exactly 9 defined stops with correct destinations', () {
+      expect(TutorialStops.all.length, 9);
 
       final ids = TutorialStops.all.map((s) => s.id).toList();
       expect(ids, [
         TutorialStopId.spaces,
         TutorialStopId.dayTogether,
+        TutorialStopId.mood,
+        TutorialStopId.calendar,
         TutorialStopId.askCoverFinish,
         TutorialStopId.keepMoment,
         TutorialStopId.peopleRoutines,
@@ -128,14 +130,7 @@ void main() {
         TutorialStopId.updatesInbox,
       ]);
 
-      // Verify destination tabs match expected core navigation
-      expect(TutorialStops.all[0].destinationTab, 0); // Spaces -> Today
-      expect(TutorialStops.all[1].destinationTab, 0); // Day together -> Today
-      expect(TutorialStops.all[2].destinationTab, 0); // Tasks -> Today
-      expect(TutorialStops.all[3].destinationTab, 1); // Moments tab
-      expect(TutorialStops.all[4].destinationTab, 2); // Space tab
-      expect(TutorialStops.all[5].destinationTab, 0); // Places -> Today
-      expect(TutorialStops.all[6].destinationTab, 0); // Updates -> Today
+      expect(TutorialStops.all.map((s) => s.destinationTab), [0,0,0,0,0,1,2,0,0]);
     });
 
     test(
@@ -239,7 +234,7 @@ void main() {
   });
 
   group('TutorialExampleCard widget tests', () {
-    testWidgets('renders example cards for all 7 stops without layout errors', (
+    testWidgets('renders example cards for all 9 stops without layout errors', (
       tester,
     ) async {
       for (final stop in TutorialStops.all) {
@@ -289,7 +284,7 @@ void main() {
       expect(find.text('Tab 0'), findsOneWidget);
     });
 
-    testWidgets('navigates through 7 stops, updates tabs, and completes', (
+    testWidgets('navigates through 9 stops, updates tabs, and completes', (
       tester,
     ) async {
       bool finished = false;
@@ -350,7 +345,7 @@ void main() {
       expect(find.text('Your spaces'), findsOneWidget);
 
       // Advance through all stops to completion
-      for (int i = 0; i < 6; i++) {
+      for (int i = 0; i < TutorialStops.all.length - 1; i++) {
         await tester.tap(find.text('Next'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));

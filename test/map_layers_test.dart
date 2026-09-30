@@ -24,8 +24,13 @@ void main() {
     await tester.tap(find.byIcon(Icons.layers_rounded));
     await tester.pumpAndSettle();
     expect(find.text('Streets'), findsOneWidget);
-    expect(find.text('Satellite needs a map key'), findsOneWidget);
+    expect(find.text('Satellite'), findsOneWidget);
     expect(chosen, isNull);
+    await tester.tap(find.text('Satellite'));
+    await tester.pumpAndSettle();
+    expect(chosen, StewardieMapStyle.satellite);
+    await tester.tap(find.byIcon(Icons.layers_rounded));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Streets'));
     await tester.pump();
     expect(chosen, StewardieMapStyle.streets);

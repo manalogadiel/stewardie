@@ -322,10 +322,20 @@ PhotoDraft processPhoto(Map<String, Object> input) {
     throw const FormatException('This photo could not be read.');
   }
   decoded = img.bakeOrientation(decoded);
-  final requestedFraming = input['framing'] is Map
+  var requestedFraming = input['framing'] is Map
       ? FramingRect.fromMap(Map<String, dynamic>.from(input['framing'] as Map))
       : FramingRect.full;
-  final bakeFraming = input['bakeFraming'] == true;
+  final ratio = input['cropRatio'] as String?;
+  if (ratio != null && ratio != 'Original') {
+    final parts = ratio.split(':');
+    requestedFraming = FramingRect.fromAspectRatio(
+      targetRatio: double.parse(parts[0]) / double.parse(parts[1]),
+      imageWidth: decoded.width,
+      imageHeight: decoded.height,
+      ratioName: ratio,
+    );
+  }
+  final bakeFraming = input['bakeFraming'] == true || ratio != null;
   if (bakeFraming && !requestedFraming.isFull) {
     final x = (requestedFraming.x * decoded.width).round().clamp(
       0,
@@ -534,8 +544,16 @@ class MediaLibrary extends ChangeNotifier {
     String caption, {
     String? taskId,
     PlacePin? pin,
+    String? attachmentId,
   }) => _serialize(() async {
     _member(space, actor);
+    final existing = _items.where((p) => p.id == attachmentId).firstOrNull;
+    if (existing != null) {
+      if (existing.spaceId != space || existing.uploaderId != actor || existing.taskId != taskId) {
+        throw StateError('This photo ID belongs to a different draft.');
+      }
+      return existing;
+    }
     if (!photo.framing.isFull) {
       photo = await compute(processPhoto, {
         'bytes': photo.bytes,
@@ -544,7 +562,14 @@ class MediaLibrary extends ChangeNotifier {
         'bakeFraming': true,
       });
     }
-    final task = taskId == null ? null : _task(taskId, space);
+    final task = taskId == null
+        ? null
+        : timeline.tasks
+              .where((t) => t.id == taskId && t.spaceId == space)
+              .firstOrNull;
+    if (taskId != null && task == null && enforceLocalQuotas) {
+      throw StateError('This task is no longer available.');
+    }
     if (task != null && task.creatorId != actor && task.ownerId != actor) {
       throw StateError(
         'Only the creator or responsible person can attach a photo.',
@@ -580,7 +605,7 @@ class MediaLibrary extends ChangeNotifier {
       );
     }
     final attachment = MediaAttachment(
-      id: 'photo-${now.microsecondsSinceEpoch}-${_serial++}',
+      id: attachmentId ?? 'photo-${now.microsecondsSinceEpoch}-${_serial++}',
       spaceId: space,
       uploaderId: actor,
       caption: caption.trim(),

@@ -95,6 +95,7 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
     return switch (stopId) {
       TutorialStopId.spaces => _buildSpacesPreview(),
       TutorialStopId.dayTogether => _buildTodayPreview(),
+      TutorialStopId.mood || TutorialStopId.calendar => _buildTodayPreview(),
       TutorialStopId.askCoverFinish => _buildTasksPreview(),
       TutorialStopId.keepMoment => _buildMomentsPreview(),
       TutorialStopId.peopleRoutines => _buildSpacePreview(),

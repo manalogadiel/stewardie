@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sembast/sembast.dart';
 
 import '../../online/login_scene.dart';
@@ -20,10 +21,10 @@ import 'screens/verify_email_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'tutorial/tutorial_coordinator.dart';
 
-/// The primary coordinator and presentation shell for the 7-screen onboarding experience.
+/// The primary coordinator and presentation shell for the 8-screen onboarding experience.
 ///
 /// Features:
-/// - 7-screen state machine with six completed progress increments.
+/// - 8-screen state machine with six completed progress increments.
 /// - Fluid horizontal slide and fade transitions with directional awareness.
 /// - Immediate reduced-motion compliance (short fades, no transforms).
 /// - Draft persistence without saving passwords.
@@ -221,63 +222,70 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
 
-    return Scaffold(
-      body: LoginBackdrop(
-        variant: _step.index % 3,
-        child: SafeArea(
-          child: Column(
-            children: [
-              if (!_isSignInMode)
-                OnboardingProgressBar(
-                  step: _step,
-                  onBack: _onBack,
-                  canGoBack:
-                      _step != OnboardingStep.welcome &&
-                      _step != OnboardingStep.permissions &&
-                      _step != OnboardingStep.allSet,
-                ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: Duration(milliseconds: reduceMotion ? 100 : 340),
-                  transitionBuilder: (child, animation) {
-                    if (reduceMotion) {
-                      return FadeTransition(opacity: animation, child: child);
-                    }
-                    final isIncoming =
-                        (child.key as ValueKey?)?.value == _currentStepKey;
-                    // ~18 logical pixels subtle travel distance
-                    const beginFrac = 18.0 / 380.0;
-                    final offsetBegin = isIncoming
-                        ? (_navigatingForward
-                              ? const Offset(beginFrac, 0.0)
-                              : const Offset(-beginFrac, 0.0))
-                        : (_navigatingForward
-                              ? const Offset(-beginFrac, 0.0)
-                              : const Offset(beginFrac, 0.0));
-                    return SlideTransition(
-                      position:
-                          Tween<Offset>(
-                            begin: offsetBegin,
-                            end: Offset.zero,
-                          ).animate(
-                            CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutCubic,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: const Color(0xFFFAF9F6),
+      ),
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFAF9F6),
+        body: LoginBackdrop(
+          variant: _step.index % 3,
+          child: SafeArea(
+            child: Column(
+              children: [
+                if (!_isSignInMode)
+                  OnboardingProgressBar(
+                    step: _step,
+                    onBack: _onBack,
+                    canGoBack:
+                        _step != OnboardingStep.welcome &&
+                        _step != OnboardingStep.permissions &&
+                        _step != OnboardingStep.allSet,
+                  ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: Duration(milliseconds: reduceMotion ? 100 : 340),
+                    transitionBuilder: (child, animation) {
+                      if (reduceMotion) {
+                        return FadeTransition(opacity: animation, child: child);
+                      }
+                      final isIncoming =
+                          (child.key as ValueKey?)?.value == _currentStepKey;
+                      // ~18 logical pixels subtle travel distance
+                      const beginFrac = 18.0 / 380.0;
+                      final offsetBegin = isIncoming
+                          ? (_navigatingForward
+                                ? const Offset(beginFrac, 0.0)
+                                : const Offset(-beginFrac, 0.0))
+                          : (_navigatingForward
+                                ? const Offset(-beginFrac, 0.0)
+                                : const Offset(beginFrac, 0.0));
+                      return SlideTransition(
+                        position:
+                            Tween<Offset>(
+                              begin: offsetBegin,
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOutCubic,
+                              ),
                             ),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
                           ),
-                      child: FadeTransition(
-                        opacity: CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOut,
+                          child: child,
                         ),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: _buildCurrentScreen(),
+                      );
+                    },
+                    child: _buildCurrentScreen(),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

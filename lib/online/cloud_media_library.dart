@@ -73,7 +73,8 @@ class CloudMediaLibrary extends MediaLibrary {
   Future<Map<String, String>> _headers() async {
     String? currentUid;
     try {
-      currentUid = _auth?.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+      currentUid =
+          _auth?.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid;
     } catch (_) {
       currentUid = user.uid;
     }
@@ -123,8 +124,8 @@ class CloudMediaLibrary extends MediaLibrary {
     final framingMap = row['framing'] is String
         ? jsonDecode(row['framing'] as String) as Map<String, dynamic>?
         : (row['framing'] is Map
-            ? Map<String, dynamic>.from(row['framing'] as Map)
-            : null);
+              ? Map<String, dynamic>.from(row['framing'] as Map)
+              : null);
     final framing = FramingRect.fromMap(framingMap);
     return MediaAttachment(
       id: id,
@@ -211,8 +212,17 @@ class CloudMediaLibrary extends MediaLibrary {
     String caption, {
     String? taskId,
     PlacePin? pin,
+    String? attachmentId,
   }) async {
-    final saved = await super.add(photo, space, actor, caption, taskId: taskId, pin: pin);
+    final saved = await super.add(
+      photo,
+      space,
+      actor,
+      caption,
+      taskId: taskId,
+      pin: pin,
+      attachmentId: attachmentId,
+    );
     await share(saved);
     return saved;
   }
@@ -227,17 +237,28 @@ class CloudMediaLibrary extends MediaLibrary {
       'id': photo.id,
       'uid': user.uid,
     });
-    await retryPending();
+    if (!_closed) notifyListeners();
+    unawaited(retryPending());
   }
 
   @override
-  Future<void> retryPending() async {
+  Future<void> retryPending() {
+    if (_closed) return Future.value();
+    return _uploadRun ??= Future<void>(() => _drainPending()).whenComplete(() => _uploadRun = null);
+  }
+
+  Future<void>? _uploadRun;
+  Future<void> _drainPending() async {
     if (_uploading || _closed) return;
     _uploading = true;
     _error = null;
     notifyListeners();
     try {
-      for (final id in _pending.toList()) {
+      final attempted = <String>{};
+      while (true) {
+        final id = _pending.where((id) => !attempted.contains(id)).firstOrNull;
+        if (id == null) break;
+        attempted.add(id);
         final photo = super.items.where((p) => p.id == id).firstOrNull;
         if (photo == null || !_allowed(photo.spaceId)) continue;
         final request = http.MultipartRequest(

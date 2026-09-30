@@ -16,7 +16,7 @@ const task = {
 };
 
 test('personal Plus changes only account caps', () => {
-  assert.deepEqual(accountLimits('basic'), { ownedSpaces: 3, memberships: 20 });
+  assert.deepEqual(accountLimits('basic'), { ownedSpaces: 3, memberships: 3 });
   assert.deepEqual(accountLimits('plus'), { ownedSpaces: 20, memberships: 50 });
 });
 

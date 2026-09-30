@@ -13,6 +13,8 @@ abstract final class SoftPop {
   static const controlBorder = Color(0xFF777E8B);
   static const sky = Color(0xFFA9CDE8);
   static const butter = Color(0xFFF5D76E);
+  static const lightButter = Color(0xFFFBEBC5);
+  static const lightSky = Color(0xFFDCEBF3);
   static const rose = Color(0xFFEAB8C5);
   static const members = [sky, butter, rose];
 

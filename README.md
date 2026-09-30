@@ -42,3 +42,5 @@ Location, calendar import, and scheduled reminders are staged in code; real plan
 The map and navigation refresh is deployed for the private pilot. [Pilot key setup](docs/map-navigation-rollout.md) explains the free development key; the [completion verification record](docs/map-navigation-completion-verification.md) lists the native-device and multi-account checks still open.
 
 The [September 30 implementation record](docs/public-testing-implementation-status.md) separates this round's local changes and deployed backend code from unfinished dashboard, device, billing, and release checks.
+
+The latest [media, tour and Soft Pop polish record](docs/media-tour-soft-pop-polish-verification.md) covers reliable photo/task retries, camera layout, account-backed tours, sharing controls, and the deployed three-space Basic cap, with remaining device checks listed separately.

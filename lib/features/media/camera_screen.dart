@@ -1,13 +1,17 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show DeviceOrientation;
-import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart' as native;
 
 import '../../core/theme.dart';
+import '../../core/clay.dart';
+import '../../core/soft_pop_backdrop.dart';
+import '../../core/device_orientation.dart';
 import '../../core/place_pin.dart';
 import 'media_library.dart' show FramingRect;
 
@@ -19,6 +23,8 @@ class CapturedPhoto {
     this.pin,
     this.locationIssue,
     this.capturedAt,
+    this.pendingPin,
+    this.cropRatio,
   });
   final Uint8List bytes;
   final String source;
@@ -26,6 +32,8 @@ class CapturedPhoto {
   final PlacePin? pin;
   final String? locationIssue;
   final DateTime? capturedAt;
+  final Future<PlacePin?>? pendingPin;
+  final String? cropRatio;
 }
 
 class CameraScreen extends StatefulWidget {
@@ -42,13 +50,57 @@ class _CameraScreenState extends State<CameraScreen>
   int lens = 0, generation = 0;
   bool busy = false, flash = false, flashAvailable = true, active = true;
   String? error;
+  bool cameraAccessDenied = false;
   String selectedRatio = 'Original';
   bool attachCaptureLocation = true;
+  bool showRatios = false;
+  double? physicalTurns;
+  StreamSubscription<double>? orientationSubscription;
+
+  DeviceOrientation get captureOrientation {
+    if (physicalTurns == null)
+      return controller?.value.deviceOrientation ??
+          DeviceOrientation.portraitUp;
+    return switch ((physicalTurns! * 4).round() % 4) {
+      1 => DeviceOrientation.landscapeLeft,
+      2 => DeviceOrientation.portraitDown,
+      3 => DeviceOrientation.landscapeRight,
+      _ => DeviceOrientation.portraitUp,
+    };
+  }
+
+  String get effectiveRatio {
+    final landscape =
+        captureOrientation == DeviceOrientation.landscapeLeft ||
+        captureOrientation == DeviceOrientation.landscapeRight;
+    return switch (selectedRatio) {
+      '3:4' || '4:3' => landscape ? '4:3' : '3:4',
+      '9:16' || '16:9' => landscape ? '16:9' : '9:16',
+      _ => selectedRatio,
+    };
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    orientationSubscription = physicalControlTurns().listen(
+      (turns) {
+        if (!mounted) return;
+        var next = turns;
+        final previous = physicalTurns ?? 0;
+        while (next - previous > .5) {
+          next -= 1;
+        }
+        while (next - previous < -.5) {
+          next += 1;
+        }
+        setState(() => physicalTurns = next);
+      },
+      onError: (Object _) {
+        /* Camera orientation remains a fallback. */
+      },
+    );
     initialize();
   }
 
@@ -56,7 +108,12 @@ class _CameraScreenState extends State<CameraScreen>
     final token = ++generation;
     final previous = controller;
     controller = null;
-    if (mounted) setState(() => error = null);
+    if (mounted) {
+      setState(() {
+        error = null;
+        cameraAccessDenied = false;
+      });
+    }
     await previous?.dispose();
     CameraController? next;
     try {
@@ -85,11 +142,13 @@ class _CameraScreenState extends State<CameraScreen>
     } catch (e) {
       await next?.dispose();
       if (mounted && token == generation) {
-        setState(
-          () => error = e is CameraException && e.code.contains('Access')
+        setState(() {
+          cameraAccessDenied =
+              e is CameraException && e.code.contains('Access');
+          error = cameraAccessDenied
               ? 'Camera access is unavailable. Allow camera access in Settings, or choose a photo.'
-              : 'The camera could not start. Try again or choose a photo.',
-        );
+              : 'The camera could not start. Try again or choose a photo.';
+        });
       }
     }
   }
@@ -112,6 +171,7 @@ class _CameraScreenState extends State<CameraScreen>
   @override
   void dispose() {
     generation++;
+    orientationSubscription?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     controller?.dispose();
     super.dispose();
@@ -121,8 +181,7 @@ class _CameraScreenState extends State<CameraScreen>
     if (busy) return;
     setState(() => busy = true);
     bool orientationLocked = false;
-    final viewportIsLandscape =
-        MediaQuery.orientationOf(context) == Orientation.landscape;
+
     try {
       Future<Position?>? locationFuture;
       String? locationIssue;
@@ -169,9 +228,11 @@ class _CameraScreenState extends State<CameraScreen>
         if (!mounted || controller?.value.isInitialized != true) return;
       }
       final shutterAt = DateTime.now().toUtc();
+      final shutterRatio = effectiveRatio;
+      final shutterOrientation = captureOrientation;
       if (!gallery && controller != null) {
         try {
-          final actualOrientation = controller!.value.deviceOrientation;
+          final actualOrientation = shutterOrientation;
           await controller!.lockCaptureOrientation(actualOrientation);
           orientationLocked = true;
         } catch (_) {}
@@ -183,57 +244,25 @@ class _CameraScreenState extends State<CameraScreen>
             )
           : await controller!.takePicture();
       if (file != null) {
-        final fix = await locationFuture;
-        final pin =
-            fix != null &&
-                fix.timestamp.toUtc().difference(shutterAt).abs() <
-                    const Duration(seconds: 30)
-            ? PlacePin(
-                lat: fix.latitude,
-                lng: fix.longitude,
-                label: 'Photo location',
-                source: 'capture',
-                accuracy: fix.accuracy,
-                locatedAt: fix.timestamp,
-              )
-            : null;
+        final selectedCrop = shutterRatio;
+        final pendingPin = locationFuture?.then(
+          (fix) =>
+              fix != null &&
+                  fix.timestamp.toUtc().difference(shutterAt).abs() <
+                      const Duration(seconds: 30)
+              ? PlacePin(
+                  lat: fix.latitude,
+                  lng: fix.longitude,
+                  label: 'Photo location',
+                  source: 'capture',
+                  accuracy: fix.accuracy,
+                  locatedAt: fix.timestamp,
+                )
+              : null,
+        );
         final bytes = await file.readAsBytes();
-        FramingRect framing = FramingRect.full;
-        if (!gallery && selectedRatio != 'Original') {
-          int imgW = 0;
-          int imgH = 0;
-          final raw = img.decodeImage(bytes);
-          final decoded = raw == null ? null : img.bakeOrientation(raw);
-          if (decoded != null) {
-            imgW = decoded.width;
-            imgH = decoded.height;
-          } else if (controller?.value.previewSize != null) {
-            final preview = controller!.value.previewSize!;
-            final currentOrientation = controller?.value.deviceOrientation;
-            final isLandscape =
-                currentOrientation == DeviceOrientation.landscapeLeft ||
-                currentOrientation == DeviceOrientation.landscapeRight ||
-                (currentOrientation == null && viewportIsLandscape);
-            imgW = isLandscape ? preview.width.toInt() : preview.height.toInt();
-            imgH = isLandscape ? preview.height.toInt() : preview.width.toInt();
-          }
-          if (imgW > 0 && imgH > 0) {
-            final target = switch (selectedRatio) {
-              '1:1' => 1.0,
-              '3:4' => 3.0 / 4.0,
-              '4:3' => 4.0 / 3.0,
-              '9:16' => 9.0 / 16.0,
-              '16:9' => 16.0 / 9.0,
-              _ => 1.0,
-            };
-            framing = FramingRect.fromAspectRatio(
-              targetRatio: target,
-              imageWidth: imgW,
-              imageHeight: imgH,
-              ratioName: selectedRatio,
-            );
-          }
-        }
+        const framing = FramingRect.full;
+        const PlacePin? pin = null;
         if (mounted) {
           Navigator.pop(
             context,
@@ -241,9 +270,15 @@ class _CameraScreenState extends State<CameraScreen>
               bytes,
               gallery ? 'library' : 'camera',
               framing: framing,
+              cropRatio: gallery ? null : selectedCrop,
+              pendingPin: pendingPin,
               pin: pin,
               capturedAt: gallery ? null : shutterAt,
-              locationIssue: !gallery && attachCaptureLocation && pin == null
+              locationIssue:
+                  !gallery &&
+                      attachCaptureLocation &&
+                      pin == null &&
+                      pendingPin == null
                   ? locationIssue ?? 'A fresh photo location was unavailable.'
                   : null,
             ),
@@ -265,347 +300,360 @@ class _CameraScreenState extends State<CameraScreen>
   }
 
   Widget orientControl(Widget child) {
+    Widget rotated(double turns) => AnimatedRotation(
+      turns: physicalTurns ?? turns,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 180),
+      child: child,
+    );
     final camera = controller;
-    if (camera == null) return child;
+    if (camera == null) return rotated(0);
     return ValueListenableBuilder<CameraValue>(
       valueListenable: camera,
-      child: child,
-      builder: (context, value, child) {
-        final landscapeShell =
-            MediaQuery.orientationOf(context) == Orientation.landscape;
-        final turns = landscapeShell
-            ? 0.0
-            : switch (value.deviceOrientation) {
-                DeviceOrientation.landscapeLeft => .25,
-                DeviceOrientation.landscapeRight => -.25,
-                DeviceOrientation.portraitDown => .5,
-                DeviceOrientation.portraitUp => 0.0,
-              };
-        return AnimatedRotation(
-          turns: turns,
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 180),
-          child: child,
-        );
-      },
+      builder: (_, value, _) => rotated(switch (value.deviceOrientation) {
+        DeviceOrientation.landscapeLeft => .25,
+        DeviceOrientation.landscapeRight => -.25,
+        DeviceOrientation.portraitDown => .5,
+        DeviceOrientation.portraitUp => 0,
+      }),
     );
+  }
+
+  Future<void> openCameraSettings() async {
+    try {
+      final opened = await native.openAppSettings();
+      if (!opened && mounted) {
+        setState(
+          () => error = 'Open device Settings and allow Stewardie to use the camera, or choose a photo.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => error = 'Could not open settings. Allow camera access in device Settings, or choose a photo.',
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final camera = controller;
     return Scaffold(
-      backgroundColor: const Color(0xFF202633),
+      backgroundColor: SoftPop.canvas,
       appBar: AppBar(
-        foregroundColor: Colors.white,
+        foregroundColor: SoftPop.ink,
         backgroundColor: Colors.transparent,
         leading: IconButton(
           tooltip: 'Close camera',
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.close_rounded),
+          icon: orientControl(const Icon(Icons.close_rounded)),
         ),
         title: Text(
           widget.spaceName,
-          style: const TextStyle(color: Colors.white, fontSize: 18),
+          style: const TextStyle(color: SoftPop.ink, fontSize: 18),
         ),
       ),
       body: SafeArea(
         child: Stack(
           children: [
-            Positioned.fill(
-              child: Padding(
-                padding: EdgeInsets.zero,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.zero,
-                  child: Center(
-                    child: camera?.value.isInitialized == true
-                        ? CameraPreview(
-                            camera!,
-                            child: selectedRatio == 'Original'
-                                ? null
-                                : _FramingGuideOverlay(ratio: selectedRatio),
-                          )
-                        : error == null
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 126),
-                            child: SingleChildScrollView(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    error!,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(color: Colors.white),
-                                  ),
-                                  TextButton(
-                                    onPressed: initialize,
-                                    child: const Text(
-                                      'Try again',
-                                      style: TextStyle(color: SoftPop.sky),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-            ),
-            if (error != null && camera != null)
-              Positioned(
-                top: 64,
-                left: 12,
-                right: 12,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    error!,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
-            if (camera?.value.isInitialized == true) ...[
-              Positioned(
-                top: 8,
-                right: 0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: IconButton.filledTonal(
-                    tooltip: attachCaptureLocation
-                        ? 'Photo location on'
-                        : 'Photo location off',
-                    isSelected: attachCaptureLocation,
-                    onPressed: busy
-                        ? null
-                        : () => setState(
-                            () =>
-                                attachCaptureLocation = !attachCaptureLocation,
-                          ),
-                    icon: orientControl(const Icon(Icons.location_off_rounded)),
-                    selectedIcon: orientControl(
-                      const Icon(Icons.location_on_rounded),
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: SoftPop.surface,
-                      foregroundColor: SoftPop.ink,
-                      minimumSize: const Size(48, 48),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 118,
-                left: 12,
-                right: 12,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF161B26),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (final r in [
-                            'Original',
-                            '1:1',
-                            '3:4',
-                            '4:3',
-                            '9:16',
-                            '16:9',
-                          ])
-                            InkWell(
-                              onTap: () => setState(() => selectedRatio = r),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                constraints: const BoxConstraints(
-                                  minHeight: 48,
+            const Positioned.fill(child: SoftPopBackdrop()),
+            Column(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.zero,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Center(
+                        child: camera?.value.isInitialized == true
+                            ? CameraPreview(
+                                camera!,
+                                child: selectedRatio == 'Original'
+                                    ? null
+                                    : _FramingGuideOverlay(
+                                        ratio: effectiveRatio,
+                                      ),
+                              )
+                            : error == null
+                            ? const CircularProgressIndicator(
+                                color: SoftPop.ink,
+                              )
+                            : Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  16,
+                                  24,
+                                  16,
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 14,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: selectedRatio == r
-                                      ? SoftPop.surface
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Text(
-                                  r,
-                                  style: TextStyle(
-                                    color: selectedRatio == r
-                                        ? SoftPop.ink
-                                        : Colors.white70,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        error!,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: SoftPop.ink,
+                                        ),
+                                      ),
+                                      ClayAction(
+                                        onPressed: initialize,
+                                        icon: const Icon(Icons.refresh_rounded),
+                                        label: const Text('Try again'),
+                                      ),
+                                      if (cameraAccessDenied)
+                                        ClayAction(
+                                          onPressed: openCameraSettings,
+                                          icon: const Icon(
+                                            Icons.settings_rounded,
+                                          ),
+                                          label: const Text(
+                                            'Open camera settings',
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-            // Centered shutter with balanced side controls
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton.filledTonal(
-                          style: IconButton.styleFrom(
-                            backgroundColor: SoftPop.sky,
-                            foregroundColor: SoftPop.ink,
-                            minimumSize: const Size(52, 52),
-                            shape: const CircleBorder(),
-                            elevation: 3,
-                            shadowColor: Colors.black26,
-                          ),
-                          tooltip: 'Choose photo',
-                          onPressed: busy ? null : () => capture(true),
-                          icon: orientControl(
-                            const Icon(Icons.photo_library_outlined),
-                          ),
-                        ),
+                if (error != null && camera != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        error!,
+                        style: const TextStyle(color: SoftPop.ink),
                       ),
                     ),
-                    Semantics(
-                      label: 'Take photo',
-                      button: true,
-                      enabled: !busy && camera != null,
-                      child: IconButton(
-                        tooltip: 'Take photo',
-                        padding: EdgeInsets.zero,
-                        onPressed: busy || camera == null
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutCubic,
+                        child: showRatios
+                            ? Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      for (final ratio in [
+                                        'Original',
+                                        '1:1',
+                                        '3:4',
+                                        '4:3',
+                                        '9:16',
+                                        '16:9',
+                                      ])
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: _ClayCameraButton(
+                                            tooltip: 'Use $ratio photo size',
+                                            color: selectedRatio == ratio
+                                                ? SoftPop.lightButter
+                                                : SoftPop.surface,
+                                            onPressed: busy
+                                                ? null
+                                                : () => setState(() {
+                                                    selectedRatio = ratio;
+                                                    showRatios = false;
+                                                  }),
+                                            child: orientControl(
+                                              Text(
+                                                ratio,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  color: SoftPop.ink,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                      _ClayCameraButton(
+                        tooltip: 'Photo size',
+                        color: SoftPop.surface,
+                        onPressed: busy
                             ? null
-                            : () => capture(false),
-                        icon: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: SoftPop.surface,
-                            border: Border.all(color: SoftPop.sky, width: 7),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 12,
-                                offset: Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: busy
-                              ? const Padding(
-                                  padding: EdgeInsets.all(20),
-                                  child: CircularProgressIndicator(),
-                                )
-                              : const Icon(
-                                  Icons.camera_alt_rounded,
-                                  color: SoftPop.blue,
-                                  size: 30,
-                                ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
+                            : () => setState(() => showRatios = !showRatios),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (cameras.length > 1)
-                              IconButton.filledTonal(
-                                style: IconButton.styleFrom(
-                                  backgroundColor: SoftPop.sky,
-                                  foregroundColor: SoftPop.ink,
-                                  minimumSize: const Size(52, 52),
-                                  shape: const CircleBorder(),
-                                  elevation: 3,
-                                  shadowColor: Colors.black26,
-                                ),
-                                tooltip: 'Switch camera',
-                                onPressed: busy
-                                    ? null
-                                    : () {
-                                        lens++;
-                                        initialize();
-                                      },
-                                icon: const Icon(
-                                  Icons.flip_camera_ios_outlined,
-                                ),
+                            orientControl(
+                              const Icon(
+                                Icons.aspect_ratio_rounded,
+                                color: SoftPop.ink,
                               ),
-                            if (cameras.length > 1 &&
-                                camera != null &&
-                                flashAvailable)
-                              const SizedBox(width: 8),
-                            if (camera != null && flashAvailable)
-                              IconButton.filledTonal(
-                                style: IconButton.styleFrom(
-                                  backgroundColor: SoftPop.sky,
-                                  foregroundColor: SoftPop.ink,
-                                  minimumSize: const Size(52, 52),
-                                  shape: const CircleBorder(),
-                                  elevation: 3,
-                                  shadowColor: Colors.black26,
-                                ),
-                                tooltip: flash
-                                    ? 'Turn flash off'
-                                    : 'Turn flash on',
-                                onPressed: busy
-                                    ? null
-                                    : () async {
-                                        try {
-                                          await camera.setFlashMode(
-                                            flash
-                                                ? FlashMode.off
-                                                : FlashMode.always,
-                                          );
-                                          if (mounted) {
-                                            setState(() => flash = !flash);
-                                          }
-                                        } catch (_) {
-                                          if (mounted) {
-                                            setState(
-                                              () => flashAvailable = false,
-                                            );
-                                          }
-                                        }
-                                      },
-                                icon: Icon(
-                                  flash
-                                      ? Icons.flash_on_rounded
-                                      : Icons.flash_off_rounded,
-                                ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              effectiveRatio,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: SoftPop.ink,
                               ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              showRatios
+                                  ? Icons.expand_more_rounded
+                                  : Icons.expand_less_rounded,
+                              color: SoftPop.ink,
+                            ),
                           ],
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+                // Slots stay anchored; only their contents follow physical rotation.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: _ClayCameraButton(
+                            tooltip: 'Choose photo',
+                            color: SoftPop.sky,
+                            onPressed: busy ? null : () => capture(true),
+                            child: orientControl(
+                              const Icon(
+                                Icons.photo_library_outlined,
+                                color: SoftPop.ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Center(
+                          child: _ClayCameraButton(
+                            tooltip: attachCaptureLocation
+                                ? 'Photo location on'
+                                : 'Photo location off',
+                            color: attachCaptureLocation
+                                ? SoftPop.rose
+                                : SoftPop.surface,
+                            onPressed: busy
+                                ? null
+                                : () => setState(
+                                    () => attachCaptureLocation =
+                                        !attachCaptureLocation,
+                                  ),
+                            child: orientControl(
+                              Icon(
+                                attachCaptureLocation
+                                    ? Icons.location_on_rounded
+                                    : Icons.location_off_rounded,
+                                color: SoftPop.ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _ClayCameraButton(
+                        tooltip: 'Take photo',
+                        color: SoftPop.surface,
+                        size: 72,
+                        onPressed: busy || camera == null
+                            ? null
+                            : () => capture(false),
+                        child: busy
+                            ? const SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(),
+                              )
+                            : orientControl(
+                                const Icon(
+                                  Icons.camera_alt_rounded,
+                                  color: SoftPop.ink,
+                                  size: 32,
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Center(
+                          child: _ClayCameraButton(
+                            tooltip: 'Switch camera',
+                            color: SoftPop.sky,
+                            onPressed: busy || cameras.length < 2
+                                ? null
+                                : () {
+                                    lens++;
+                                    initialize();
+                                  },
+                            child: orientControl(
+                              const Icon(
+                                Icons.flip_camera_ios_outlined,
+                                color: SoftPop.ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Center(
+                          child: _ClayCameraButton(
+                            tooltip: flash ? 'Turn flash off' : 'Turn flash on',
+                            color: SoftPop.lightButter,
+                            onPressed: busy || camera == null || !flashAvailable
+                                ? null
+                                : () async {
+                                    try {
+                                      await camera.setFlashMode(
+                                        flash
+                                            ? FlashMode.off
+                                            : FlashMode.always,
+                                      );
+                                      if (mounted)
+                                        setState(() => flash = !flash);
+                                    } catch (_) {
+                                      if (mounted) {
+                                        setState(() => flashAvailable = false);
+                                      }
+                                    }
+                                  },
+                            child: orientControl(
+                              Icon(
+                                flash
+                                    ? Icons.flash_on_rounded
+                                    : Icons.flash_off_rounded,
+                                color: SoftPop.ink,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -652,7 +700,7 @@ class _FramingGuideOverlay extends StatelessWidget {
                 height: frameH,
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: SoftPop.ink.withValues(alpha: 0.6),
                     width: 1.5,
                   ),
                 ),
@@ -663,4 +711,65 @@ class _FramingGuideOverlay extends StatelessWidget {
       },
     );
   }
+}
+
+class _ClayCameraButton extends StatelessWidget {
+  const _ClayCameraButton({
+    required this.tooltip,
+    required this.color,
+    required this.child,
+    this.onPressed,
+    this.size = 48,
+  });
+  final String tooltip;
+  final Color color;
+  final Widget child;
+  final VoidCallback? onPressed;
+  final double size;
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: Semantics(
+      button: true,
+      enabled: onPressed != null,
+      label: tooltip,
+      child: Opacity(
+        opacity: onPressed == null ? .5 : 1,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(size / 2),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color.lerp(color, Colors.white, .3)!, color],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: SoftPop.ink.withValues(alpha: .14),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(size / 2),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: size, minHeight: size),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  child: Center(widthFactor: 1, heightFactor: 1, child: child),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }

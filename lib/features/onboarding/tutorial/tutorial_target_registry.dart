@@ -11,6 +11,10 @@ class TutorialTargetRegistry {
     debugLabel: 'tutorial_day_together',
   );
   static final GlobalKey tasksTarget = GlobalKey(debugLabel: 'tutorial_tasks');
+  static final GlobalKey moodTarget = GlobalKey(debugLabel: 'tutorial_mood');
+  static final GlobalKey calendarTarget = GlobalKey(
+    debugLabel: 'tutorial_calendar',
+  );
   static final GlobalKey momentsTabTarget = GlobalKey(
     debugLabel: 'tutorial_moments_tab',
   );
@@ -31,6 +35,8 @@ class TutorialTargetRegistry {
   static String spacesKey() => 'space_selector';
   static String dayTogetherKey() => 'day_together';
   static String tasksKey() => 'tasks';
+  static String moodKey() => 'mood';
+  static String calendarKey() => 'calendar';
   static String momentsTabKey() => 'moments_tab';
   static String spaceTabKey() => 'space_tab';
   static String mapButtonKey() => 'map_button';
@@ -40,6 +46,8 @@ class TutorialTargetRegistry {
     'space_selector' => spaceSelectorTarget,
     'day_together' => dayTogetherTarget,
     'tasks' => tasksTarget,
+    'mood' => moodTarget,
+    'calendar' => calendarTarget,
     'moments_tab' => momentsTabTarget,
     'space_tab' => spaceTabTarget,
     'map_button' => mapButtonTarget,

@@ -55,7 +55,9 @@ class ProfilePhoto {
       imageQuality: 90,
     );
     if (picked == null || !context.mounted) return null;
-    return confirm(context, await picked.readAsBytes());
+    final bytes = await picked.readAsBytes();
+    if (!context.mounted) return null;
+    return confirm(context, bytes);
   }
 
   static Future<String?> confirm(BuildContext context, Uint8List bytes) async {

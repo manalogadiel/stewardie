@@ -123,6 +123,8 @@ class OnlineBackend {
     String action,
     String spaceId, {
     String? name,
+    String? token,
+    Map<String, dynamic>? location,
   }) async {
     const endpoint = String.fromEnvironment(
       'SPACE_ACTIONS_URL',
@@ -141,10 +143,18 @@ class OnlineBackend {
         'action': action,
         'spaceId': spaceId,
         'name': ?name,
+        'token': ?token,
+        if (location != null) ...location,
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError('Could not update the space. Please retry.');
+      String? message;
+      try {
+        message =
+            (jsonDecode(response.body) as Map<String, dynamic>)['error']
+                as String?;
+      } catch (_) {}
+      throw StateError(message ?? 'Could not update the space. Please retry.');
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
@@ -396,6 +406,18 @@ class OnlineBackend {
 
   Future<void> declineJoinRequest(String spaceId, String targetUid) =>
       call('declineJoinRequest', {'spaceId': spaceId, 'targetUid': targetUid});
+
+  Future<bool> canAddSpace() async {
+    final uid = auth.currentUser?.uid;
+    if (uid == null) return false;
+    final data = (await firestore.doc('accounts/$uid').get()).data();
+    final expiry = data?['subscriptionExpiresAt'];
+    final plus =
+        data?['tier'] == 'plus' &&
+        (data?['founderGrant'] == true || data?['entitlementSource'] == 'founder' ||
+            (expiry is Timestamp && expiry.toDate().isAfter(DateTime.now())));
+    return (data?['spaceIds'] as List? ?? []).length < (plus ? 50 : 3);
+  }
 
   Future<void> updateProfileName(String newName) async {
     final user = auth.currentUser;

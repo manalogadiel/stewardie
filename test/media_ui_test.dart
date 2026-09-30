@@ -122,7 +122,7 @@ void main() {
   });
 
   testWidgets(
-    'failed completion keeps photo, Cancel cannot silently complete, retry publishes once',
+    'failed completion creates no upload, preserves draft, retry publishes once',
     (tester) async {
       final container = await startMedia(tester);
       await completionPrompt(tester);
@@ -131,37 +131,21 @@ void main() {
       await waitForPhoto(tester);
       await tester.enterText(find.byType(TextField), 'Made together');
       await tester.testTextInput.receiveAction(TextInputAction.done);
-      (container.read(repositoryProvider) as DemoRepository).nextOutcome =
-          DemoOutcome.failure;
+      (container.read(repositoryProvider) as DemoRepository).nextOutcome = DemoOutcome.failure;
       await reveal(tester, find.text('Finish & share photo'));
       await tester.tap(find.text('Finish & share photo'));
       await tester.pumpAndSettle();
-      expect(
-        container.read(mediaLibraryProvider).items.single.publishedAt,
-        isNull,
-      );
-      await reveal(tester, find.text('Cancel'));
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(
-        container
-            .read(repositoryProvider)
-            .tasks
-            .firstWhere((t) => t.id == 'dinner')
-            .isDone,
-        isFalse,
-      );
-      await reveal(tester, find.text('Mark done'));
-      await tester.tap(find.text('Mark done'));
+      expect(container.read(mediaLibraryProvider).items, isEmpty);
+      expect(container.read(repositoryProvider).tasks.firstWhere((t) => t.id == 'dinner').isDone, isFalse);
+      expect(find.text('Finish & share photo'), findsOneWidget);
+      await reveal(tester, find.text('Finish & share photo'));
+      await tester.tap(find.text('Finish & share photo'));
       await tester.pumpAndSettle();
       expect(container.read(mediaLibraryProvider).items, hasLength(1));
-      expect(
-        container.read(mediaLibraryProvider).items.single.publishedAt,
-        isNotNull,
-      );
+      expect(container.read(mediaLibraryProvider).items.single.publishedAt, isNotNull);
+      expect(container.read(repositoryProvider).tasks.firstWhere((t) => t.id == 'dinner').isDone, isTrue);
     },
   );
-
   testWidgets(
     'unavailable camera keeps library and close controls usable at large text',
     (tester) async {

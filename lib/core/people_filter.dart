@@ -23,9 +23,9 @@ class PeopleFilter extends ConsumerWidget {
               child: FilterChip(
                 selected: id == selected,
                 showCheckmark: false,
-                side: BorderSide(
-                  color: id == selected ? SoftPop.blue : SoftPop.border,
-                ),
+                side: BorderSide.none,
+                selectedColor: SoftPop.lightButter,
+                elevation: id == selected ? 2 : 0,
                 avatar: id == null
                     ? null
                     : MemberAvatar(space.member(id), size: 26),

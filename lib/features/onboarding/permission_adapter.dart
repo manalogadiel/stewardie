@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as native;
 
 import '../../online/push_service.dart';
+import '../../core/location_settings.dart';
 
 enum PermissionCapability { camera, location, notifications }
 
@@ -69,7 +70,7 @@ class PermissionAdapter {
   Future<bool> locationServicesEnabled() async =>
       !supported || await Geolocator.isLocationServiceEnabled();
   Future<void> openLocationSettings() async {
-    if (supported) await Geolocator.openLocationSettings();
+    if (supported) await openDeviceLocationSettings();
   }
 
   Future<void> openSettings() async {

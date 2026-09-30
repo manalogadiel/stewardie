@@ -23,7 +23,7 @@ export function requireId(value, label = 'ID') {
 export function accountLimits(tier) {
   return tier === 'plus'
     ? { ownedSpaces: 20, memberships: 50 }
-    : { ownedSpaces: 3, memberships: 20 };
+    : { ownedSpaces: 3, memberships: 3 };
 }
 
 export function localCalendarDate(now, timeZone) {

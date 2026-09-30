@@ -6,11 +6,7 @@ import 'online_backend.dart';
 
 /// Modal bottom sheet with tabs to join a space by typing code or scanning QR.
 class QrJoinSheet extends StatefulWidget {
-  const QrJoinSheet({
-    super.key,
-    required this.backend,
-    required this.onJoined,
-  });
+  const QrJoinSheet({super.key, required this.backend, required this.onJoined});
 
   final OnlineBackend backend;
   final ValueChanged<String> onJoined;
@@ -27,10 +23,7 @@ class QrJoinSheet extends StatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => QrJoinSheet(
-        backend: backend,
-        onJoined: onJoined,
-      ),
+      builder: (_) => QrJoinSheet(backend: backend, onJoined: onJoined),
     );
   }
 
@@ -49,7 +42,9 @@ class _QrJoinSheetState extends State<QrJoinSheet>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() { if (mounted) setState(() {}); });
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   void _onDetect(BarcodeCapture capture) {
@@ -64,6 +59,7 @@ class _QrJoinSheetState extends State<QrJoinSheet>
   }
 
   Future<void> _joinWithToken(String rawToken) async {
+    if (_busy) return;
     final clean = InviteLinks.sanitize(rawToken);
     if (!InviteLinks.isValidCode(clean)) {
       setState(() => _error = 'Enter a valid invite code');
@@ -76,17 +72,32 @@ class _QrJoinSheetState extends State<QrJoinSheet>
     });
 
     try {
-      final invite = await widget.backend.call('previewInvite', {'token': clean});
+      if (!await widget.backend.canAddSpace()) {
+        throw StateError(
+          'Basic includes 3 spaces. Leave a space before joining another.',
+        );
+      }
+      final invite = await widget.backend.call('previewInvite', {
+        'token': clean,
+      });
       final spaceId = invite['spaceId'] as String;
       if (!mounted) return;
       final approved = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Join space?'),
-          content: Text('You were invited to join ${invite['spaceName'] ?? 'this space'}.'),
+          content: Text(
+            'You were invited to join ${invite['spaceName'] ?? 'this space'}.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Continue')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Continue'),
+            ),
           ],
         ),
       );
@@ -95,43 +106,46 @@ class _QrJoinSheetState extends State<QrJoinSheet>
         return;
       }
       if (invite['requireApproval'] == true) {
-          final approvedRequest = await widget.backend.requestJoinSpace(spaceId, clean);
-          if (!approvedRequest && mounted) {
-            setState(() => _busy = false);
-            showDialog<void>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Request Sent'),
-                content: const Text(
-                  'The owner will review your request. Enter this code again after approval to join.',
-                  style: TextStyle(fontFamily: 'NunitoSans'),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('OK'),
-                  ),
-                ],
+        final approvedRequest = await widget.backend.requestJoinSpace(
+          spaceId,
+          clean,
+        );
+        if (!approvedRequest && mounted) {
+          setState(() => _busy = false);
+          showDialog<void>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Request Sent'),
+              content: const Text(
+                'The owner will review your request. Enter this code again after approval to join.',
+                style: TextStyle(fontFamily: 'NunitoSans'),
               ),
-            );
-            return;
-          }
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
       }
 
       final res = await widget.backend.call('redeemInvite', {'token': clean});
       final resSpaceId = res['spaceId'] as String;
       if (mounted) {
-        widget.onJoined(resSpaceId);
         Navigator.of(context).pop();
+        widget.onJoined(resSpaceId);
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _busy = false;
-          _error = 'Could not join: $e';
+          _error = e is StateError ? e.message : 'Could not join. Check your connection or ask the owner for a new code.';
         });
       }
     }
@@ -234,11 +248,15 @@ class _QrJoinSheetState extends State<QrJoinSheet>
                           fillColor: const Color(0xFFFFFEFB),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E2DA),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E2DA),
+                            ),
                           ),
                         ),
                         onSubmitted: (val) => _joinWithToken(val),
@@ -251,7 +269,8 @@ class _QrJoinSheetState extends State<QrJoinSheet>
                           width: double.infinity,
                           height: 52,
                           child: FilledButton(
-                            onPressed: () => _joinWithToken(_codeController.text),
+                            onPressed: () =>
+                                _joinWithToken(_codeController.text),
                             style: FilledButton.styleFrom(
                               backgroundColor: const Color(0xFF244BFF),
                               shape: RoundedRectangleBorder(
@@ -282,18 +301,24 @@ class _QrJoinSheetState extends State<QrJoinSheet>
                             errorBuilder: (context, error) => Center(
                               child: Padding(
                                 padding: const EdgeInsets.all(20),
-                                child: Text('Camera unavailable. Enter the code instead.',
+                                child: Text(
+                                  'Camera unavailable. Enter the code instead.',
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(color: Colors.white)),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
                               ),
                             ),
                           )
-                        else Container(color: const Color(0xFF202633)),
+                        else
+                          Container(color: const Color(0xFF202633)),
                         Align(
                           alignment: Alignment.bottomCenter,
                           child: Container(
                             margin: const EdgeInsets.all(12),
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.65),
                               borderRadius: BorderRadius.circular(12),

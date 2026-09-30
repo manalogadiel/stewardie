@@ -55,9 +55,7 @@ class MemberAvatar extends StatelessWidget {
     padding: EdgeInsets.all(selected ? 3 : 0),
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      border: selected
-          ? Border.all(color: const Color(0xFF244BFF), width: 2)
-          : null,
+      color: selected ? const Color(0xFFFFF7EB) : null,
     ),
     child: Firebase.apps.isEmpty || FirebaseAuth.instance.currentUser == null
         ? _face(null)
@@ -97,6 +95,8 @@ class MemberAvatar extends StatelessWidget {
     child: Center(
       child: Text(
         initialsFor(name),
+        textScaler: TextScaler.noScaling,
+        maxLines: 1,
         textAlign: TextAlign.center,
         style: TextStyle(
           fontWeight: FontWeight.w800,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:image/image.dart' as img;
 
 import 'dart:convert';
@@ -218,6 +220,7 @@ void main() {
         expect(attachment.framing.isFull, isTrue);
         expect(attachment.photo.width, 300);
         expect(attachment.photo.height, 195);
+        await cloudLib.retryPending();
 
         expect(capturedFramingField, isNotNull);
         final parsed = jsonDecode(capturedFramingField!);
@@ -227,4 +230,49 @@ void main() {
       },
     );
   });
+  test(
+    'cloud add returns a durable Pending photo before the network responds',
+    () async {
+      final db = await databaseFactoryMemory.openDatabase('upload-pending');
+      final release = Completer<void>();
+      final client = MockClient((request) async {
+        await release.future;
+        return http.Response('{}', 503);
+      });
+      final library = CloudMediaLibrary(
+        _FakeTimelineRepository(),
+        user: _FakeUser(),
+        database: db,
+        records: stringMapStoreFactory.store('pending-photos'),
+        initial: [],
+        pending: {},
+        client: client,
+      );
+      final pixels = Uint8List.fromList(
+        img.encodeJpg(img.Image(width: 80, height: 60)),
+      );
+      final photo = await library
+          .add(
+            PhotoDraft(pixels, pixels, 80, 60, 'camera'),
+            'space-1',
+            'user-123',
+            'Kept for retry',
+            attachmentId: 'stable-network-id',
+          )
+          .timeout(const Duration(seconds: 1));
+      expect(photo.id, 'stable-network-id');
+      expect(library.pendingIds, contains(photo.id));
+      final saved = await stringMapStoreFactory
+          .store('shared-photo-outbox')
+          .record('user-123/stable-network-id')
+          .get(db);
+      expect(saved?['uid'], 'user-123');
+      release.complete();
+      await library.retryPending();
+      expect(library.pendingIds, contains(photo.id));
+      expect(library.syncError, isNotNull);
+      library.dispose();
+      await db.close();
+    },
+  );
 }

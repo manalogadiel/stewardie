@@ -28,7 +28,7 @@ test('Spark rejects outsiders, unverified users, forged tiers, roles, refs and i
  await assertSucceeds(db('alice').doc('spaces/home').get());
  await assertSucceeds(db('bob').collection('spaces/home/tasks').where('status','!=','completed').get());
 });
-test('Spark task acceptance is recipient-only and completion needs an atomic count change',async()=>{
+test('pilot Spark task acceptance is recipient-only and completion needs an atomic count change',async()=>{
  const d=db('bob'), task=d.doc('spaces/home/tasks/task');
  const accept={status:'accepted',ownerUid:'bob',requestedUid:null,offeredUid:null,version:2,updatedAt:now()};
  await assertFails(db('alice').doc('spaces/home/tasks/task').update({...accept,ownerUid:'alice'}));
@@ -155,6 +155,27 @@ test('location sessions restrict recipients and expire at the server',async()=>{
  await assertFails(db('bob').doc('spaces/home/locationSessions/alice').delete());
  await assertSucceeds(d.doc('spaces/home/locationSessions/alice').delete());
 });
+test('location sharing starts without reading absent or expired sessions',async()=>{
+ const owner=db('alice').doc('spaces/home/locationSessions/alice');
+ const location={uid:'alice',name:'Alice',lat:14.6,lng:121,accuracy:25,
+  recipientUids:['alice','bob'],durationMinutes:15,startedAt:now(),updatedAt:now(),
+  expiresAt:ClientTimestamp.fromMillis(Date.now()+14*60000)};
+ // A recipient read is intentionally not usable as an existence check.
+ await assertFails(owner.get());
+ await assertSucceeds(owner.delete());
+ await assertSucceeds(owner.set(location));
+ await env.withSecurityRulesDisabled(async(ctx)=>{
+  await ctx.firestore().doc('spaces/home/locationSessions/alice').update({
+   expiresAt:ClientTimestamp.fromMillis(Date.now()-60000),
+  });
+ });
+ await assertFails(owner.get());
+ await assertFails(db('bob').doc('spaces/home/locationSessions/alice').get());
+ await assertSucceeds(owner.delete());
+ await assertSucceeds(owner.set(location));
+ await assertSucceeds(db('bob').doc('spaces/home/locationSessions/alice').get());
+ await assertFails(db('outsider').doc('spaces/home/locationSessions/alice').get());
+});
 test('routine quotas and private activity are enforced',async()=>{
  const d=db('bob');
  const routine={id:'morning',title:'Water plants',cadence:'daily',assignedUid:null,creatorUid:'bob',createdAt:now()};
@@ -278,4 +299,32 @@ test('profile photos and push tokens stay account-scoped', async()=>{
  await assertSucceeds(db('bob').doc(`accounts/bob/pushDevices/${device}`).set({token:'b'.repeat(42),platform:'android',updatedAt:now()}));
  await assertFails(db('alice').doc(`accounts/bob/pushDevices/${device}`).get());
  await assertFails(db('bob').doc(`accounts/alice/pushDevices/${device}`).set({token:'b'.repeat(42),platform:'android',updatedAt:now()}));
+});
+
+test('pilot cap rejects concurrent Basic additions and preserves existing memberships', async()=>{
+ await env.withSecurityRulesDisabled(async c=> c.firestore().doc('accounts/bob').update({spaceIds:['home','existing']}));
+ const d=db('bob');
+ const create = id => d.runTransaction(async tx=>{
+   const account=d.doc('accounts/bob'), before=await tx.get(account);
+   tx.set(d.doc('spaces/'+id),{name:'New',kind:'friends',timeZone:'UTC',ownerUid:'bob',memberUids:['bob'],memberCount:1,activeTaskCount:0,createdAt:now()});
+   tx.update(account,{spaceIds:[...before.data().spaceIds,id],ownedSpaceIds:[...before.data().ownedSpaceIds,id],changedSpaceId:id});
+ });
+ const results=await Promise.allSettled([create('third-a'),create('third-b')]);
+ if(results.filter(r=>r.status==='fulfilled').length!==1) throw new Error('Exactly one addition must fit');
+ await assertSucceeds(d.doc('spaces/home').get());
+ await assertFails(create('fourth'));
+ await env.withSecurityRulesDisabled(async c=> c.firestore().doc('accounts/bob').update({spaceIds:['home','one','two','three']}));
+ await assertSucceeds(d.doc('spaces/home').get());
+ await assertFails(create('above-cap'));
+});
+test('pilot tour status is owner-only and task edits advance revision without changing assignment', async()=>{
+ const d=db('bob'), state=d.doc('accounts/bob/tutorial/state');
+ await assertSucceeds(state.set({status:'completed',updatedAt:now()}));
+ await assertFails(db('alice').doc('accounts/bob/tutorial/state').get());
+ await assertFails(db('alice').doc('accounts/bob/tutorial/state').set({status:'skipped',updatedAt:now()}));
+ await assertFails(state.set({status:'invented',updatedAt:now()}));
+ const task=d.doc('spaces/home/tasks/task');
+ await assertSucceeds(task.update({title:'Dishes later',note:'After lunch',version:2,updatedAt:now()}));
+ await assertFails(task.update({ownerUid:'bob',version:3,updatedAt:now()}));
+ await assertFails(db('outsider').doc('spaces/home/tasks/task').update({title:'Forged',version:3,updatedAt:now()}));
 });

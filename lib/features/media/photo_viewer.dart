@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/clay.dart';
+import '../../core/soft_pop_backdrop.dart';
 import '../../core/demo_state.dart';
 import '../../core/theme.dart';
 import '../../core/stewardie_map.dart';
@@ -115,10 +116,10 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
       );
     }
     return Scaffold(
-      backgroundColor: SoftPop.ink,
+      backgroundColor: SoftPop.canvas,
       appBar: AppBar(
-        foregroundColor: Colors.white,
-        title: const Text('Your moment', style: TextStyle(color: Colors.white)),
+        foregroundColor: SoftPop.ink,
+        title: const Text('Your moment', style: TextStyle(color: SoftPop.ink)),
         actions: [
           if (widget.photo.pin != null)
             IconButton(
@@ -155,44 +156,72 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: InteractiveViewer(
-                minScale: .8,
-                maxScale: 5,
-                child: Center(
-                  child: FutureBuilder(
-                    future: _full,
-                    builder: (context, snapshot) => snapshot.hasError
-                        ? const Text(
-                            'Could not load this photo. Close and try again.',
-                            style: TextStyle(color: Colors.white),
-                          )
-                        : Image.memory(
-                            snapshot.data ?? widget.photo.photo.thumbnail,
-                            fit: BoxFit.contain,
+            const Positioned.fill(child: SoftPopBackdrop()),
+            Column(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: InteractiveViewer(
+                        minScale: .8,
+                        maxScale: 5,
+                        child: Center(
+                          child: FutureBuilder(
+                            future: _full,
+                            builder: (context, snapshot) => snapshot.hasError
+                                ? const Text(
+                                    'Could not load this photo. Close and try again.',
+                                    style: TextStyle(color: SoftPop.ink),
+                                  )
+                                : ClipRRect(
+                                    borderRadius: BorderRadius.circular(24),
+                                    child: Image.memory(
+                                      snapshot.data ??
+                                          widget.photo.photo.thumbnail,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
                           ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                if (widget.photo.caption.isNotEmpty ||
+                    widget.photo.taskTitle != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Text(
+                      widget.photo.taskTitle ?? widget.photo.caption,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                if (widget.photo.pin != null)
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: _photoLocation(context),
+                    ),
+                  ),
+                if (saving) const LinearProgressIndicator(),
+                if (message != null)
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        message!,
+                        style: const TextStyle(color: SoftPop.ink),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            if (widget.photo.pin != null)
-              Flexible(
-                child: SingleChildScrollView(child: _photoLocation(context)),
-              ),
-            if (saving) const LinearProgressIndicator(),
-            if (message != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    message!,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -236,7 +265,7 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(details, style: const TextStyle(color: Colors.white)),
+          Text(details, style: const TextStyle(color: SoftPop.ink)),
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(16),

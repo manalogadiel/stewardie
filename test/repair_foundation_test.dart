@@ -1,5 +1,6 @@
 import 'package:image/image.dart' as img;
 import 'package:stewardie/features/media/media_library.dart';
+import 'package:stewardie/online/member_location_pin.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:permission_handler/permission_handler.dart' as native;
 import 'package:sembast/sembast_memory.dart';
@@ -8,6 +9,37 @@ import 'package:stewardie/features/onboarding/onboarding_store.dart';
 import 'package:stewardie/features/onboarding/permission_adapter.dart';
 
 void main() {
+  test('expired member selection cannot fall back to the viewer location', () {
+    final ownFix = {'uid': 'me', 'lat': 14.0, 'lng': 121.0};
+    expect(
+      resolveSelectedMemberLocation(
+        selectedUid: 'other',
+        currentUid: 'me',
+        sessions: [],
+        personalLocation: ownFix,
+      ),
+      isNull,
+    );
+    expect(
+      resolveSelectedMemberLocation(
+        selectedUid: 'me',
+        currentUid: 'me',
+        sessions: [],
+        personalLocation: ownFix,
+      ),
+      ownFix,
+    );
+    final latest = {'uid': 'other', 'lat': 15.0, 'lng': 122.0};
+    expect(
+      resolveSelectedMemberLocation(
+        selectedUid: 'other',
+        currentUid: 'me',
+        sessions: [latest],
+        personalLocation: ownFix,
+      ),
+      latest,
+    );
+  });
   test('selected framing becomes saved pixels and cannot crop twice', () {
     final image = img.Image(width: 400, height: 300);
     final framing = FramingRect.fromAspectRatio(

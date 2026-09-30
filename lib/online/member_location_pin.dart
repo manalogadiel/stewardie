@@ -3,6 +3,20 @@ import 'package:flutter/material.dart';
 import '../core/member_avatar.dart';
 import '../core/theme.dart';
 
+/// Only a member's own private fix can replace an absent sharing session.
+Map<String, dynamic>? resolveSelectedMemberLocation({
+  required String? selectedUid,
+  required String? currentUid,
+  required List<Map<String, dynamic>> sessions,
+  Map<String, dynamic>? personalLocation,
+}) {
+  if (selectedUid == null) return null;
+  for (final session in sessions) {
+    if (session['uid'] == selectedUid) return session;
+  }
+  return selectedUid == currentUid ? personalLocation : null;
+}
+
 /// Bounds include the selection ring and the user's scaled label.
 class MemberLocationPin extends StatelessWidget {
   const MemberLocationPin({

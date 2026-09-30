@@ -1,4 +1,5 @@
 import 'rename_space_dialog.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,37 @@ import '../features/onboarding/tutorial/tutorial_target_registry.dart';
 import '../features/onboarding/onboarding_store.dart';
 
 class OnlineHome extends StatefulWidget {
+  static Future<String?> createSpace(
+    BuildContext context,
+    OnlineBackend backend,
+  ) async {
+    if (!await backend.canAddSpace()) {
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Basic includes 3 spaces. Leave a space before creating or joining another.',
+            ),
+          ),
+        );
+      return null;
+    }
+    final result =
+        await showDialog<({String name, String kind, String timeZone})>(
+          context: context,
+          builder: (_) => const _CreateSpaceDialog(),
+        );
+    if (result == null) return null;
+    await backend.auth.currentUser?.reload();
+    await backend.auth.currentUser?.getIdToken(true);
+    final created = await backend.call('createSpace', {
+      'name': result.name,
+      'kind': result.kind,
+      'timeZone': result.timeZone,
+    });
+    return created['spaceId'] as String;
+  }
+
   const OnlineHome({
     super.key,
     required this.backend,
@@ -123,7 +155,10 @@ class _OnlineHomeState extends State<OnlineHome> {
 
   Future<void> _runEntryPrompts() async {
     try {
-      await TutorialCoordinator(widget.database).checkAndPromptTour(
+      await TutorialCoordinator(
+        widget.database,
+        backend: widget.backend,
+      ).checkAndPromptTour(
         context,
         uid: widget.user.uid,
         hasSpaces: _hasSpaces,
@@ -822,29 +857,35 @@ class _OnlineHomeState extends State<OnlineHome> {
                 children: [
                   if (spaceId != null)
                     FutureBuilder<TutorialStatus>(
-                      future: TutorialStore(widget.database)
+                      future: TutorialStore(widget.database, backend: widget.backend)
                           .getStatus(widget.user.uid),
                       builder: (context, snapshot) =>
-                          snapshot.data == TutorialStatus.awaitingSpace
+                          (snapshot.data == TutorialStatus.awaitingSpace || snapshot.data == TutorialStatus.inProgress)
                           ? Padding(
                               padding: const EdgeInsets.only(top: 16),
                               child: FilledButton.icon(
-                                icon: const Icon(Icons.explore_outlined),
+                                icon: Image.asset(
+                                  'assets/illustrations/clay-navigation.png',
+                                  width: 28,
+                                  height: 28,
+                                ),
                                 label: const Text('Continue tour'),
                                 onPressed: () async {
-                                  await TutorialCoordinator(widget.database)
-                                      .continueTour(
-                                        context,
-                                        uid: widget.user.uid,
-                                        onTabRequested: (tab) {
-                                          if (!mounted) return;
-                                          if (widget.onTabRequested != null) {
-                                            widget.onTabRequested!(tab);
-                                          } else {
-                                            setState(() => _destination = tab);
-                                          }
-                                        },
-                                      );
+                                  await TutorialCoordinator(
+                                    widget.database,
+                                    backend: widget.backend,
+                                  ).continueTour(
+                                    context,
+                                    uid: widget.user.uid,
+                                    onTabRequested: (tab) {
+                                      if (!mounted) return;
+                                      if (widget.onTabRequested != null) {
+                                        widget.onTabRequested!(tab);
+                                      } else {
+                                        setState(() => _destination = tab);
+                                      }
+                                    },
+                                  );
                                   if (mounted) setState(() {});
                                 },
                               ),
@@ -1021,6 +1062,9 @@ class _OnlineHomeState extends State<OnlineHome> {
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 180),
       child: ChoiceChip(
+        side: BorderSide.none,
+        selectedColor: SoftPop.lightButter,
+        elevation: _personId == id ? 2 : 0,
         showCheckmark: false,
         avatar: id == null
             ? null
@@ -1381,7 +1425,10 @@ class _OnlineHomeState extends State<OnlineHome> {
       spaceId: spaceId,
       onSignedOut: () => RevenueCatService.instance.logOut(),
       onTakeTour: () async {
-        await TutorialCoordinator(widget.database).replayTour(
+        await TutorialCoordinator(
+          widget.database,
+          backend: widget.backend,
+        ).replayTour(
           context,
           uid: widget.user.uid,
           hasSpaces: _hasSpaces,
@@ -1396,7 +1443,10 @@ class _OnlineHomeState extends State<OnlineHome> {
         if (mounted && !_hasSpaces) _chooseSpace(const [], null);
       },
       onAccountDeleted: () async {
-        await TutorialCoordinator(widget.database).clear(widget.user.uid);
+        await TutorialCoordinator(
+          widget.database,
+          backend: widget.backend,
+        ).clear(widget.user.uid);
         await OnboardingStore(widget.database).clearDraft(widget.user.uid);
       },
     );
@@ -1725,22 +1775,49 @@ class _OnlineHomeState extends State<OnlineHome> {
                                 subtitle: Text(subtitleText),
                                 trailing: person.id != widget.user.uid
                                     ? PopupMenuButton<String>(
+                                        color: SoftPop.surface,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            24,
+                                          ),
+                                        ),
                                         tooltip:
                                             'Manage ${person.data()['name']}',
                                         itemBuilder: (_) => [
                                           if (owner == widget.user.uid)
                                             const PopupMenuItem(
                                               value: 'removeMember',
-                                              child: Text('Remove from space'),
+                                              child: ListTile(
+                                                contentPadding: EdgeInsets.zero,
+                                                leading: Icon(
+                                                  Icons.person_remove_rounded,
+                                                  color: SoftPop.rose,
+                                                ),
+                                                title: Text(
+                                                  'Remove from space',
+                                                ),
+                                              ),
                                             ),
                                           if (owner == widget.user.uid)
                                             const PopupMenuItem(
                                               value: 'offerOwnership',
-                                              child: Text('Offer ownership'),
+                                              child: ListTile(
+                                                contentPadding: EdgeInsets.zero,
+                                                leading: Icon(
+                                                  Icons.swap_horiz_rounded,
+                                                ),
+                                                title: Text('Offer ownership'),
+                                              ),
                                             ),
                                           const PopupMenuItem(
                                             value: 'safety',
-                                            child: Text('Report or block'),
+                                            child: ListTile(
+                                              contentPadding: EdgeInsets.zero,
+                                              leading: Icon(
+                                                Icons.shield_rounded,
+                                              ),
+                                              title: Text('Report or block'),
+                                            ),
                                           ),
                                         ],
                                         onSelected: (action) =>
@@ -1942,7 +2019,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                               final invite = _spaceActionTile(
                                 const StewardieInviteIcon(),
                                 'Invite members',
-                                SoftPop.butter,
+                                SoftPop.lightButter,
                                 () => _invite(spaceId),
                               );
                               final routines = _spaceActionTile(
@@ -1952,7 +2029,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                                   size: 30,
                                 ),
                                 'Routines',
-                                SoftPop.sky,
+                                SoftPop.lightSky,
                                 () {
                                   final memberList = (members.data?.docs ?? [])
                                       .map((d) => {'uid': d.id, ...d.data()})
@@ -2030,54 +2107,63 @@ class _OnlineHomeState extends State<OnlineHome> {
     );
   }
 
-  void _chooseSpace(
+  Future<void> _chooseSpace(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> refs,
     String? selected,
-  ) => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheet) => SafeArea(
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          for (final ref in refs)
+  ) async {
+    final allowed = await widget.backend.canAddSpace();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final ref in refs)
+              ListTile(
+                title: Text(ref.data()['name'] as String? ?? 'Space'),
+                trailing: ref.id == selected
+                    ? const Icon(
+                        Icons.radio_button_checked_rounded,
+                        color: SoftPop.blue,
+                      )
+                    : null,
+                onTap: () {
+                  Navigator.pop(sheet);
+                  _switchSpace(ref.id);
+                  setState(() => _destination = 0);
+                },
+              ),
+            const Divider(),
             ListTile(
-              title: Text(ref.data()['name'] as String? ?? 'Space'),
-              trailing: ref.id == selected
-                  ? const Icon(
-                      Icons.radio_button_checked_rounded,
-                      color: SoftPop.blue,
-                    )
-                  : null,
+              minVerticalPadding: 12,
+              leading: const Icon(Icons.add_rounded),
+              title: const Text('Create a space'),
+              enabled: allowed,
+              subtitle: allowed
+                  ? null
+                  : const Text('3 of 3 spaces · Basic limit'),
               onTap: () {
                 Navigator.pop(sheet);
-                _switchSpace(ref.id);
-                setState(() => _destination = 0);
+                _createSpace();
               },
             ),
-          const Divider(),
-          ListTile(
-            minVerticalPadding: 12,
-            leading: const Icon(Icons.add_rounded),
-            title: const Text('Create a space'),
-            onTap: () {
-              Navigator.pop(sheet);
-              _createSpace();
-            },
-          ),
-          ListTile(
-            minVerticalPadding: 12,
-            leading: const Icon(Icons.group_add_outlined),
-            title: const Text('Join with a code'),
-            onTap: () {
-              Navigator.pop(sheet);
-              _joinSpace();
-            },
-          ),
-        ],
+            ListTile(
+              minVerticalPadding: 12,
+              leading: const Icon(Icons.group_add_outlined),
+              title: const Text('Join with a code'),
+              enabled: allowed,
+              onTap: () {
+                Navigator.pop(sheet);
+                _joinSpace();
+              },
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _spaceActionTile(
     Widget icon,
@@ -2258,22 +2344,10 @@ class _OnlineHomeState extends State<OnlineHome> {
   );
 
   Future<void> _createSpace() async {
-    final result =
-        await showDialog<({String name, String kind, String timeZone})>(
-          context: context,
-          builder: (_) => const _CreateSpaceDialog(),
-        );
-    if (result == null) return;
     try {
-      await widget.backend.auth.currentUser?.reload();
-      await widget.user.getIdToken(true);
-      final created = await widget.backend.call('createSpace', {
-        'name': result.name,
-        'kind': result.kind,
-        'timeZone': result.timeZone,
-      });
-      if (mounted) {
-        _switchSpace(created['spaceId'] as String);
+      final id = await OnlineHome.createSpace(context, widget.backend);
+      if (mounted && id != null) {
+        _switchSpace(id);
         setState(() => _destination = 0);
       }
     } catch (error) {

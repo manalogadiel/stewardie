@@ -504,6 +504,14 @@ class SparkBackend {
       case 'joinSpace':
       case 'redeemInvite':
         final token = InviteLinks.sanitize(v['token'] as String);
+        if (!OnlineBackend.useEmulator) {
+          return backend.callSpaceAction(
+            'join',
+            '',
+            token: token,
+            name: user.displayName,
+          );
+        }
         final joinEventId = db.collection('eventIds').doc().id;
         String? joined;
         await db.runTransaction((tx) async {
@@ -742,6 +750,7 @@ class SparkBackend {
         return {'status': 'pending'};
       case 'updateTask':
         final taskId = v['taskId'] as String;
+        var savedVersion = 0;
         final updates = <String, dynamic>{
           'updatedAt': FieldValue.serverTimestamp(),
         };
@@ -774,6 +783,14 @@ class SparkBackend {
           if (!before.exists) {
             throw StateError('This task is no longer available.');
           }
+          if (v['expectedVersion'] != null &&
+              v['expectedVersion'] != before.data()?['version']) {
+            throw StateError(
+              'This task changed on another device. Reopen it before saving.',
+            );
+          }
+          savedVersion = (before.data()?['version'] as int? ?? 0) + 1;
+          updates['version'] = savedVersion;
           final nextRecipient = updates['requestedUid'] as String?;
           if (v.containsKey('requestedUid') &&
               nextRecipient == null &&
@@ -835,7 +852,7 @@ class SparkBackend {
           }
           tx.update(taskRef, updates);
         });
-        return {'ok': true};
+        return {'ok': true, 'version': savedVersion};
       case 'deleteTask':
         return backend.taskAccess('delete', v);
       case 'setSubtasks':
@@ -1074,6 +1091,19 @@ class SparkBackend {
         if (![15, 30, 60].contains(durationMinutes)) {
           throw ArgumentError('Choose a sharing duration.');
         }
+        if (!OnlineBackend.useEmulator) {
+          return backend.callSpaceAction(
+            'startLocation',
+            id!,
+            name: user.displayName,
+            location: {
+              'lat': v['lat'],
+              'lng': v['lng'],
+              'accuracy': v['accuracy'],
+              'durationMinutes': durationMinutes,
+            },
+          );
+        }
         final spaceSnap = await space(id!).get();
         final recipients = List<String>.from(
           spaceSnap.data()?['memberUids'] as List? ?? const [],
@@ -1085,10 +1115,14 @@ class SparkBackend {
           Duration(minutes: durationMinutes),
         );
         final session = space(id).collection('locationSessions').doc(uid);
-        if ((await session.get()).exists) await session.delete();
+        // Owners may delete their own session even when absent/expired, but
+        // recipient reads require an unexpired document. Do not read first.
+        await session.delete();
         await session.set({
           'uid': uid,
-          'name': user.displayName ?? 'Member',
+          'name': String.fromCharCodes(
+            (user.displayName ?? 'Member').runes.take(60),
+          ),
           'lat': (v['lat'] as num).toDouble(),
           'lng': (v['lng'] as num).toDouble(),
           'accuracy': (v['accuracy'] as num).toDouble(),

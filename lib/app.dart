@@ -20,6 +20,8 @@ import 'features/timeline/presentation/today_screen.dart';
 import 'online/space_map_sheet.dart';
 import 'online/live_location_pill.dart';
 import 'online/activity_inbox_sheet.dart';
+import 'online/online_home.dart';
+import 'online/qr_join_sheet.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
@@ -84,7 +86,10 @@ class AppShell extends ConsumerWidget {
         ? 2
         : 0;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark,
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: SoftPop.canvas,
+      ),
       child: Scaffold(
         extendBody: true,
         body: Stack(
@@ -196,6 +201,76 @@ class AppShell extends ConsumerWidget {
                                           context.go('/today');
                                         },
                                       ),
+                                    if (ref.read(sharedBackendProvider)
+                                        case final backend?) ...[
+                                      const Divider(),
+                                      ListTile(
+                                        leading: const Icon(Icons.add_rounded),
+                                        title: const Text('Create a space'),
+                                        enabled:
+                                            repo.isPlus ||
+                                            repo.spaces.length < 3,
+                                        subtitle:
+                                            !repo.isPlus &&
+                                                repo.spaces.length >= 3
+                                            ? const Text(
+                                                '3 of 3 spaces · Basic limit',
+                                              )
+                                            : null,
+                                        onTap: () async {
+                                          Navigator.pop(sheet);
+                                          try {
+                                            final id =
+                                                await OnlineHome.createSpace(
+                                                  context,
+                                                  backend,
+                                                );
+                                            if (!context.mounted ||
+                                                id == null) {
+                                              return;
+                                            }
+                                            ref
+                                                .read(demoProvider.notifier)
+                                                .switchSpace(id);
+                                            context.go('/today');
+                                          } catch (_) {
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        'Could not create the space. Check your connection and try again.',
+                                                      ),
+                                                    ),
+                                                  );
+                                            }
+                                          }
+                                        },
+                                      ),
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.group_add_outlined,
+                                        ),
+                                        title: const Text('Join with a code'),
+                                        enabled:
+                                            repo.isPlus ||
+                                            repo.spaces.length < 3,
+                                        onTap: () {
+                                          Navigator.pop(sheet);
+                                          QrJoinSheet.show(
+                                            context,
+                                            backend: backend,
+                                            onJoined: (id) {
+                                              if (!context.mounted) return;
+                                              ref
+                                                  .read(demoProvider.notifier)
+                                                  .switchSpace(id);
+                                              context.go('/today');
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -206,7 +281,7 @@ class AppShell extends ConsumerWidget {
                                 Flexible(
                                   child: Text(
                                     space.name,
-                                    maxLines: 2,
+                                    maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
                                     style: Theme.of(context)
@@ -295,6 +370,13 @@ class AppShell extends ConsumerWidget {
                 ),
               ),
             ),
+            if (MediaQuery.viewInsetsOf(context).bottom > 0)
+              const Positioned(
+                left: 0,
+                right: 0,
+                bottom: 8,
+                child: LiveLocationPill(),
+              ),
           ],
         ),
         bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0

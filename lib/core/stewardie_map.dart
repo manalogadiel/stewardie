@@ -6,7 +6,10 @@ import 'package:url_launcher/url_launcher.dart';
 /// Public tile key supplied at build time. The free key is not an account secret.
 // MapTiler client keys are public. Keep the pilot key as the plain flutter run
 // default; release builds can override it with --dart-define=MAPTILER_KEY=... .
-const mapTilerKey = String.fromEnvironment('MAPTILER_KEY');
+const mapTilerKey = String.fromEnvironment(
+  'MAPTILER_KEY',
+  defaultValue: '7uwMZ6Idub8CZM4AXzAR',
+);
 
 enum StewardieMapStyle { satellite, streets }
 
@@ -169,19 +172,25 @@ class _StewardieMapState extends State<StewardieMap> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    satellite
-                        ? 'Satellite tiles unavailable. Try Streets or retry.'
-                        : 'Map tiles unavailable. Check connection and retry.',
+                    satellite ? 'Satellite unavailable' : 'Map unavailable',
                     style: const TextStyle(fontSize: 12),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: TextButton(
+                    child: ElevatedButton.icon(
                       onPressed: () => setState(() {
                         failed = false;
                         retry++;
                       }),
-                      child: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFBEBC5),
+                        foregroundColor: const Color(0xFF202633),
+                        minimumSize: const Size(48, 48),
+                        elevation: 2,
+                        side: BorderSide.none,
+                      ),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Refresh'),
                     ),
                   ),
                 ],

@@ -16,6 +16,7 @@ class TutorialOverlay extends StatefulWidget {
     required this.onFinished,
     required this.onSkipped,
     this.onTabRequested,
+    this.onStopChanged,
     this.stops = TutorialStops.all,
     this.finishLabel = 'Got it',
   });
@@ -24,6 +25,7 @@ class TutorialOverlay extends StatefulWidget {
   final VoidCallback onFinished;
   final VoidCallback onSkipped;
   final ValueChanged<int>? onTabRequested;
+  final ValueChanged<int>? onStopChanged;
   final List<TutorialStopData> stops;
   final String finishLabel;
 
@@ -84,6 +86,7 @@ class _TutorialOverlayState extends State<TutorialOverlay>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || request != _requestGeneration) return;
       final stop = widget.stops[_currentStopIndex];
+      widget.onStopChanged?.call(_currentStopIndex);
       widget.onTabRequested?.call(stop.destinationTab);
       _targetMonitor = Timer.periodic(const Duration(milliseconds: 100), (
         _,

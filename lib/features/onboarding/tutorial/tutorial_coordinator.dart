@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:sembast/sembast.dart';
 
+import '../../../online/online_backend.dart';
+
 import 'tutorial_invitation.dart';
 import 'tutorial_overlay.dart';
 import 'tutorial_state.dart';
@@ -16,7 +18,8 @@ import 'tutorial_state.dart';
 /// - Returning users, opening Space, or tab revisits must never auto-prompt.
 /// - Manual replay from Space settings works without resetting first-use completion.
 class TutorialCoordinator {
-  TutorialCoordinator(this.database) : _store = TutorialStore(database);
+  TutorialCoordinator(this.database, {OnlineBackend? backend})
+    : _store = TutorialStore(database, backend: backend);
 
   final Database? database;
   final TutorialStore _store;
@@ -145,6 +148,10 @@ class TutorialCoordinator {
         initialStopIndex: initialStop,
         stops: hasSpaces ? TutorialStops.all : [TutorialStops.all.first],
         finishLabel: hasSpaces ? 'Got it' : 'Create or join',
+        onStopChanged: (index) {
+          if (!isReplay && uid.isNotEmpty)
+            unawaited(_store.setCurrentStopIndex(uid, index));
+        },
         onTabRequested: onTabRequested,
         onFinished: () => close(
           hasSpaces ? TutorialStatus.completed : TutorialStatus.awaitingSpace,
@@ -183,15 +190,20 @@ class TutorialCoordinator {
   }) async {
     if (!_continuingUids.add(uid)) return;
     try {
-      if (await _store.getStatus(uid) != TutorialStatus.awaitingSpace ||
+      final status = await _store.getStatus(uid);
+      if ((status != TutorialStatus.awaitingSpace &&
+              status != TutorialStatus.inProgress) ||
           !context.mounted)
         return;
+      final next = status == TutorialStatus.awaitingSpace
+          ? 1
+          : await _store.getCurrentStopIndex(uid);
       await _store.setStatus(uid, TutorialStatus.inProgress);
       if (!context.mounted) return;
       await startTour(
         context,
         uid: uid,
-        initialStop: 1,
+        initialStop: next,
         onTabRequested: onTabRequested,
       );
     } finally {

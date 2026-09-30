@@ -31,7 +31,7 @@ service cloud.firestore {
         && d.spaceIds.hasAll(d.ownedSpaceIds);
     }
     function accountCapacity(old, d) {
-      let maxSpaces = isTierPlus(d) ? 50 : 20;
+      let maxSpaces = isTierPlus(d) ? 50 : 3;
       let maxOwned = isTierPlus(d) ? 20 : 3;
       let oldSpaces = old.get('spaceIds', []).size();
       let oldOwned = old.get('ownedSpaceIds', []).size();
@@ -69,6 +69,13 @@ service cloud.firestore {
           && request.resource.data.spaceId == id && request.resource.data.name == afterSpace(id).name
           && request.resource.data.kind == afterSpace(id).kind && request.resource.data.joinedAt == request.time;
         allow delete: if verified() && !(uid in afterSpace(id).memberUids) && (self(uid) || owner(id));
+      }
+      match /tutorial/{state} {
+        allow read, delete: if self(uid) && state == 'state';
+        allow create, update: if self(uid) && state == 'state'
+          && request.resource.data.keys().hasOnly(['status','updatedAt'])
+          && request.resource.data.status in ['notStarted','inProgress','awaitingSpace','skipped','completed']
+          && request.resource.data.updatedAt == request.time;
       }
       match /notificationPrefs/{scope} {
         allow read: if self(uid);
@@ -435,7 +442,7 @@ service cloud.firestore {
               || (a.offeredUid == removed && b.offeredUid == null && b.status == a.status && b.ownerUid == a.ownerUid && b.requestedUid == a.requestedUid));
         }
         function contentEdit() {
-          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','pin','requestedUid','subtasks','helpNeeded','handoffToUid','activity','updatedAt'])
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','note','destination','pin','requestedUid','subtasks','helpNeeded','handoffToUid','activity','updatedAt','version'])
             && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
             && request.resource.data.requestedUid == resource.data.requestedUid
             && request.resource.data.updatedAt == request.time
@@ -480,7 +487,7 @@ service cloud.firestore {
           : (request.resource.data.version == resource.data.version + 1
             && request.resource.data.updatedAt == request.time
             && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','ownerUid','requestedUid','offeredUid','completedAt','completedLocalDate','version','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
-              && (transition() || released())) || reassign() || unassign())));
+              && (transition() || released())) || reassign() || unassign() || contentEdit())));
         match /operations/{op} {
           allow read: if member(id) && op.matches(request.auth.uid + '_.*');
           allow create: if member(id) && request.resource.data.keys().hasOnly(['actorUid','version','action','appliedAt'])

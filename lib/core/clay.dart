@@ -2,6 +2,37 @@ import 'package:flutter/material.dart';
 
 import 'theme.dart';
 
+/// Borderless secondary action with the shared shallow clay shadow.
+class ClayAction extends StatelessWidget {
+  const ClayAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.color = SoftPop.lightButter,
+  });
+  final Widget icon;
+  final Widget label;
+  final VoidCallback? onPressed;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => ElevatedButton.icon(
+    onPressed: onPressed,
+    icon: icon,
+    label: label,
+    style: ElevatedButton.styleFrom(
+      backgroundColor: color,
+      foregroundColor: SoftPop.ink,
+      shadowColor: SoftPop.ink.withValues(alpha: .14),
+      elevation: 2,
+      minimumSize: const Size(48, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      shape: const StadiumBorder(),
+      side: BorderSide.none,
+    ),
+  );
+}
+
 class ClayArt extends StatelessWidget {
   const ClayArt(this.name, {super.key, this.height = 100, this.width});
   final String name;

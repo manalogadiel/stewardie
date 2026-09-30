@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/location_settings.dart';
 import '../mascot_stage.dart';
 import '../permission_adapter.dart';
 import '../staggered_entrance.dart';
@@ -93,6 +94,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
         });
         widget.onSkippedChanged?.call(Set.of(_skipped));
       }
+      await _checkInitialStatuses();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -175,6 +177,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                     if (!_servicesEnabled) ...[
                       const SizedBox(height: 12),
                       const Text('Location services are off.'),
+                      Text(locationSettingsHint),
                       TextButton.icon(
                         onPressed: widget.adapter.openLocationSettings,
                         icon: const Icon(Icons.location_on_outlined),

@@ -6,9 +6,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:sembast/sembast.dart';
 
 import '../../core/clay.dart';
+import '../../core/location_settings.dart';
 import '../../core/place_pin.dart';
 import '../../core/theme.dart';
 import '../../core/demo_state.dart';
+import '../../core/backend_provider.dart';
 import '../../core/widgets.dart';
 import '../timeline/domain/models.dart';
 import 'camera_screen.dart';
@@ -98,6 +100,11 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
   final caption = TextEditingController();
   PhotoDraft? draft;
   PlacePin? pin;
+  PlacePin? recordedPin;
+  bool includeLocation = true;
+  int prepareGeneration = 0;
+  bool publishing = false;
+  String? draftId;
   String? locationIssue;
   DateTime? capturedAt;
   bool busy = false;
@@ -132,21 +139,36 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
 
   Future<void> prepare(CapturedPhoto photo) async {
     setState(() => busy = true);
+    final generation = ++prepareGeneration;
     try {
       final processed = await compute(processPhoto, {
         'bytes': photo.bytes,
         'source': photo.source,
         'framing': photo.framing.toMap(),
+        if (photo.cropRatio != null) 'cropRatio': photo.cropRatio!,
       });
       if (mounted) {
         setState(() {
           draft = processed;
+          draftId = ref.read(sharedBackendProvider)?.firestore.collection('photoIds').doc().id ?? 'photo-${DateTime.now().microsecondsSinceEpoch}-$generation';
           pin = photo.pin;
+          recordedPin = photo.pin;
+          includeLocation = true;
           locationIssue = photo.locationIssue;
           capturedAt = photo.capturedAt;
           error = null;
         });
       }
+      photo.pendingPin?.then((fix) {
+        if (!mounted || generation != prepareGeneration || publishing) return;
+        setState(() {
+          recordedPin = fix;
+          pin = includeLocation ? fix : null;
+          locationIssue = fix == null
+              ? 'A fresh capture location was unavailable.'
+              : null;
+        });
+      });
     } catch (e) {
       if (mounted) {
         setState(
@@ -281,11 +303,13 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
     if (DateTime.now().toUtc().difference(capturedAt!).abs() >
         const Duration(seconds: 30)) {
       setState(
-        () => locationIssue = 'The capture time has passed. Add a place tag or continue without location.',
+        () => locationIssue =
+            'The capture time has passed. Continue without location.',
       );
       return;
     }
     setState(() => busy = true);
+
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         throw StateError('Location services are off. Open location settings.');
@@ -308,7 +332,7 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
       if (position.timestamp.toUtc().difference(capturedAt!).abs() >
           const Duration(seconds: 30)) {
         throw StateError(
-          'No fix was available near capture time. Add a place tag instead.',
+          'No fix was available near capture time. Continue without location.',
         );
       }
       if (mounted)
@@ -321,6 +345,8 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
             accuracy: position.accuracy,
             locatedAt: position.timestamp,
           );
+          recordedPin = pin;
+          includeLocation = true;
           locationIssue = null;
         });
     } catch (e) {
@@ -336,23 +362,55 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
   }
 
   Future<void> openPhotoLocationSettings() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      await Geolocator.openLocationSettings();
-    } else {
-      await Geolocator.openAppSettings();
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        await openDeviceLocationSettings();
+        if (mounted) setState(() => locationIssue = locationSettingsHint);
+      } else {
+        final opened = await Geolocator.openAppSettings();
+        if (!opened && mounted) {
+          setState(
+            () => locationIssue = 'Open device Settings and allow Stewardie to use your location.',
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => locationIssue = 'Could not open settings. Open device Settings and check location access.',
+        );
+      }
     }
   }
 
   Future<void> save() async {
     if (busy || draft == null) return;
+    publishing = true;
     setState(() {
       busy = true;
       error = null;
     });
     try {
       final library = ref.read(mediaLibraryProvider);
-      // The accepted attachment is durable before completion, and is reusable
-      // if completion fails. Retrying never creates a second attachment.
+      if (widget.complete) {
+        final repository = ref.read(repositoryProvider);
+        final current = repository.tasks
+            .where((t) => t.id == widget.task!.id)
+            .firstOrNull;
+        if (current == null || !current.isDone) {
+          final completed = await repository.act(
+            widget.task!.id,
+            TaskAction.complete,
+            repository.currentUserId,
+          );
+          if (!completed.isDone)
+            throw StateError(
+              'Task could not be finished. Retry when connected.',
+            );
+          ref.read(demoProvider.notifier).refresh();
+        }
+      }
+      // A confirmed completion is independent of optional queued uploads.
       if (widget.task == null ||
           (!attached &&
               library.forTask(widget.task!.id).length <
@@ -363,35 +421,10 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
           ref.read(repositoryProvider).currentUserId,
           caption.text,
           taskId: widget.task?.id,
+          attachmentId: draftId,
           pin: pin,
         );
         if (widget.task != null && mounted) setState(() => attached = true);
-      }
-      if (widget.complete) {
-        final current = ref
-            .read(demoProvider)
-            .tasks
-            .where((t) => t.id == widget.task!.id)
-            .firstOrNull;
-        if (current != null && !current.isDone) {
-          await ref
-              .read(demoProvider.notifier)
-              .act(widget.task!, TaskAction.complete);
-        }
-        final state = ref.read(demoProvider);
-        final updated = state.tasks
-            .where((t) => t.id == widget.task!.id)
-            .firstOrNull;
-        if (updated == null) {
-          return;
-        }
-        if (!updated.isDone) {
-          throw StateError(
-            state.errors[updated.id] ??
-                'Could not finish the task. Your photo is kept for retry.',
-          );
-        }
-        await library.publishTask(updated);
       }
       if (mounted) {
         setState(() => closing = true);
@@ -865,39 +898,27 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
                   ],
                 ),
               ],
-              if (pin != null)
-                Paper(
-                  color: SoftPop.warm,
-                  child: Row(
-                    children: [
-                      const Icon(Icons.place_outlined),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          pin!.source == 'capture'
-                              ? 'Capture location · ${pin!.accuracy?.round() ?? '?'} m accuracy'
-                              : 'Manually chosen place · ${pin!.label}',
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Remove photo location',
-                        onPressed: () => setState(() => pin = null),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
+              if (recordedPin != null)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Capture location'),
+                  subtitle: Text(
+                    'Accuracy: ${recordedPin!.accuracy?.round() ?? '?'} m',
                   ),
+                  secondary: Icon(
+                    includeLocation
+                        ? Icons.location_on_rounded
+                        : Icons.location_off_rounded,
+                  ),
+                  value: includeLocation,
+                  onChanged: busy || attached
+                      ? null
+                      : (value) => setState(() {
+                          includeLocation = value;
+                          pin = value ? recordedPin : null;
+                        }),
                 ),
-              if (pin == null)
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    final selected = await showPlacePicker(context);
-                    if (selected != null && mounted) {
-                      setState(() => pin = selected);
-                    }
-                  },
-                  icon: const Icon(Icons.place_outlined),
-                  label: const Text('Add a manual place (optional)'),
-                ),
+              const SizedBox(height: 16),
               TextField(
                 controller: caption,
                 readOnly: attached,

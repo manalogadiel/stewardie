@@ -1,4 +1,7 @@
 import { decodeProtectedHeader, importPKCS8, importX509, jwtVerify, SignJWT } from 'https://esm.sh/jose@5.9.6';
+import { fields } from '../_shared/firebase.ts';
+import { joinPlan, JoinFailure } from './join_space.mjs';
+import { locationSession } from './location_session.mjs';
 
 const project = Deno.env.get('FIREBASE_PROJECT_ID') || 'stewardie';
 const database = `projects/${project}/databases/(default)`;
@@ -127,6 +130,87 @@ async function drainDeletion(spaceId: string, uid: string): Promise<Response> {
   return json(200, { status: 'processed' });
 }
 
+function encode(value: any): any {
+  if (value === null) return { nullValue: null };
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(encode) } };
+  if (typeof value === 'boolean') return { booleanValue: value };
+  if (typeof value === 'number') return Number.isInteger(value)
+    ? { integerValue: String(value) } : { doubleValue: value };
+  return { stringValue: value };
+}
+
+async function join(token: string, uid: string, name: string): Promise<Response> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const invitation = await get(`invites/${token}`);
+    const invite = fields(invitation);
+    const spaceId = invite.spaceId;
+    if (!invitation || typeof spaceId !== 'string' || !idPattern.test(spaceId)) {
+      throw new JoinFailure('This invitation is unavailable. Ask for a new code.', 404);
+    }
+    const [space, account, pending, member, reference] = await Promise.all([
+      get(`spaces/${spaceId}`), get(`accounts/${uid}`), get(`spaces/${spaceId}/pendingJoins/${uid}`),
+      get(`spaces/${spaceId}/members/${uid}`), get(`accounts/${uid}/spaceRefs/${spaceId}`),
+    ]);
+    const plan = joinPlan({ uid, token, invite, space: space ? fields(space) : null, account: fields(account), pending: fields(pending), name });
+    if (plan.alreadyJoined) return json(200, { spaceId });
+    const update = (path: string, data: any, prior: any, mask?: string[]) => ({
+      update: { name: `${database}/documents/${path}`, fields: Object.fromEntries(Object.entries(data).map(([key, value]) => [key, encode(value)])) },
+      ...(mask ? { updateMask: { fieldPaths: mask } } : {}),
+      currentDocument: prior ? { updateTime: prior.updateTime } : { exists: false },
+    });
+    const memberWrite = update(`spaces/${spaceId}/members/${uid}`, plan.member, member);
+    memberWrite.update.fields.joinedAt = { timestampValue: plan.member.joinedAt };
+    const eventWrite = update(`spaces/${spaceId}/events/join_${crypto.randomUUID().replaceAll('-', '')}`, plan.event, null);
+    eventWrite.update.fields.createdAt = { timestampValue: plan.event.createdAt };
+    const refWrite = update(`accounts/${uid}/spaceRefs/${spaceId}`, { spaceId, name: fields(space).name, kind: fields(space).kind }, reference);
+    refWrite.update.fields.joinedAt = { timestampValue: plan.member.joinedAt };
+    const writes: any[] = [
+      update(`invites/${token}`, { redeemedUid: uid }, invitation, ['redeemedUid']),
+      update(`spaces/${spaceId}`, { memberUids: plan.memberUids, memberCount: plan.memberUids.length, joinToken: token }, space, ['memberUids','memberCount','joinToken']),
+      update(`accounts/${uid}`, account ? { spaceIds: plan.spaceIds, changedSpaceId: spaceId } : { tier: 'basic', spaceIds: plan.spaceIds, ownedSpaceIds: [], changedSpaceId: spaceId }, account, account ? ['spaceIds','changedSpaceId'] : undefined),
+      memberWrite, refWrite, eventWrite,
+    ];
+    if (pending) writes.push({ delete: `${database}/documents/spaces/${spaceId}/pendingJoins/${uid}`, currentDocument: { updateTime: pending.updateTime } });
+    const result = await fetch(`https://firestore.googleapis.com/v1/${database}/documents:commit`, {
+      method: 'POST', headers: { authorization: `Bearer ${await accessToken()}`, 'content-type': 'application/json' }, body: JSON.stringify({ writes }),
+    });
+    if (result.status === 409 || result.status === 412) continue;
+    if (!result.ok) {
+      const failure = await result.json().catch(() => ({}));
+      if (['ABORTED', 'FAILED_PRECONDITION'].includes(failure.error?.status)) continue;
+      throw new Error(`Join commit failed: ${result.status}`);
+    }
+    return json(200, { spaceId });
+  }
+  return json(409, { error: 'This space changed. Please try joining again.' });
+}
+
+async function startLocation(spaceId: string, uid: string, body: any): Promise<Response> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const space = await get(`spaces/${spaceId}`);
+    const session = locationSession({ ...body, uid, space: space ? fields(space) : null, now: new Date() });
+    const sessionFields = Object.fromEntries(Object.entries(session).map(([key, value]) =>
+      [key, ['startedAt','updatedAt','expiresAt'].includes(key) ? { timestampValue: value } : encode(value)]));
+    const result = await fetch(`https://firestore.googleapis.com/v1/${database}/documents:commit`, {
+      method: 'POST', headers: { authorization: `Bearer ${await accessToken()}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ writes: [
+        // Assert the recipient/membership snapshot atomically without changing it.
+        { update: { name: space.name, fields: { memberUids: space.fields.memberUids } },
+          updateMask: { fieldPaths: ['memberUids'] }, currentDocument: { updateTime: space.updateTime } },
+        { update: { name: `${database}/documents/spaces/${spaceId}/locationSessions/${uid}`, fields: sessionFields } },
+      ] }),
+    });
+    if (result.status === 409 || result.status === 412) continue;
+    if (!result.ok) {
+      const failure = await result.json().catch(() => ({}));
+      if (['ABORTED','FAILED_PRECONDITION'].includes(failure.error?.status)) continue;
+      throw new Error(`Location commit failed: ${result.status}`);
+    }
+    return json(200, { ok: true, expiresAt: session.expiresAt });
+  }
+  return json(409, { error: 'This space changed. Please try sharing again.' });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
   if (req.method !== 'POST') return json(405, { error: 'Use POST.' });
@@ -135,9 +219,16 @@ Deno.serve(async (req) => {
     const raw = await req.text();
     if (raw.length > 2048) return json(413, { error: 'Too large.' });
     const body = JSON.parse(raw);
+    if (body.action === 'join') {
+      const token = typeof body.token === 'string' ? body.token.replace(/[\s-]/g, '').toUpperCase() : '';
+      if (!/^(?:[A-HJ-NP-Z]{6}|[A-HJ-NP-Z]{10})$/.test(token)) return json(400, { error: 'Enter a valid invite code.' });
+      const name = typeof body.name === 'string' ? body.name.slice(0, 80) : 'Member';
+      return await join(token, uid, name);
+    }
     if (typeof body.spaceId !== 'string' || !idPattern.test(body.spaceId)) {
       return json(400, { error: 'Invalid space.' });
     }
+    if (body.action === 'startLocation') return await startLocation(body.spaceId, uid, body);
     if (body.action === 'rename') {
       const name = typeof body.name === 'string' ? body.name.trim() : '';
       if (!name || name.length > 80) return json(400, { error: 'Enter a shorter space name.' });
@@ -146,6 +237,7 @@ Deno.serve(async (req) => {
     if (body.action === 'drainDeletion') return await drainDeletion(body.spaceId, uid);
     return json(400, { error: 'Unknown action.' });
   } catch (error) {
+    if (error instanceof JoinFailure) return json(error.status, { error: error.message });
     console.error('Space action failed', error);
     if (String(error).includes('Unauthorized') || String(error).includes('JWT')) {
       return json(401, { error: 'Sign in again.' });

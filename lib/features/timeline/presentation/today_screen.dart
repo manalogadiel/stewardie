@@ -139,6 +139,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final isMyMood = moodSubject == repo.currentUserId;
     final mood = repo.checkIn(space.id, moodSubject);
     final moodCard = ClayPanel(
+      key: TutorialTargetRegistry.moodTarget,
       color: moodSurface(mood?.color ?? MoodColor.sky),
       padding: EdgeInsets.zero,
       child: InkWell(
@@ -270,11 +271,20 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             children: [
                               moodCard,
                               const SizedBox(height: 12),
-                              CalendarTile(space),
+                              CalendarTile(
+                                space,
+                                key: TutorialTargetRegistry.calendarTarget,
+                              ),
                             ],
                           )
                         : EqualHeightRow(
-                            children: [moodCard, CalendarTile(space)],
+                            children: [
+                              moodCard,
+                              CalendarTile(
+                                space,
+                                key: TutorialTargetRegistry.calendarTarget,
+                              ),
+                            ],
                           ),
                   ),
                   Padding(
@@ -346,6 +356,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: ChoiceChip(
+                                side: BorderSide.none,
+                                elevation: 2,
+                                selectedColor: SoftPop.lightButter,
                                 label: const Text('All history'),
                                 selected: historyDay == -1,
                                 onSelected: (_) =>
@@ -356,6 +369,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                             Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: ChoiceChip(
+                                side: BorderSide.none,
+                                elevation: 2,
+                                selectedColor: SoftPop.lightButter,
                                 label: Text(
                                   i == 0
                                       ? 'Today'

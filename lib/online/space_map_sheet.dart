@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../core/stewardie_map.dart';
+import '../core/location_settings.dart';
 import 'member_location_pin.dart';
 import 'external_launcher.dart';
 import 'live_location_service.dart';
@@ -58,6 +60,12 @@ class SpaceMapSheet extends StatefulWidget {
 class _SpaceMapSheetState extends State<SpaceMapSheet>
     with WidgetsBindingObserver {
   final MapController _mapController = MapController();
+  late final Stream<List<Map<String, dynamic>>> _sessions =
+      widget.spaceId == null
+      ? const Stream.empty()
+      : widget.backend.locationSessions(widget.spaceId!);
+  int _selectionRevision = 0;
+  int _locationRevision = 0;
   int _selectedDuration = 15; // 15, 30, 60
   Map<String, dynamic>? _selectedMember;
   StewardieMapStyle _style = mapTilerKey.isEmpty
@@ -83,7 +91,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
       final pos = LatLng(cached.latitude, cached.longitude);
       _lastKnownCenter = pos;
       _currentUserLatLng = pos;
-      _locationStatus = 'Showing a recent device location while locating…';
+      _locationStatus = 'Your last device location · refreshing…';
     }
     LiveLocationService.instance.currentPosition.addListener(
       _onPositionChanged,
@@ -106,8 +114,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
       setState(() {
         _currentUserLatLng = point;
         _lastKnownCenter = point;
-        _locationStatus = 'Showing a recent device location while locating…';
+        _locationStatus = 'Your last device location · refreshing…';
       });
+      LiveLocationService.instance.currentPosition.value = cached;
       if (_allowAutoCenter && _mapReady) {
         _mapController.move(point, 15);
       }
@@ -119,12 +128,15 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
   void _onPositionChanged() {
     final pos = LiveLocationService.instance.currentPosition.value;
     if (pos != null && mounted) {
-      _freshResolved = true;
+      _freshResolved =
+          DateTime.now().difference(pos.timestamp).inSeconds.abs() < 30;
       final latLng = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _currentUserLatLng = latLng;
         _lastKnownCenter = latLng;
-        _locationStatus = 'Your private device location';
+        _locationStatus = _freshResolved
+            ? 'Your private device location'
+            : 'Your last device location · refreshing…';
       });
       if (_allowAutoCenter && _mapReady) {
         _mapController.move(latLng, 15);
@@ -139,43 +151,60 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
 
   @override
   void dispose() {
+    _locationRevision++;
     WidgetsBinding.instance.removeObserver(this);
     LiveLocationService.instance.currentPosition.removeListener(
       _onPositionChanged,
     );
+    _mapController.dispose();
     super.dispose();
   }
 
   Future<void> _initUserLocation() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      if (mounted) {
+    final revision = ++_locationRevision;
+    bool current() => mounted && revision == _locationRevision;
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!current()) return;
+      if (!enabled) {
         setState(
           () => _locationStatus =
-              'Location services are off. Enable them to recenter.',
+              'Location services are off. $locationSettingsHint',
+        );
+        return;
+      }
+      final pos = await LiveLocationService.instance.determinePosition();
+      if (!current()) return;
+      if (pos != null) {
+        final point = LatLng(pos.latitude, pos.longitude);
+        setState(() {
+          _freshResolved = true;
+          _lastKnownCenter = point;
+          _currentUserLatLng = point;
+          _locationStatus = 'Your private device location';
+        });
+        if (_allowAutoCenter && _mapReady) _mapController.move(point, 15);
+      } else {
+        final permission = await Geolocator.checkPermission();
+        if (!current()) return;
+        setState(
+          () => _locationStatus = switch (permission) {
+            LocationPermission.denied => 'Location permission denied. Tap Enable location to allow access.',
+            LocationPermission.deniedForever => 'Location permission is blocked. Enable access in device settings.',
+            _ =>
+              _currentUserLatLng == null
+                  ? 'Location timed out or is unavailable. Try Recenter.'
+                  : 'Showing your last device location · refresh timed out. Try Recenter.',
+          },
         );
       }
-      return;
-    }
-    final pos = await LiveLocationService.instance.determinePosition();
-    if (pos != null && mounted) {
-      final userLatLng = LatLng(pos.latitude, pos.longitude);
-      setState(() {
-        _lastKnownCenter = userLatLng;
-        _currentUserLatLng = userLatLng;
-        _locationStatus = 'Your private device location';
-      });
-      if (_allowAutoCenter && _mapReady) {
-        _mapController.move(userLatLng, 15.0);
+    } catch (_) {
+      if (current()) {
+        setState(
+          () => _locationStatus =
+              'Could not check your location. Check device settings and retry.',
+        );
       }
-    } else if (mounted) {
-      final permission = await Geolocator.checkPermission();
-      setState(
-        () => _locationStatus =
-            permission == LocationPermission.denied ||
-                permission == LocationPermission.deniedForever
-            ? 'Location permission denied. Enable it in device settings.'
-            : 'Location timed out or is unavailable. Try Recenter.',
-      );
     }
   }
 
@@ -184,37 +213,39 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
     if (_currentUserLatLng != null && _mapReady) {
       _mapController.move(_currentUserLatLng!, 15);
     }
-    final pos = await LiveLocationService.instance.determinePosition();
-    if (pos != null && mounted) {
-      final userLatLng = LatLng(pos.latitude, pos.longitude);
-      setState(() {
-        _lastKnownCenter = userLatLng;
-        _currentUserLatLng = userLatLng;
-        _locationStatus = 'Your private device location';
-      });
-      if (_mapReady) {
-        _mapController.move(userLatLng, 15.0);
-      }
-    } else if (mounted) {
-      setState(
-        () => _locationStatus =
-            'Could not update your location. Check permission and services.',
-      );
-    }
+    await _initUserLocation();
   }
 
   Future<void> _recoverLocation() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      await Geolocator.openLocationSettings();
-    } else {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        await openDeviceLocationSettings();
+        if (mounted) setState(() => _locationStatus = locationSettingsHint);
+        // The foreground observer obtains a new private fix on return.
+        return;
+      }
       final permission = await Geolocator.checkPermission();
+      if (!mounted) return;
       if (permission == LocationPermission.deniedForever) {
-        await Geolocator.openAppSettings();
+        final opened = await Geolocator.openAppSettings();
+        if (!mounted) return;
+        if (!opened) {
+          setState(
+            () => _locationStatus = 'Open device Settings and allow Stewardie to use your location.',
+          );
+          return;
+        }
       } else if (permission == LocationPermission.denied) {
         await Geolocator.requestPermission();
       }
+      if (mounted) await _initUserLocation();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _locationStatus = 'Could not open location settings. Check device settings and retry.',
+        );
+      }
     }
-    if (mounted) await _initUserLocation();
   }
 
   Future<void> _startSharing() async {
@@ -270,6 +301,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
         spaceId: widget.spaceId!,
         durationMinutes: _selectedDuration,
       );
+      if (mounted) Navigator.pop(context);
     } catch (error) {
       if (mounted) {
         setState(
@@ -301,14 +333,22 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Space map',
-                      style: TextStyle(
-                        fontFamily: 'NunitoSans',
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF202633),
+                    const Flexible(
+                      child: Text(
+                        'Space map',
+                        style: TextStyle(
+                          fontFamily: 'NunitoSans',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF202633),
+                        ),
                       ),
+                    ),
+                    Image.asset(
+                      'assets/illustrations/mascot-map-explorer.png',
+                      width: 52,
+                      height: 60,
+                      cacheWidth: 156,
                     ),
                     Row(
                       children: [
@@ -341,18 +381,43 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                   ),
                 const SizedBox(height: 16),
                 StreamBuilder<List<Map<String, dynamic>>>(
-                  stream: widget.spaceId == null
-                      ? const Stream.empty()
-                      : widget.backend.locationSessions(widget.spaceId!),
+                  stream: _sessions,
                   builder: (context, snapshot) {
-                    final sessions =
-                        snapshot.data ?? const <Map<String, dynamic>>[];
+                    final sessions = snapshot.hasError
+                        ? const <Map<String, dynamic>>[]
+                        : snapshot.data ?? const <Map<String, dynamic>>[];
 
                     final myUid = widget.backend.auth.currentUser?.uid;
                     final myUser = widget.backend.auth.currentUser;
                     final myRawName = myUser?.displayName?.isNotEmpty == true
                         ? myUser!.displayName!
                         : (myUser?.email?.split('@').first ?? 'You');
+
+                    if (_selectedMember != null &&
+                        (snapshot.hasData ||
+                            snapshot.hasError ||
+                            _selectedMember!['uid'] == myUid)) {
+                      final selectedUid = _selectedMember!['uid'] as String?;
+                      final personal = _currentUserLatLng;
+                      final latest = resolveSelectedMemberLocation(
+                        selectedUid: selectedUid,
+                        currentUid: myUid,
+                        sessions: sessions,
+                        personalLocation: personal == null
+                            ? null
+                            : _personalLocation(myUid, myRawName, personal),
+                      );
+                      if (!mapEquals(_selectedMember, latest)) {
+                        final revision = ++_selectionRevision;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted &&
+                              revision == _selectionRevision &&
+                              _selectedMember?['uid'] == selectedUid) {
+                            setState(() => _selectedMember = latest);
+                          }
+                        });
+                      }
+                    }
 
                     // Build markers for all active sessions
                     final markers = <Marker>[];
@@ -405,12 +470,11 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                           child: GestureDetector(
                             onTap: () {
                               setState(() {
-                                _selectedMember = {
-                                  'uid': myUid,
-                                  'name': '$myRawName (You)',
-                                  'lat': userPoint.latitude,
-                                  'lng': userPoint.longitude,
-                                };
+                                _selectedMember = _personalLocation(
+                                  myUid,
+                                  myRawName,
+                                  userPoint,
+                                );
                               });
                             },
                             child: _buildPin(
@@ -497,33 +561,32 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFFE5E2DA)),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedMember!['name'] as String? ?? 'Member',
-                                style: const TextStyle(
-                                  fontFamily: 'NunitoSans',
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF202633),
-                                ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedMember!['name'] as String? ?? 'Member',
+                              style: const TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF202633),
                               ),
-                              Text(
-                                _memberLocationStatus(_selectedMember!),
-                                style: const TextStyle(
-                                  fontFamily: 'NunitoSans',
-                                  fontSize: 12,
-                                  color: Color(0xFF596171),
-                                ),
+                            ),
+                            Text(
+                              _memberLocationStatus(_selectedMember!),
+                              style: const TextStyle(
+                                fontFamily: 'NunitoSans',
+                                fontSize: 12,
+                                color: Color(0xFF596171),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 8),
                         TextButton(
                           onPressed: () {
                             final lat = (_selectedMember!['lat'] as num?)
@@ -687,6 +750,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                                       horizontal: 4,
                                     ),
                                     child: ChoiceChip(
+                                      showCheckmark: false,
                                       label: Center(
                                         child: Text(
                                           '${d}m',
@@ -697,19 +761,15 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                                                 ? FontWeight.w700
                                                 : FontWeight.w500,
                                             color: _selectedDuration == d
-                                                ? Colors.white
+                                                ? const Color(0xFF202633)
                                                 : const Color(0xFF202633),
                                           ),
                                         ),
                                       ),
                                       selected: _selectedDuration == d,
-                                      selectedColor: const Color(0xFF244BFF),
+                                      selectedColor: const Color(0xFFFBEBC5),
                                       backgroundColor: const Color(0xFFFFFEFB),
-                                      side: BorderSide(
-                                        color: _selectedDuration == d
-                                            ? const Color(0xFF244BFF)
-                                            : const Color(0xFFE5E2DA),
-                                      ),
+                                      side: BorderSide.none,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
@@ -730,18 +790,30 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                             child: FilledButton(
                               onPressed: _starting ? null : _startSharing,
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF244BFF),
+                                backgroundColor: const Color(0xFFFBEBC5),
+                                foregroundColor: const Color(0xFF202633),
+                                elevation: 2,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                               ),
-                              child: Text(
-                                _starting ? 'Starting�' : 'Start sharing',
-                                style: const TextStyle(
-                                  fontFamily: 'NunitoSans',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_starting) ...[
+                                    const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                  ],
+                                  Text(
+                                    _starting ? 'Starting…' : 'Start sharing',
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -765,15 +837,33 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
     );
   }
 
+  Map<String, dynamic> _personalLocation(
+    String? uid,
+    String name,
+    LatLng point,
+  ) {
+    final fix = LiveLocationService.instance.currentPosition.value;
+    return {
+      'uid': uid,
+      'name': '$name (You)',
+      'lat': point.latitude,
+      'lng': point.longitude,
+      'private': true,
+      if (fix != null) 'updatedAt': Timestamp.fromDate(fix.timestamp),
+      if (fix != null) 'accuracy': fix.accuracy,
+    };
+  }
+
   String _memberLocationStatus(Map<String, dynamic> member) {
     final updated = member['updatedAt'];
-    if (updated is! Timestamp) return 'Current device location · not shared';
+    if (updated is! Timestamp) return 'Update time unavailable';
     final age = DateTime.now().difference(updated.toDate());
     final ageLabel = age.inMinutes < 1 ? 'just now' : '${age.inMinutes}m ago';
     final accuracy = member['accuracy'] is num
         ? ' · ±${(member['accuracy'] as num).round()} m'
         : '';
-    return '${age > const Duration(minutes: 2) ? 'Stale · ' : ''}Updated $ageLabel$accuracy';
+    final privacy = member['private'] == true ? 'Private · not shared · ' : '';
+    return '$privacy${age > const Duration(minutes: 2) ? 'Stale · ' : ''}Updated $ageLabel$accuracy';
   }
 
   Widget _buildPin({

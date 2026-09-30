@@ -1,6 +1,7 @@
 # Stewardie — Subscription Plan v1
 
 Updated: September 30, 2026. Pricing and Plus history wording confirmed by the owner; see [public-testing completion plan](public-testing-completion-plan.md).
+Latest owner decision: Basic is limited to three total memberships, including owned spaces; both Create and Join disable at the cap. See [the next implementation plan](media-tour-soft-pop-polish-plan.md). This policy change is documented here; the existing runtime still requires coordinated UI, rules and trusted-join updates.
 Status: finalized product-planning baseline for the pilot. Not a deployed billing system or a public offer. The two tiers and pilot limits are approved; price is a launch target and the 5 GB allowance requires a cost check before public paid launch.
 
 This supersedes earlier Free/Plus/Pro and per-space subscription proposals.
@@ -21,7 +22,7 @@ One person subscribes once. Other members keep their own plans. Plus does not up
 | Capability | Basic | Personal Plus | Scope |
 |---|---|---|---|
 | Spaces created/owned | 3 | 20 | Per account |
-| Total space memberships | 20 | 50 | Per account, including owned spaces |
+| Total space memberships | 3 | 50 | Per account, including owned spaces |
 | Members per space | 20 | 20 | Shared space total, including owner |
 | Active tasks per space | 300 | 300 | Shared, not multiplied by members |
 | Completed-task history | Today + previous 3 days | Unlimited retained authorized history (no age cutoff) | Per viewer |
@@ -55,7 +56,7 @@ Example: a Plus user owns 10 spaces, has one subscription, and has 5 GB total st
 
 - Show usage and the applicable limit before a blocked action. Preserve existing authorized content and unfinished work.
 - Cancellation retains benefits until the paid period ends. After expiry, apply Basic history visibility without deleting older task records because the subscription ended.
-- If an account owns more than 3 spaces or belongs to more than 20, keep existing memberships and spaces usable. Prevent additions that exceed the relevant Basic limit; do not remove people or delete spaces.
+- If an account owns more than 3 spaces or belongs to more than 3, keep existing memberships and spaces usable. Prevent additions that exceed the relevant Basic limit; do not remove people or delete spaces.
 - If storage exceeds 100 MB, block new uploads until below the Basic allowance or upgraded. Preserve existing authorized photo viewing/downloads. No automatic deletion solely because of downgrade during the pilot.
 - Existing tasks and photo attachments remain usable even when above the new attachment allowance.
 - Proposed launch behavior for advanced routines: pause future generation when their manager loses Plus; preserve already generated tasks and notify the manager and affected space admins. Allow an eligible Plus member with appropriate permissions to take over explicitly. Finalize this behavior and notice timing before billing ships.

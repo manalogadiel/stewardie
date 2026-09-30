@@ -23,15 +23,25 @@ class _TutorialEntryGateState extends ConsumerState<TutorialEntryGate> {
       final db = ref.read(tutorialDatabaseProvider);
       final uid = ref.read(sharedBackendProvider)?.auth.currentUser?.uid;
       if (db == null || uid == null || !mounted) return;
-      await TutorialCoordinator(db).checkAndPromptTour(
+      await TutorialCoordinator(
+        db,
+        backend: ref.read(sharedBackendProvider),
+      ).checkAndPromptTour(
         context,
         uid: uid,
         onTabRequested: (tab) => widget.onTabRequested(tab),
       );
       if (!mounted) return;
-      final status = await TutorialStore(db).getStatus(uid);
+      final status = await TutorialStore(
+        db,
+        backend: ref.read(sharedBackendProvider),
+      ).getStatus(uid);
       if (mounted)
-        setState(() => awaiting = status == TutorialStatus.awaitingSpace);
+        setState(
+          () => awaiting =
+              status == TutorialStatus.awaitingSpace ||
+              status == TutorialStatus.inProgress,
+        );
     });
   }
 
@@ -48,7 +58,11 @@ class _TutorialEntryGateState extends ConsumerState<TutorialEntryGate> {
           145 + MediaQuery.paddingOf(context).bottom,
         ),
         child: FilledButton.icon(
-          icon: const Icon(Icons.explore_outlined),
+          icon: Image.asset(
+            'assets/illustrations/clay-navigation.png',
+            width: 28,
+            height: 28,
+          ),
           label: const Text('Continue tour'),
           onPressed: busy
               ? null
@@ -63,12 +77,14 @@ class _TutorialEntryGateState extends ConsumerState<TutorialEntryGate> {
                     busy = true;
                     awaiting = false;
                   });
-                  await TutorialCoordinator(ref.read(tutorialDatabaseProvider))
-                      .continueTour(
-                        context,
-                        uid: uid,
-                        onTabRequested: (tab) => widget.onTabRequested(tab),
-                      );
+                  await TutorialCoordinator(
+                    ref.read(tutorialDatabaseProvider),
+                    backend: ref.read(sharedBackendProvider),
+                  ).continueTour(
+                    context,
+                    uid: uid,
+                    onTabRequested: (tab) => widget.onTabRequested(tab),
+                  );
                   if (mounted) setState(() => busy = false);
                 },
         ),

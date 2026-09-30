@@ -446,9 +446,10 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                         Navigator.of(context).pop();
                         widget.onTakeTour?.call();
                       },
-                      icon: const Icon(
-                        Icons.explore_outlined,
-                        color: Color(0xFF202633),
+                      icon: Image.asset(
+                        'assets/illustrations/clay-navigation.png',
+                        width: 28,
+                        height: 28,
                       ),
                       label: const Text(
                         'Take a tour',
