@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../core/task_name.dart';
+
 import 'package:flutter/material.dart';
 import 'package:sembast/sembast.dart';
 
@@ -222,6 +224,11 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     }
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
+    final titleError = taskNameError(title);
+    if (titleError != null) {
+      if (mounted) setState(() => _saveError = titleError);
+      return;
+    }
 
     final note = _noteController.text.trim();
     final destination = _destinationController.text.trim();

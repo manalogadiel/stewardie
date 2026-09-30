@@ -6,6 +6,7 @@ import '../../../core/demo_state.dart';
 import '../../../core/sync_state.dart';
 import '../../../core/place_pin.dart';
 import '../../../core/theme.dart';
+import '../../../core/task_name.dart';
 import '../../../core/widgets.dart';
 import '../../../online/firebase_repository.dart';
 import '../domain/models.dart';
@@ -177,9 +178,7 @@ class _AddTaskState extends ConsumerState<_AddTask> {
                   labelText: 'Task name',
                   hintText: 'What needs doing?',
                 ),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Give your task a name.'
-                    : null,
+                validator: taskNameError,
               ),
               DropdownButtonFormField<String>(
                 initialValue: requestedUid ?? '',

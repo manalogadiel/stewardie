@@ -20,6 +20,7 @@ import 'features/timeline/presentation/today_screen.dart';
 import 'online/space_map_sheet.dart';
 import 'online/live_location_pill.dart';
 import 'online/activity_inbox_sheet.dart';
+import 'online/account_notification_bell.dart';
 import 'online/online_home.dart';
 import 'online/qr_join_sheet.dart';
 
@@ -304,7 +305,20 @@ class AppShell extends ConsumerWidget {
                           ),
                           key: TutorialTargetRegistry.notificationBellTarget,
                           tooltip: 'Inbox',
-                          icon: const Icon(Icons.notifications_none_rounded),
+                          icon: Builder(
+                            builder: (_) {
+                              final backend = ref.watch(sharedBackendProvider);
+                              return backend == null
+                                  ? const Icon(Icons.notifications_none_rounded)
+                                  : AccountNotificationBell(
+                                      backend: backend,
+                                      uid: repo.currentUserId,
+                                      spaceIds: repo.spaces
+                                          .map((s) => s.id)
+                                          .toList(),
+                                    );
+                            },
+                          ),
                           onPressed: () {
                             final requests = state.tasks
                                 .where(

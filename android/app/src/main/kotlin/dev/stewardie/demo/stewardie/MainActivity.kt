@@ -11,6 +11,10 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.SoundPool
+import android.net.Uri
 
 class MainActivity : FlutterActivity() {
     private var listener: OrientationEventListener? = null
@@ -18,6 +22,7 @@ class MainActivity : FlutterActivity() {
     private var lastQuadrant = -1
     private var notifications: MethodChannel? = null
     private var pendingNotification: String? = null
+    private var sounds: SoundPool? = null
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -32,10 +37,25 @@ class MainActivity : FlutterActivity() {
         pendingNotification = intent?.getStringExtra("stewardie_activity")
         intent?.removeExtra("stewardie_activity")
         notifications = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "stewardie/notifications")
+        val pool = SoundPool.Builder().setMaxStreams(2).setAudioAttributes(AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()).build()
+        sounds = pool
+        val loaded = mutableSetOf<Int>()
+        pool.setOnLoadCompleteListener { _, id, status -> if (status == 0) loaded.add(id) }
+        val cues = mapOf("capture" to pool.load(this, R.raw.capture, 1), "success" to pool.load(this, R.raw.success, 1))
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "stewardie/sounds").setMethodCallHandler { call, result ->
+            val id = cues[call.arguments as? String]
+            val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+            if (call.method == "play" && id != null && loaded.contains(id) && audio.ringerMode == AudioManager.RINGER_MODE_NORMAL) pool.play(id, .4f, .4f, 1, 0, 1f)
+            result.success(null)
+        }
         notifications!!.setMethodCallHandler { call, result ->
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             if (Build.VERSION.SDK_INT >= 26) {
-                manager.createNotificationChannel(NotificationChannel("stewardie_updates", "Stewardie updates", NotificationManager.IMPORTANCE_HIGH))
+                val previous = manager.getNotificationChannel("stewardie_updates")
+                val channel = NotificationChannel("stewardie_updates_clay", "Stewardie updates", previous?.importance ?: NotificationManager.IMPORTANCE_HIGH)
+                channel.setSound(if (previous != null && previous.sound == null) null else Uri.parse("android.resource://$packageName/${R.raw.notification}"), AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build())
+                manager.createNotificationChannel(channel)
             }
             when (call.method) {
                 "configure" -> result.success(null)
@@ -50,15 +70,12 @@ class MainActivity : FlutterActivity() {
                 "show" -> {
                     val id = call.argument<Int>("id") ?: 1
                     val activityId = call.argument<String>("activityId") ?: ""
-                    if (Build.VERSION.SDK_INT >= 26) {
-                        manager.createNotificationChannel(NotificationChannel("stewardie_updates", "Stewardie updates", NotificationManager.IMPORTANCE_HIGH))
-                    }
                     val target = Intent(this, MainActivity::class.java).apply {
                         flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                         putExtra("stewardie_activity", activityId)
                     }
                     val open = PendingIntent.getActivity(this, id, target, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-                    val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "stewardie_updates") else Notification.Builder(this)
+                    val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "stewardie_updates_clay") else Notification.Builder(this).setSound(Uri.parse("android.resource://$packageName/${R.raw.notification}"))
                     builder.setSmallIcon(R.drawable.ic_notification)
                         .setContentTitle("Stewardie").setContentText("You have an update in your space.")
                         .setVisibility(Notification.VISIBILITY_PRIVATE).setAutoCancel(true)
@@ -99,5 +116,5 @@ class MainActivity : FlutterActivity() {
     }
     override fun onPause() { listener?.disable(); super.onPause() }
     override fun onResume() { super.onResume(); if (sink != null) listener?.enable() }
-    override fun onDestroy() { listener?.disable(); sink = null; super.onDestroy() }
+    override fun onDestroy() { sounds?.release(); sounds = null; listener?.disable(); sink = null; super.onDestroy() }
 }

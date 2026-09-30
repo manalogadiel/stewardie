@@ -102,7 +102,7 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
           .collection('accounts/${widget.uid}/activity')
           .where('readAt', isNull: true)
           .orderBy('createdAt', descending: true)
-          .limit(100)
+          .limit(200)
           .snapshots()
           .listen(
             (snapshot) {
@@ -139,7 +139,12 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        const Icon(Icons.notifications_none_rounded),
+        Icon(
+          unread > 0
+              ? Icons.notifications_active_rounded
+              : Icons.notifications_none_rounded,
+          color: unread > 0 ? SoftPop.blue : SoftPop.secondary,
+        ),
         if (unread > 0)
           Positioned(
             right: -8,
@@ -147,13 +152,13 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: SoftPop.blue,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
                 child: Text(
-                  unread > 9 ? '9+' : '$unread',
+                  unread > 99 ? '99+' : '$unread',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,

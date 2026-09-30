@@ -11,7 +11,7 @@ const mapTilerKey = String.fromEnvironment(
   defaultValue: '7uwMZ6Idub8CZM4AXzAR',
 );
 
-enum StewardieMapStyle { satellite, streets }
+enum StewardieMapStyle { hybrid, streets }
 
 class StewardieMap extends StatefulWidget {
   const StewardieMap({
@@ -24,7 +24,7 @@ class StewardieMap extends StatefulWidget {
     this.onReady,
     this.onUserInteraction,
     this.onStyleChanged,
-    this.style = StewardieMapStyle.satellite,
+    this.style = StewardieMapStyle.hybrid,
   });
 
   final LatLng center;
@@ -46,12 +46,12 @@ class _StewardieMapState extends State<StewardieMap> {
   int retry = 0;
 
   bool get satellite =>
-      widget.style == StewardieMapStyle.satellite && mapTilerKey.isNotEmpty;
+      widget.style == StewardieMapStyle.hybrid && mapTilerKey.isNotEmpty;
 
   String get url => failed
       ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
       : satellite
-      ? 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$mapTilerKey'
+      ? 'https://api.maptiler.com/maps/hybrid-v4/{z}/{x}/{y}.jpg?key=$mapTilerKey'
       : mapTilerKey.isNotEmpty
       ? 'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$mapTilerKey'
       : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -200,7 +200,7 @@ class _StewardieMapState extends State<StewardieMap> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    satellite ? 'Satellite unavailable' : 'Map unavailable',
+                    satellite ? 'Hybrid unavailable' : 'Map unavailable',
                     style: const TextStyle(fontSize: 12),
                   ),
                 ],
@@ -229,12 +229,12 @@ class MapLayersButton extends StatelessWidget {
     onSelected: onSelected,
     itemBuilder: (context) => [
       PopupMenuItem(
-        value: StewardieMapStyle.satellite,
+        value: StewardieMapStyle.hybrid,
         enabled: mapTilerKey.isNotEmpty,
         child: _styleOption(
           Icons.satellite_alt_outlined,
-          mapTilerKey.isEmpty ? 'Satellite needs a map key' : 'Satellite',
-          selected == StewardieMapStyle.satellite,
+          mapTilerKey.isEmpty ? 'Satellite needs a map key' : 'Satellite hybrid',
+          selected == StewardieMapStyle.hybrid,
         ),
       ),
       PopupMenuItem(

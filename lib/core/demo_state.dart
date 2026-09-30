@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'sound_feedback.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sembast/sembast.dart';
 
@@ -126,6 +128,8 @@ class DemoController extends Notifier<DemoState> {
     String? error;
     try {
       await repository.act(task.id, action, repository.currentUserId);
+      if (action == TaskAction.complete)
+        unawaited(SoundFeedback.play('success'));
     } on DemoException catch (exception) {
       error = exception.message;
     } catch (_) {

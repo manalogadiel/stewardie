@@ -9,10 +9,12 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as native;
 
 import '../../core/theme.dart';
+import '../../core/sound_feedback.dart';
 import '../../core/clay.dart';
 import '../../core/soft_pop_backdrop.dart';
 import '../../core/device_orientation.dart';
 import '../../core/place_pin.dart';
+import '../../online/live_location_service.dart';
 import 'media_library.dart' show FramingRect;
 
 class CapturedPhoto {
@@ -201,13 +203,9 @@ class _CameraScreenState extends State<CameraScreen>
                   'Location access is unavailable. The photo has no location.';
             } else {
               // Start the fix after permission UI finishes, near the shutter.
-              locationFuture =
-                  Geolocator.getCurrentPosition(
-                    locationSettings: const LocationSettings(
-                      accuracy: LocationAccuracy.medium,
-                      timeLimit: Duration(seconds: 12),
-                    ),
-                  ).then<Position?>(
+              locationFuture = LiveLocationService.instance
+                  .determinePosition()
+                  .then<Position?>(
                     (value) => value,
                     onError: (Object _) {
                       locationIssue =
@@ -244,6 +242,7 @@ class _CameraScreenState extends State<CameraScreen>
             )
           : await controller!.takePicture();
       if (file != null) {
+        if (!gallery) unawaited(SoundFeedback.play('capture'));
         final selectedCrop = shutterRatio;
         final pendingPin = locationFuture?.then(
           (fix) =>

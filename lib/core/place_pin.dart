@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+
+import 'dart:async';
+
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'theme.dart';
 import 'stewardie_map.dart';
+import 'place_names.dart';
+import '../online/live_location_service.dart';
 
 /// A fixed, explicitly shared place. It never represents a live session.
 class PlacePin {
@@ -84,10 +89,15 @@ class _PlacePickerState extends State<_PlacePicker> {
   late final label = TextEditingController(text: widget.initial?.label);
   late final note = TextEditingController(text: widget.initial?.note);
   LatLng? point;
+  LatLng? _center;
+  bool _userMoved = false;
+  bool _naming = false;
+  int _nameRevision = 0;
+  Timer? _nameTimer;
   String? error;
   StewardieMapStyle style = mapTilerKey.isEmpty
       ? StewardieMapStyle.streets
-      : StewardieMapStyle.satellite;
+      : StewardieMapStyle.hybrid;
 
   @override
   void initState() {
@@ -95,16 +105,37 @@ class _PlacePickerState extends State<_PlacePicker> {
     if (widget.initial != null) {
       point = LatLng(widget.initial!.lat, widget.initial!.lng);
     }
+    unawaited(useCurrent(select: false));
   }
 
   @override
   void dispose() {
     label.dispose();
+    _nameTimer?.cancel();
     note.dispose();
     super.dispose();
   }
 
-  Future<void> useCurrent() async {
+  void selectPoint(LatLng value) {
+    final revision = ++_nameRevision;
+    _nameTimer?.cancel();
+    setState(() {
+      point = value;
+      label.clear();
+      _naming = true;
+      error = null;
+    });
+    _nameTimer = Timer(const Duration(milliseconds: 350), () async {
+      final name = await nameForPlace(value.latitude, value.longitude);
+      if (!mounted || revision != _nameRevision) return;
+      setState(() {
+        label.text = name;
+        _naming = false;
+      });
+    });
+  }
+
+  Future<void> useCurrent({bool select = true}) async {
     try {
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
@@ -114,19 +145,17 @@ class _PlacePickerState extends State<_PlacePicker> {
           permission == LocationPermission.deniedForever) {
         throw StateError('Location permission is off. Tap the map instead.');
       }
-      final fix = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
+      final fix = await LiveLocationService.instance.determinePosition();
+      if (fix == null) throw StateError('Location unavailable.');
       if (!mounted) return;
+      if (!select && _userMoved) return;
       setState(() {
-        point = LatLng(fix.latitude, fix.longitude);
+        _center = LatLng(fix.latitude, fix.longitude);
         error = null;
       });
+      if (select) selectPoint(_center!);
       if (_mapReady) {
-        controller.move(point!, 15);
+        controller.move(_center!, 16);
       } else {
         _pendingCenter = true;
       }
@@ -174,20 +203,21 @@ class _PlacePickerState extends State<_PlacePicker> {
                   controller: controller,
                   onReady: () {
                     _mapReady = true;
-                    if (_pendingCenter && point != null) {
-                      controller.move(point!, 15);
+                    if (_pendingCenter && _center != null) {
+                      controller.move(_center!, 16);
                       _pendingCenter = false;
                     }
                   },
-                  center: p ?? const LatLng(12, 122),
-                  zoom: p == null ? 5 : 14,
+                  center: _center ?? p ?? const LatLng(12, 122),
+                  zoom: _center == null && p == null ? 5 : 16,
+                  onUserInteraction: () => _userMoved = true,
                   style: style,
                   onStyleChanged: (value) => setState(() => style = value),
-                  onTap: (_, position) => setState(() {
-                    point = position;
+                  onTap: (_, position) {
+                    _userMoved = true;
                     _pendingCenter = false;
-                    error = null;
-                  }),
+                    selectPoint(position);
+                  },
                   markers: [
                     if (p != null)
                       Marker(
@@ -207,15 +237,18 @@ class _PlacePickerState extends State<_PlacePicker> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: useCurrent,
+                onPressed: () => useCurrent(),
                 icon: const Icon(Icons.my_location_rounded),
                 label: const Text('Center on me'),
               ),
             ),
             TextField(
               controller: label,
-              maxLength: 80,
-              decoration: const InputDecoration(labelText: 'Place name'),
+              readOnly: true,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: _naming ? 'Finding place name…' : 'Selected place',
+              ),
             ),
             TextField(
               controller: note,
@@ -227,7 +260,7 @@ class _PlacePickerState extends State<_PlacePicker> {
             if (error != null)
               Text(error!, style: const TextStyle(color: Colors.red)),
             FilledButton(
-              onPressed: p == null
+              onPressed: p == null || _naming
                   ? null
                   : () {
                       if (label.text.trim().isEmpty) {

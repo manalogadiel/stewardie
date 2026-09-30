@@ -16,6 +16,7 @@ service cloud.firestore {
     }
     function plus() { return isTierPlus(get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data); }
     function shortText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
+    function validTaskName(value) { return shortText(value, 120) && !value.matches('.*([Aa]{6,}|[Bb]{6,}|[Cc]{6,}|[Dd]{6,}|[Ee]{6,}|[Ff]{6,}|[Gg]{6,}|[Hh]{6,}|[Ii]{6,}|[Jj]{6,}|[Kk]{6,}|[Ll]{6,}|[Mm]{6,}|[Nn]{6,}|[Oo]{6,}|[Pp]{6,}|[Qq]{6,}|[Rr]{6,}|[Ss]{6,}|[Tt]{6,}|[Uu]{6,}|[Vv]{6,}|[Ww]{6,}|[Xx]{6,}|[Yy]{6,}|[Zz]{6,}|0{6,}|1{6,}|2{6,}|3{6,}|4{6,}|5{6,}|6{6,}|7{6,}|8{6,}|9{6,}).*'); }
     function validPin(pin) {
       return pin is map
         && pin.keys().hasOnly(['lat','lng','label','note','source'])
@@ -419,7 +420,7 @@ service cloud.firestore {
           || (afterSpace(id).activeTaskCount == sp(id).activeTaskCount - 1 && afterSpace(id).changedTaskId == task));
         allow create: if member(id) && request.resource.data.keys().hasOnly(['title','note','destination','pin','creatorUid','requestedUid','ownerUid','offeredUid','status','scheduledLocalDate','version','completedAt','createdAt','updatedAt','subtasks','helpNeeded','handoffToUid','activity'])
           && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
-          && shortText(request.resource.data.title, 120) && request.resource.data.creatorUid == request.auth.uid
+          && validTaskName(request.resource.data.title) && request.resource.data.creatorUid == request.auth.uid
           && request.resource.data.scheduledLocalDate is string
           && request.resource.data.scheduledLocalDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
           && request.resource.data.ownerUid == null && request.resource.data.offeredUid == null && request.resource.data.completedAt == null
@@ -454,7 +455,7 @@ service cloud.firestore {
             && (!('pin' in request.resource.data) || validPin(request.resource.data.pin))
             && request.resource.data.requestedUid == resource.data.requestedUid
             && request.resource.data.updatedAt == request.time
-            && shortText(request.resource.data.title, 120);
+            && validTaskName(request.resource.data.title);
         }
         function helpTakeover() {
           return resource.data.get('helpNeeded', false) == true

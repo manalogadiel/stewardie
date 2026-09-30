@@ -656,8 +656,8 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
         token: deviceToken,
         notification: { title: 'Stewardie', body: 'You have an update in your space.' },
         data: { activityId: path.split('/').pop()!, spaceId },
-        android: { collapse_key: String(data.pushId ?? path).slice(0, 64), notification: { channel_id: 'stewardie_updates', tag: `stewardie_${path.split('/').pop()}` } },
-        apns: { headers: { 'apns-collapse-id': String(data.pushId ?? path).slice(0, 64) } },
+        android: { collapse_key: String(data.pushId ?? path).slice(0, 64), notification: { channel_id: 'stewardie_updates_clay', sound: 'notification', tag: `stewardie_${path.split('/').pop()}` } },
+        apns: { headers: { 'apns-collapse-id': String(data.pushId ?? path).slice(0, 64) }, payload: { aps: { sound: 'notification.wav' } } },
       } }),
     });
     if (response.ok) {

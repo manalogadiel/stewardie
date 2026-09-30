@@ -39,7 +39,7 @@ Future<void> showPhotoLocation(
   ].join(' · ');
   var expandedStyle = mapTilerKey.isEmpty
       ? StewardieMapStyle.streets
-      : StewardieMapStyle.satellite;
+      : StewardieMapStyle.hybrid;
   await showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,

@@ -109,6 +109,7 @@ class SparkBackend {
         });
         return {'spaceId': ref.id};
       case 'createTask':
+        checkedTaskName(v['title'] as String);
         final requestedDay = v['scheduledLocalDate'] as String?;
         if (requestedDay != null &&
             !RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(requestedDay)) {
@@ -775,7 +776,7 @@ class SparkBackend {
           'updatedAt': FieldValue.serverTimestamp(),
         };
         if (v.containsKey('title')) {
-          updates['title'] = (v['title'] as String).trim();
+          updates['title'] = checkedTaskName(v['title'] as String);
         }
         if (v.containsKey('note')) {
           updates['note'] = (v['note'] as String).trim();

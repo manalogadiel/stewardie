@@ -340,6 +340,7 @@ test('pilot tour status is owner-only and task edits advance revision without ch
  await assertFails(db('alice').doc('accounts/bob/tutorial/state').set({status:'skipped',updatedAt:now()}));
  await assertFails(state.set({status:'invented',updatedAt:now()}));
  const task=d.doc('spaces/home/tasks/task');
+ await assertFails(task.update({title:'aaaaaa',version:2,updatedAt:now()}));
  await assertSucceeds(task.update({title:'Dishes later',note:'After lunch',version:2,updatedAt:now()}));
  await assertFails(task.update({ownerUid:'bob',version:3,updatedAt:now()}));
  await assertFails(db('outsider').doc('spaces/home/tasks/task').update({title:'Forged',version:3,updatedAt:now()}));

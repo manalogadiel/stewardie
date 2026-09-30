@@ -7,6 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stewardie/core/demo_state.dart';
 import 'package:stewardie/core/theme.dart';
+import 'package:stewardie/core/task_name.dart';
+import 'package:stewardie/core/stewardie_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:stewardie/features/timeline/data/demo_repository.dart';
 import 'package:stewardie/features/timeline/domain/models.dart';
 import 'package:stewardie/features/onboarding/permission_adapter.dart';
@@ -69,6 +72,34 @@ class HeldReactions extends Fake implements CloudMediaLibrary {
 }
 
 void main() {
+  test(
+    'task names reject repeated keys but preserve short and ordinary names',
+    () {
+      expect(taskNameError('aaaaaa'), isNotNull);
+      expect(taskNameError('Fix AAAAAA sink'), isNotNull);
+      expect(taskNameError('111111'), isNotNull);
+      expect(taskNameError('Go'), isNull);
+      expect(taskNameError('Book a room'), isNull);
+    },
+  );
+  testWidgets('map refresh is visible before a tile error', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 300,
+            child: StewardieMap(center: const LatLng(14.6, 121), zoom: 16),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byTooltip('Refresh map'), findsOneWidget);
+    await tester.tap(find.byTooltip('Refresh map'));
+    await tester.pump();
+    expect(find.byTooltip('Refresh map'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'tour continuation remains usable on a short screen with enlarged text',
     (tester) async {

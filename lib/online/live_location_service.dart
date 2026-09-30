@@ -300,8 +300,11 @@ class LiveLocationService {
               identical(backend, _backend) &&
               uid == backend?.auth.currentUser?.uid &&
               spaceId == _activeSpaceId;
-          if (!current() || spaceId == null || backend == null || _sending)
-            return;
+          if (!current() || spaceId == null || backend == null) return;
+          // Local GPS is independent of cloud upload throttling/failure. Camera
+          // fixes must remain available while the live session is publishing.
+          currentPosition.value = position;
+          if (_sending) return;
           final now = DateTime.now().toUtc();
           if (_lastSent != null &&
               now.difference(_lastSent!) < const Duration(seconds: 15)) {
@@ -317,7 +320,6 @@ class LiveLocationService {
             });
             if (!current()) return;
             _lastSent = now;
-            currentPosition.value = position;
             updatesUnavailable.value = false;
           } catch (_) {
             if (current()) updatesUnavailable.value = true;

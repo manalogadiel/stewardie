@@ -210,7 +210,7 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
             ],
           ),
           if (saving)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 8),
               child: Semantics(
                 label: 'Syncing reactions',

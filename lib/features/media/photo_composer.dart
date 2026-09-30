@@ -9,6 +9,7 @@ import '../../core/clay.dart';
 import '../../core/location_settings.dart';
 import '../../core/place_pin.dart';
 import '../../core/theme.dart';
+import '../../online/live_location_service.dart';
 import '../../core/demo_state.dart';
 import '../../core/backend_provider.dart';
 import '../../core/widgets.dart';
@@ -150,7 +151,14 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
       if (mounted) {
         setState(() {
           draft = processed;
-          draftId = ref.read(sharedBackendProvider)?.firestore.collection('photoIds').doc().id ?? 'photo-${DateTime.now().microsecondsSinceEpoch}-$generation';
+          draftId =
+              ref
+                  .read(sharedBackendProvider)
+                  ?.firestore
+                  .collection('photoIds')
+                  .doc()
+                  .id ??
+              'photo-${DateTime.now().microsecondsSinceEpoch}-$generation';
           pin = photo.pin;
           recordedPin = photo.pin;
           includeLocation = true;
@@ -323,12 +331,9 @@ class _PhotoComposerState extends ConsumerState<PhotoComposer> {
           'Location permission is unavailable. Open app settings.',
         );
       }
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
+      final position = await LiveLocationService.instance.determinePosition();
+      if (position == null)
+        throw StateError('Could not obtain a photo location.');
       if (position.timestamp.toUtc().difference(capturedAt!).abs() >
           const Duration(seconds: 30)) {
         throw StateError(

@@ -1,9 +1,11 @@
 import Flutter
 import UIKit
+import AudioToolbox
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var orientationStream: StewardieOrientationStream?
+  private var soundIDs: [String: SystemSoundID] = [:]
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -13,6 +15,18 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "StewardieSounds") {
+      for cue in ["capture", "success"] {
+        if let url = Bundle.main.url(forResource: cue, withExtension: "wav") {
+          var id: SystemSoundID = 0
+          if AudioServicesCreateSystemSoundID(url as CFURL, &id) == kAudioServicesNoError { soundIDs[cue] = id }
+        }
+      }
+      FlutterMethodChannel(name: "stewardie/sounds", binaryMessenger: registrar.messenger()).setMethodCallHandler { [weak self] call, result in
+        if call.method == "play", let cue = call.arguments as? String, let id = self?.soundIDs[cue] { AudioServicesPlaySystemSound(id) }
+        result(nil)
+      }
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "StewardieOrientation") {
       let stream = StewardieOrientationStream()
       FlutterEventChannel(name: "stewardie/device_orientation", binaryMessenger: registrar.messenger()).setStreamHandler(stream)

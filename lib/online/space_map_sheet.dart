@@ -71,7 +71,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
   Map<String, dynamic>? _selectedMember;
   StewardieMapStyle _style = mapTilerKey.isEmpty
       ? StewardieMapStyle.streets
-      : StewardieMapStyle.satellite;
+      : StewardieMapStyle.hybrid;
   LatLng _lastKnownCenter = const LatLng(12, 122);
   LatLng? _currentUserLatLng;
   bool _mapReady = false;
@@ -119,7 +119,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
       });
       LiveLocationService.instance.currentPosition.value = cached;
       if (_allowAutoCenter && _mapReady) {
-        _mapController.move(point, 15);
+        _mapController.move(point, 16);
       }
     } catch (_) {
       /* A cached fix is optional. */
@@ -140,7 +140,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
             : 'Your last device location · refreshing…';
       });
       if (_allowAutoCenter && _mapReady) {
-        _mapController.move(latLng, 15);
+        _mapController.move(latLng, 16);
       }
     }
   }
@@ -184,7 +184,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
           _currentUserLatLng = point;
           _locationStatus = 'Your private device location';
         });
-        if (_allowAutoCenter && _mapReady) _mapController.move(point, 15);
+        if (_allowAutoCenter && _mapReady) _mapController.move(point, 16);
       } else {
         final permission = await Geolocator.checkPermission();
         if (!current()) return;
@@ -212,7 +212,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
   Future<void> _recenterOnUser() async {
     _allowAutoCenter = true;
     if (_currentUserLatLng != null && _mapReady) {
-      _mapController.move(_currentUserLatLng!, 15);
+      _mapController.move(_currentUserLatLng!, 16);
     }
     await _initUserLocation();
   }
@@ -527,7 +527,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                             StewardieMap(
                               controller: _mapController,
                               center: _lastKnownCenter,
-                              zoom: _currentUserLatLng == null ? 5 : 15,
+                              zoom: _currentUserLatLng == null ? 5 : 16,
                               markers: markers,
                               style: _style,
                               onStyleChanged: (value) =>
@@ -537,7 +537,7 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                                 _mapReady = true;
                                 if (_allowAutoCenter &&
                                     _currentUserLatLng != null) {
-                                  _mapController.move(_currentUserLatLng!, 15);
+                                  _mapController.move(_currentUserLatLng!, 16);
                                 }
                               },
                             ),
