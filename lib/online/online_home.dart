@@ -35,6 +35,7 @@ import 'package:sembast/sembast.dart';
 import '../features/subscription/revenuecat_service.dart';
 import '../features/subscription/soft_pop_paywall.dart';
 import '../features/onboarding/tutorial/tutorial_coordinator.dart';
+import '../features/onboarding/tutorial/tutorial_state.dart';
 import '../features/onboarding/tutorial/tutorial_target_registry.dart';
 import '../features/onboarding/onboarding_store.dart';
 
@@ -78,6 +79,7 @@ class _OnlineHomeState extends State<OnlineHome> {
   bool _entryPromptsStarted = false;
   bool _hasSpaces = false;
   StreamSubscription<void>? _pushOpens;
+  StreamSubscription<void>? _foregroundPush;
 
   @override
   void initState() {
@@ -86,6 +88,18 @@ class _OnlineHomeState extends State<OnlineHome> {
     RevenueCatService.instance.addListener(_onRevenueCatUpdate);
     _pushOpens = PushService.instance.inboxOpens.listen((_) {
       unawaited(_openInboxFromPush());
+    });
+    _foregroundPush = PushService.instance.foregroundUpdates.listen((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('You have a Stewardie update.'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () => unawaited(_openInboxFromPush()),
+          ),
+        ),
+      );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && PushService.instance.takePendingInboxOpen()) {
@@ -111,6 +125,7 @@ class _OnlineHomeState extends State<OnlineHome> {
       await TutorialCoordinator(widget.database).checkAndPromptTour(
         context,
         uid: widget.user.uid,
+        hasSpaces: _hasSpaces,
         onTabRequested: (tab) {
           if (mounted && _destination != tab) {
             if (widget.onTabRequested != null) {
@@ -136,6 +151,7 @@ class _OnlineHomeState extends State<OnlineHome> {
   void dispose() {
     RevenueCatService.instance.removeListener(_onRevenueCatUpdate);
     _pushOpens?.cancel();
+    _foregroundPush?.cancel();
     LiveLocationService.instance.stopSharing();
     super.dispose();
   }
@@ -449,14 +465,17 @@ class _OnlineHomeState extends State<OnlineHome> {
     alignment: Alignment.topCenter,
     child: ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 640),
-      child: ListView(
+      child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
           20,
           topPadding ?? topControlsClearance(context),
           20,
           148,
         ),
-        children: children,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        ),
       ),
     ),
   );
@@ -800,7 +819,40 @@ class _OnlineHomeState extends State<OnlineHome> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: summary,
+                children: [
+                  if (spaceId != null)
+                    FutureBuilder<TutorialStatus>(
+                      future: TutorialStore(widget.database)
+                          .getStatus(widget.user.uid),
+                      builder: (context, snapshot) =>
+                          snapshot.data == TutorialStatus.awaitingSpace
+                          ? Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: FilledButton.icon(
+                                icon: const Icon(Icons.explore_outlined),
+                                label: const Text('Continue tour'),
+                                onPressed: () async {
+                                  await TutorialCoordinator(widget.database)
+                                      .continueTour(
+                                        context,
+                                        uid: widget.user.uid,
+                                        onTabRequested: (tab) {
+                                          if (!mounted) return;
+                                          if (widget.onTabRequested != null) {
+                                            widget.onTabRequested!(tab);
+                                          } else {
+                                            setState(() => _destination = tab);
+                                          }
+                                        },
+                                      );
+                                  if (mounted) setState(() {});
+                                },
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ...summary,
+                ],
               ),
             ),
           ),
@@ -1328,17 +1380,21 @@ class _OnlineHomeState extends State<OnlineHome> {
       tier: plus ? 'Plus' : 'Basic',
       spaceId: spaceId,
       onSignedOut: () => RevenueCatService.instance.logOut(),
-      onTakeTour: () => TutorialCoordinator(widget.database).replayTour(
-        context,
-        uid: widget.user.uid,
-        onTabRequested: (tab) {
-          if (widget.onTabRequested != null) {
-            widget.onTabRequested!(tab);
-          } else if (mounted && _destination != tab) {
-            setState(() => _destination = tab);
-          }
-        },
-      ),
+      onTakeTour: () async {
+        await TutorialCoordinator(widget.database).replayTour(
+          context,
+          uid: widget.user.uid,
+          hasSpaces: _hasSpaces,
+          onTabRequested: (tab) {
+            if (widget.onTabRequested != null) {
+              widget.onTabRequested!(tab);
+            } else if (mounted && _destination != tab) {
+              setState(() => _destination = tab);
+            }
+          },
+        );
+        if (mounted && !_hasSpaces) _chooseSpace(const [], null);
+      },
       onAccountDeleted: () async {
         await TutorialCoordinator(widget.database).clear(widget.user.uid);
         await OnboardingStore(widget.database).clearDraft(widget.user.uid);
@@ -1641,6 +1697,9 @@ class _OnlineHomeState extends State<OnlineHome> {
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: widget.backend.members(spaceId),
                   builder: (context, members) => ClayPanel(
+                    key: owner != widget.user.uid
+                        ? TutorialTargetRegistry.spaceTabTarget
+                        : null,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -1897,6 +1956,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                           ),
                           const SizedBox(height: 8),
                           LayoutBuilder(
+                            key: TutorialTargetRegistry.spaceTabTarget,
                             builder: (context, constraints) {
                               final invite = _spaceActionTile(
                                 const StewardieInviteIcon(),
@@ -2096,20 +2156,20 @@ class _OnlineHomeState extends State<OnlineHome> {
       );
       if (!members.contains(widget.user.uid))
         throw StateError('Space access ended.');
-      final task = await widget.backend.firestore
-          .doc('spaces/$spaceId/tasks/$taskId')
-          .get();
-      if (!task.exists || task.data() == null)
-        throw StateError('Task unavailable.');
+      final result = await widget.backend.call('getTask', {
+        'spaceId': spaceId,
+        'taskId': taskId,
+      });
+      final task = Map<String, dynamic>.from(result['task'] as Map);
       final people = await widget.backend.members(spaceId).first;
       if (!mounted || !sheet.mounted) return;
       Navigator.pop(sheet);
       _switchSpace(spaceId);
       setState(() {
         _destination = 0;
-        _showDone = task.data()?['status'] == 'completed';
+        _showDone = task['status'] == 'completed';
       });
-      await _openTaskDetail(spaceId, taskId, task.data()!, {
+      await _openTaskDetail(spaceId, taskId, task, {
         for (final person in people.docs) person.id: person.data(),
       });
     } catch (_) {
@@ -2165,6 +2225,8 @@ class _OnlineHomeState extends State<OnlineHome> {
             _openInboxSpace(sheet, spaceId, destination: 0),
         onOpenTask: (spaceId, taskId) => _openInboxTask(sheet, spaceId, taskId),
         onOpenOwnership: (spaceId) => _openInboxSpace(sheet, spaceId),
+        onOpenMoments: (spaceId) =>
+            _openInboxSpace(sheet, spaceId, destination: 1),
         requests: [
           for (final ref in refs) ...[
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(

@@ -222,6 +222,13 @@ async function cleanupRequestedSpaces(now: Date): Promise<number> {
     if (!acquired) continue;
     try {
       await cleanupSpace(job);
+      const failedNotice = await get(`accounts/${data.requestedBy}/activity/cleanup_${path.split('/').pop()}`);
+      if (failedNotice?.updateTime) await update(docPath(failedNotice), {
+        title: 'Cloud cleanup complete', body: 'The deleted space has been cleaned up.', cleanupSpaceId: null,
+      }, failedNotice.updateTime);
+      for (const uid of (data.memberUids as string[] ?? [])) {
+        if (uid !== data.requestedBy) await accountNotice(uid, `space_deleted_${path.split('/').pop()}`, 'Space deleted', 'A space you belonged to was deleted.', now);
+      }
       const current = await get(path);
       if (current?.updateTime) await update(path, {
         status: 'done', completedAt: new Date(), leaseUntil: null,
@@ -230,6 +237,7 @@ async function cleanupRequestedSpaces(now: Date): Promise<number> {
     } catch (error) {
       console.error('Space cleanup failed', path, error);
       errors++;
+      if (typeof data.requestedBy === 'string') await accountNotice(data.requestedBy, `cleanup_${path.split('/').pop()}`, 'Cleanup needs attention', 'Your space is hidden. Cloud cleanup will retry automatically. Tap to retry now.', now, { cleanupSpaceId: path.split('/').pop() });
       const current = await get(path);
       if (current?.updateTime) await update(path, {
         status: 'failed', leaseUntil: null,
@@ -238,6 +246,33 @@ async function cleanupRequestedSpaces(now: Date): Promise<number> {
     }
   }
   return errors;
+}
+
+async function accountNotice(uid: string, id: string, title: string, body: string, now: Date, extra: Fields = {}): Promise<void> {
+  if (!await get(`accounts/${uid}`)) return;
+  await create(`accounts/${uid}/activity/${id}`, {
+    accountNotice: true, kind: 'accountNotice', title, body,
+    createdAt: now, readAt: null, pushState: 'none', ...extra,
+  });
+}
+
+async function activityForJoin(spaceId: string, space: Fields, join: Doc, now: Date): Promise<void> {
+  const j = fields(join);
+  const requested = Date.parse(String(j.requestedAt ?? ''));
+  // Do not manufacture historical notices for requests predating this rollout.
+  if (!Number.isFinite(requested) || requested < Date.parse('2026-09-30T00:00:00Z')) return;
+  const uid = String(j.uid ?? '');
+  const key = `${spaceId}_${uid}_${requested}`;
+  if (j.status === 'pending' && typeof space.ownerUid === 'string' && space.ownerUid !== uid) {
+    await create(`accounts/${space.ownerUid}/activity/join_${key}`, {
+      spaceId, kind: 'joinRequested', entityId: uid,
+      title: 'Join request', body: 'Someone is waiting to join your space.',
+      createdAt: new Date(requested), readAt: null, pushState: 'pending', pushId: `join_${key}`,
+    });
+  } else if (j.status === 'approved' || j.status === 'declined') {
+    await accountNotice(uid, `join_${j.status}_${key}`, j.status === 'approved' ? 'Join request approved' : 'Join request declined',
+      j.status === 'approved' ? 'Your request was approved. Open your saved invitation to join.' : 'Your request to join a space was declined.', now);
+  }
 }
 
 function local(now: Date, zone: string): { date: string; weekday: string; minute: number } {
@@ -265,6 +300,60 @@ function quiet(minute: number, start: number, end: number): boolean {
   if (start === end) return false;
   return start < end ? minute >= start && minute < end
     : minute >= start || minute < end;
+}
+
+async function socialActivity(spaceId: string, space: Fields, now: Date): Promise<void> {
+  const members = space.memberUids as string[] ?? [];
+  const prefs = new Map<string, Fields>();
+  for (const uid of members) prefs.set(uid, fields(await get(`accounts/${uid}/notificationPrefs/${spaceId}`) ?? { name: '' }));
+  const eligible = (uid: string, category: string, time: string) => {
+    const p = prefs.get(uid) ?? {};
+    return p[category] === true && Date.parse(time) >= Math.max(Date.parse(String(p.updatedAt ?? '')), Date.parse('2026-09-30T00:00:00Z'));
+  };
+  if ([...prefs.values()].some((p) => p.moods === true)) {
+    for (const mood of await list(`spaces/${spaceId}/checkIns`)) {
+      const m = fields(mood), author = String(m.uid ?? '');
+      const at = String(m.updatedAt ?? '');
+      if (!members.includes(author) || Date.parse(String(m.expiresAt)) <= now.getTime()) continue;
+      for (const uid of members) {
+        if (uid === author || !eligible(uid, 'moods', at)) continue;
+        await create(`accounts/${uid}/activity/mood_${spaceId}_${author}_${local(now, String(space.timeZone ?? 'UTC')).date}`, {
+          spaceId, kind: 'mood', actorUid: author, title: 'Mood check-in', body: 'A member checked in today.',
+          createdAt: new Date(at), readAt: null, pushState: 'none',
+        });
+      }
+    }
+  }
+  if (![...prefs.values()].some((p) => p.photos === true || p.reactions === true)) return;
+  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
+  for (let offset = 0; ; offset += 100) {
+    const { data, error } = await sb.from('media_items').select('id,uploader_uid,published_at')
+      .eq('space_id', spaceId).eq('state', 'ready').not('published_at', 'is', null)
+      .order('id').range(offset, offset + 99);
+    if (error) throw error;
+    for (const photo of data ?? []) {
+    if (!members.includes(photo.uploader_uid)) continue;
+    for (const uid of members) {
+      if (uid === photo.uploader_uid || !eligible(uid, 'photos', photo.published_at)) continue;
+      await create(`accounts/${uid}/activity/photo_${spaceId}_${photo.id}`, {
+        spaceId, kind: 'photo', entityId: photo.id, actorUid: photo.uploader_uid,
+        title: 'New moment', body: 'A member shared a photo.', createdAt: new Date(photo.published_at),
+        readAt: null, pushState: 'pending', pushId: `photo_${spaceId}_${photo.id}`,
+      });
+    }
+    if (prefs.get(photo.uploader_uid)?.reactions !== true) continue;
+    for (const reaction of await list(`spaces/${spaceId}/moments/${photo.id}/reactions`)) {
+      const r = fields(reaction), actor = String(r.uid ?? ''), at = String(r.createdAt ?? '');
+      if (!members.includes(actor) || actor === photo.uploader_uid || !eligible(photo.uploader_uid, 'reactions', at)) continue;
+      const day = local(new Date(at), String(space.timeZone ?? 'UTC')).date;
+      await create(`accounts/${photo.uploader_uid}/activity/reactions_${spaceId}_${photo.id}_${day}`, {
+        spaceId, kind: 'reaction', entityId: photo.id, title: 'Photo reactions', body: 'Your photo received new reactions.',
+        createdAt: new Date(at), readAt: null, pushState: 'pending', pushId: `reactions_${spaceId}_${photo.id}_${day}`,
+      });
+    }
+    }
+    if ((data?.length ?? 0) < 100) break;
+  }
 }
 
 async function generatedTask(space: Doc, routine: Doc, today: string, now: Date): Promise<void> {
@@ -348,7 +437,9 @@ async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc,
   const type = String(e.type ?? '');
   const actor = String(e.actorUid ?? '');
   const entityId = String(e.entityId ?? '');
-  const task = ['taskAssigned', 'helpRequested', 'covered', 'completed'].includes(type)
+  const taskKinds = ['taskAssigned', 'helpRequested', 'helpOffered', 'taskDeclined', 'taskEdited', 'taskCancelled', 'taskArrival', 'covered', 'completed'];
+  const planKinds = ['planAdded', 'planChanged', 'planCancelled', 'planArrival'];
+  const task = taskKinds.includes(type)
     ? fields(await get(`spaces/${spaceId}/tasks/${entityId}`) ?? { name: '', fields: {} }) : {};
   const recipients = eventRecipients(e, (space.memberUids as string[] ?? []),
     [task.creatorUid, task.ownerUid, task.requestedUid, task.offeredUid]) as string[];
@@ -363,17 +454,32 @@ async function activityForSpaceEvent(spaceId: string, space: Fields, event: Doc,
     helpRequested: ['Help requested', 'A member asked for help with a task.'],
     covered: ['Task covered', 'Someone is covering a task.'],
     completed: ['Task done', 'A shared task was completed.'],
+    helpOffered: ['Help offered', 'A member offered to cover your task.'],
+    taskDeclined: ['Task request declined', 'A member declined a task request.'],
+    taskEdited: ['Task updated', 'Details of a shared task changed.'],
+    taskCancelled: ['Task removed', 'A shared task was removed.'],
+    taskArrival: ['Arrival check-in', 'A member reported arriving at a task destination.'],
+    planAdded: ['A plan was shared', 'You are included in a calendar plan.'],
+    planChanged: ['Plan updated', 'A calendar plan changed.'],
+    planCancelled: ['Plan removed', 'A calendar plan was removed.'],
+    planArrival: ['Arrival check-in', 'A member reported arriving for a plan.'],
   };
   const copy = labels[type];
   if (!copy) return;
+  if (type === 'removed' && typeof e.targetUid === 'string' && e.targetUid !== actor) {
+    await accountNotice(e.targetUid, `access_ended_${spaceId}_${eventId}`, 'Space access ended', 'Your membership in a space was removed.', now);
+  }
   for (const uid of recipients) {
     await create(`accounts/${uid}/activity/${eventInboxId(spaceId, eventId)}`, {
       spaceId, kind: type, eventId, entityId, actorUid: actor,
       ...(typeof e.taskVersion === 'number' ? { taskVersion: e.taskVersion } : {}),
-      ...(type.startsWith('task') || ['helpRequested', 'covered', 'completed'].includes(type) ? { taskId: entityId } : {}),
+      ...(taskKinds.includes(type) && type !== 'taskCancelled' ? { taskId: entityId } : {}),
+      ...(planKinds.includes(type) && type !== 'planCancelled' ? { planId: entityId } : {}),
+      ...(typeof e.planRevision === 'number' ? { planRevision: e.planRevision } : {}),
       title: copy[0], body: copy[1],
       createdAt: typeof e.createdAt === 'string' ? new Date(e.createdAt) : now,
-      readAt: null, pushState: 'none',
+      readAt: null, pushState: Date.parse(String(e.createdAt)) > now.getTime() - 86400000 ? 'pending' : 'none',
+      pushId: eventInboxId(spaceId, eventId),
     });
   }
 }
@@ -448,6 +554,14 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
     await cancel();
     return;
   }
+  if ((data.kind === 'ownershipOffered' && fields(space).pendingOwnerUid !== uid) ||
+      (data.kind === 'joinRequested' && fields(space).ownerUid !== uid)) {
+    await cancel(); return;
+  }
+  if (data.kind === 'joinRequested') {
+    const join = await get(`spaces/${spaceId}/pendingJoins/${data.entityId}`);
+    if (!join || fields(join).status !== 'pending') { await cancel(); return; }
+  }
   if (data.taskId) {
     const task = await get(`spaces/${spaceId}/tasks/${data.taskId}`);
     const t: Fields = task ? fields(task) : {};
@@ -456,8 +570,10 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
        String(data.dueDate) > local(now, String(fields(space).timeZone ?? 'UTC')).date);
     const invalidAction = data.kind === 'action' &&
       t.status !== 'requested' && !t.offeredUid;
-    if (!task || t.status === 'completed' || invalidDue || invalidAction ||
-        Number(t.version) !== Number(data.taskVersion)) {
+    const reminder = ['due', 'action', 'taskAssigned'].includes(String(data.kind));
+    if (!task || (reminder && t.status === 'completed') || invalidDue || invalidAction ||
+        (typeof data.taskVersion === 'number' && Number(t.version) !== data.taskVersion) ||
+        (data.kind === 'helpOffered' && (t.ownerUid !== uid || !t.offeredUid))) {
       await cancel();
       return;
     }
@@ -466,13 +582,14 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
     const plan = await get(`spaces/${spaceId}/plans/${data.planId}`);
     const p: Fields = plan ? fields(plan) : {};
     const recipients = [p.ownerUid, ...((p.participants as string[]) ?? [])];
-    if (!plan || !recipients.includes(uid) || Number(p.startMillis) !== Number(data.planStartMillis) ||
-        p.reminder !== data.planReminder || p.source === 'google' ||
-        Number(p.revision ?? 0) !== Number(data.planRevision)) {
+    const planReminder = data.kind === 'plan';
+    if (!plan || !recipients.includes(uid) ||
+        (planReminder && (Number(p.startMillis) !== Number(data.planStartMillis) || p.reminder !== data.planReminder || p.source === 'google')) ||
+        (typeof data.planRevision === 'number' && Number(p.revision ?? 0) !== data.planRevision)) {
       await cancel();
       return;
     }
-    if (p.allDay !== true && now.getTime() >= Number(p.endMillis)) {
+    if (planReminder && p.allDay !== true && now.getTime() >= Number(p.endMillis)) {
       // A missed push must not erase a valid in-app reminder.
       await update(path, { pushState: 'missed', pushLeaseUntil: null }, item.updateTime!);
       return;
@@ -480,6 +597,16 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
   }
   const global = fields((await get(`accounts/${uid}/notificationPrefs/global`)) ?? { name: '' });
   const perSpace = fields((await get(`accounts/${uid}/notificationPrefs/${spaceId}`)) ?? { name: '' });
+  if (['photo','reaction'].includes(String(data.kind))) {
+    const category = data.kind === 'photo' ? 'photos' : 'reactions';
+    const url = Deno.env.get('SUPABASE_URL'), key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!url || !key) throw new Error('Media access unavailable');
+    const sb = createClient(url, key, { auth: { persistSession: false } });
+    const { data: photo, error } = await sb.from('media_items').select('state,published_at,uploader_uid').eq('space_id', spaceId).eq('id', data.entityId).maybeSingle();
+    if (error) throw error;
+    if (perSpace[category] !== true || !photo || photo.state !== 'ready' || !photo.published_at ||
+        (data.kind === 'reaction' && photo.uploader_uid !== uid)) { await cancel(); return; }
+  }
   if (global.enabled !== true || perSpace.enabled === false) {
     // Notification preferences only mute push, not the in-app activity inbox.
     await update(path, { pushState: 'muted', pushLeaseUntil: null }, item.updateTime!);
@@ -567,7 +694,17 @@ async function run(): Promise<{ spaces: number; errors: number }> {
           if (cadence === 'daily' ||
               (cadence === 'weekdays' && !['Sat', 'Sun'].includes(today.weekday)) ||
               (cadence === 'weekly' && today.weekday === 'Mon')) {
-            await generatedTask((await get(`spaces/${id}`))!, routine, today.date, now);
+            try {
+              await generatedTask((await get(`spaces/${id}`))!, routine, today.date, now);
+            } catch (error) {
+              errors++;
+              console.error('Routine generation failed', routine.name, error);
+              const manager = String(r.creatorUid ?? s.ownerUid ?? '');
+              if ((s.memberUids as string[] ?? []).includes(manager)) {
+                await accountNotice(manager, `routine_failed_${id}_${routine.name.split('/').pop()}_${today.date}`,
+                  'Routine needs attention', 'A routine could not create its task. It will retry automatically.', now);
+              }
+            }
           }
         }
       }
@@ -576,6 +713,16 @@ async function run(): Promise<{ spaces: number; errors: number }> {
       }
       for (const event of await list(`spaces/${id}/events`)) {
         await activityForSpaceEvent(id, s, event, now);
+      }
+      for (const join of await list(`spaces/${id}/pendingJoins`)) {
+        await activityForJoin(id, s, join, now);
+      }
+      try {
+        await socialActivity(id, s, now);
+      } catch (error) {
+        // Optional photo/mood activity must not hold up calendar reminders.
+        errors++;
+        console.error('Optional activity failed', id, error);
       }
       for (const plan of await list(`spaces/${id}/plans`)) {
         await activityForPlan(id, s, plan, now);

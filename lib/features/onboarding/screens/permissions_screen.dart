@@ -15,10 +15,14 @@ class PermissionsScreen extends StatefulWidget {
     super.key,
     required this.adapter,
     required this.onContinue,
+    this.initialSkipped = const {},
+    this.onSkippedChanged,
   });
 
   final PermissionAdapter adapter;
   final VoidCallback onContinue;
+  final Set<PermissionCapability> initialSkipped;
+  final ValueChanged<Set<PermissionCapability>>? onSkippedChanged;
 
   @override
   State<PermissionsScreen> createState() => _PermissionsScreenState();
@@ -33,12 +37,14 @@ class _PermissionsScreenState extends State<PermissionsScreen>
   };
 
   final Set<PermissionCapability> _skipped = {};
-  bool _busy = false;
+  bool _busy = false, _servicesEnabled = true;
+  int _statusGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _skipped.addAll(widget.initialSkipped);
     _checkInitialStatuses();
   }
 
@@ -56,24 +62,32 @@ class _PermissionsScreenState extends State<PermissionsScreen>
   }
 
   Future<void> _checkInitialStatuses() async {
-    for (final capability in PermissionCapability.values) {
-      final status = await widget.adapter.checkStatus(capability);
-      if (mounted) {
-        setState(() => _statuses[capability] = status);
+    final token = ++_statusGeneration;
+    final statuses = await Future.wait(PermissionCapability.values.map(widget.adapter.checkStatus));
+    bool services = true;
+    try { services = await widget.adapter.locationServicesEnabled(); } catch (_) {}
+    if (!mounted || token != _statusGeneration) return;
+    setState(() {
+      for (var i = 0; i < statuses.length; i++) {
+        _statuses[PermissionCapability.values[i]] = statuses[i];
       }
-    }
+      _servicesEnabled = services;
+    });
   }
 
   Future<void> _requestCapability(PermissionCapability capability) async {
     if (_busy) return;
+    ++_statusGeneration;
     setState(() => _busy = true);
     try {
       final result = await widget.adapter.requestPermission(capability);
+      ++_statusGeneration;
       if (mounted) {
         setState(() {
           _statuses[capability] = result;
           _skipped.remove(capability);
         });
+        widget.onSkippedChanged?.call(Set.of(_skipped));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -84,6 +98,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
     setState(() {
       _skipped.add(capability);
     });
+    widget.onSkippedChanged?.call(Set.of(_skipped));
   }
 
   @override
@@ -151,6 +166,15 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                       title: 'Notifications',
                       description: 'Get reminders and updates from your spaces.',
                     ),
+                    if (!_servicesEnabled) ...[
+                      const SizedBox(height: 12),
+                      const Text('Location services are off.'),
+                      TextButton.icon(
+                        onPressed: widget.adapter.openLocationSettings,
+                        icon: const Icon(Icons.location_on_outlined),
+                        label: const Text('Open location settings'),
+                      ),
+                    ],
                     const SizedBox(height: 28),
                     FilledButton(
                       onPressed: widget.onContinue,
@@ -198,10 +222,6 @@ class _PermissionsScreenState extends State<PermissionsScreen>
       decoration: BoxDecoration(
         color: SoftPop.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isGranted ? SoftPop.blue : const Color(0xFFE8E5DF),
-          width: isGranted ? 1.5 : 1.0,
-        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x08202633),
@@ -295,8 +315,8 @@ class _PermissionsScreenState extends State<PermissionsScreen>
               ],
             )
           else if (isPermanentlyDenied)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
               children: [
                 const Text(
                   'Permission denied in settings',
@@ -320,7 +340,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   TextButton(
                     onPressed: () => _skipCapability(capability),
                     style: TextButton.styleFrom(
-                      minimumSize: const Size(48, 44),
+                      minimumSize: const Size(48, 48),
                     ),
                     child: const Text(
                       'Not now',
@@ -349,7 +369,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   style: FilledButton.styleFrom(
                     backgroundColor: SoftPop.blue,
                     foregroundColor: SoftPop.surface,
-                    minimumSize: const Size(48, 40),
+                    minimumSize: const Size(48, 48),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 18,
                       vertical: 8,

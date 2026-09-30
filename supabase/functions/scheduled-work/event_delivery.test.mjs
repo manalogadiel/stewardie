@@ -37,3 +37,14 @@ test('retries address the same inbox document and do not duplicate recipients', 
   assert.equal(eventInboxId('home', 'task_12'), eventInboxId('home', 'task_12'));
   assert.notEqual(eventInboxId('home', 'task_12'), eventInboxId('home', 'task_13'));
 });
+
+test('plan changes reach only affected current members and exclude their author', () => {
+  const event = { type: 'planChanged', actorUid: 'alice', recipientUids: ['alice', 'bob', 'carol'], affectedUids: ['alice', 'bob'] };
+  assert.deepEqual(eventRecipients(event, ['alice', 'bob', 'carol', 'dave']), ['bob']);
+  assert.deepEqual(eventRecipients(event, ['alice', 'carol']), []);
+});
+
+test('a help offer goes to the responsible member only', () => {
+  const event = { type: 'helpOffered', actorUid: 'bob', targetUid: 'alice', recipientUids: ['alice', 'bob', 'carol'], affectedUids: ['alice', 'bob'] };
+  assert.deepEqual(eventRecipients(event, ['alice', 'bob', 'carol']), ['alice']);
+});

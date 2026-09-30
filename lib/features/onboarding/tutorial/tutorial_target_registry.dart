@@ -4,20 +4,25 @@ import 'package:flutter/material.dart';
 class TutorialTargetRegistry {
   TutorialTargetRegistry._();
 
-  static final GlobalKey spaceSelectorTarget =
-      GlobalKey(debugLabel: 'tutorial_space_selector');
-  static final GlobalKey dayTogetherTarget =
-      GlobalKey(debugLabel: 'tutorial_day_together');
-  static final GlobalKey tasksTarget =
-      GlobalKey(debugLabel: 'tutorial_tasks');
-  static final GlobalKey momentsTabTarget =
-      GlobalKey(debugLabel: 'tutorial_moments_tab');
-  static final GlobalKey spaceTabTarget =
-      GlobalKey(debugLabel: 'tutorial_space_tab');
-  static final GlobalKey mapButtonTarget =
-      GlobalKey(debugLabel: 'tutorial_map_button');
-  static final GlobalKey notificationBellTarget =
-      GlobalKey(debugLabel: 'tutorial_notification_bell');
+  static final GlobalKey spaceSelectorTarget = GlobalKey(
+    debugLabel: 'tutorial_space_selector',
+  );
+  static final GlobalKey dayTogetherTarget = GlobalKey(
+    debugLabel: 'tutorial_day_together',
+  );
+  static final GlobalKey tasksTarget = GlobalKey(debugLabel: 'tutorial_tasks');
+  static final GlobalKey momentsTabTarget = GlobalKey(
+    debugLabel: 'tutorial_moments_tab',
+  );
+  static final GlobalKey spaceTabTarget = GlobalKey(
+    debugLabel: 'tutorial_space_tab',
+  );
+  static final GlobalKey mapButtonTarget = GlobalKey(
+    debugLabel: 'tutorial_map_button',
+  );
+  static final GlobalKey notificationBellTarget = GlobalKey(
+    debugLabel: 'tutorial_notification_bell',
+  );
 
   static String spacesKey() => 'space_selector';
   static String dayTogetherKey() => 'day_together';
@@ -47,11 +52,14 @@ class TutorialTargetRegistry {
     if (renderBox == null || !renderBox.hasSize) return null;
 
     final translation = renderBox.localToGlobal(Offset.zero);
-    return Rect.fromLTWH(
+    final bounds = Rect.fromLTWH(
       translation.dx,
       translation.dy,
       renderBox.size.width,
       renderBox.size.height,
     );
+    final viewport = Offset.zero & MediaQuery.sizeOf(context);
+    if (!bounds.overlaps(viewport)) return null;
+    return bounds.intersect(viewport);
   }
 }

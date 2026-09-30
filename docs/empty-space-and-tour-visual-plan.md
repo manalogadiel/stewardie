@@ -78,3 +78,12 @@ Enable the top map button even when no space is selected. Support a null-space *
 8. Exercise private no-space map mode with location granted, denied, services off, and map tiles unavailable. Confirm that sharing remains unavailable until membership exists, then test the existing explicit sharing path.
 
 Preserve Firebase verification-link authentication, Today / Moments / Space navigation, personal Plus rules, and existing member data. Backend rules for private avatar access need separate review and deployment before cross-device profile photos can be called complete. No paid service or public publishing is part of this plan.
+
+
+## September 30 review corrections
+
+Implemented the reviewed UI gaps: no-space tours have one selector stop followed by the real Create/Join sheet; their UID-scoped awaiting-space state exposes an explicit Continue tour after membership. Completion or skipping consumes the continuation. Member tours target Add moment and the actual member/management content, wait for layout and scroll targets into view. The overlay scrolls on short screens with enlarged text. Onboarding supports removing/skipping a photo, including persisted draft removal; shared avatars fall back to initials while loading or on decoding failure. Reminder settings close the account sheet before opening and include the bottom system inset. The compact name field retains a 48-pixel input area.
+
+Verification: 22 focused Flutter tests passed, including short no-space flow, one-time continuation, 320×568 at 2.5× text, draft photo removal, tour lifecycle, and avatar identity. Focused analysis reported no errors or warnings (existing style information remains). Native camera/GPS, two-account avatar visibility, and rendered header/spotlight checks on real devices remain open.
+
+Avatar storage still follows the current pilot implementation: private Firestore profile documents with metadata-stripped JPEG data. This round does not migrate those photos to an object/reference media route or deploy backend changes; that architectural item remains separate from the UI corrections.

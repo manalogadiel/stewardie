@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/invite_links.dart';
-import '../core/space_time.dart';
 import '../firebase_options.dart';
 part 'spark_backend.dart';
 
@@ -148,6 +147,53 @@ class OnlineBackend {
       throw StateError('Could not update the space. Please retry.');
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> taskAccess(
+    String action,
+    Map<String, dynamic> values,
+  ) async {
+    const endpoint = String.fromEnvironment(
+      'TASK_ACCESS_URL',
+      defaultValue:
+          'https://ulexhxfxatzlobabitpr.supabase.co/functions/v1/task-access',
+    );
+    final identityToken = await auth.currentUser?.getIdToken();
+    if (identityToken == null) throw StateError('Sign in again.');
+    final response = await http.post(
+      Uri.parse(endpoint),
+      headers: {
+        'Authorization': 'Bearer $identityToken',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'action': action, ...values}),
+    );
+    final result = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != 200) {
+      throw StateError(result['error'] as String? ?? 'Task unavailable.');
+    }
+    Map<String, dynamic> decodeTask(Map<String, dynamic> data) {
+      for (final field in ['createdAt', 'updatedAt', 'completedAt']) {
+        if (data[field] is String) {
+          final date = DateTime.tryParse(data[field] as String);
+          if (date != null) data[field] = Timestamp.fromDate(date);
+        }
+      }
+      return data;
+    }
+
+    if (result['task'] is Map) {
+      result['task'] = decodeTask(
+        Map<String, dynamic>.from(result['task'] as Map),
+      );
+    }
+    if (result['tasks'] is List) {
+      result['tasks'] = [
+        for (final task in result['tasks'] as List)
+          decodeTask(Map<String, dynamic>.from(task as Map)),
+      ];
+    }
+    return result;
   }
 
   Future<void> register(String name, String email, String password) async {

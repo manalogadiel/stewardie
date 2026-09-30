@@ -20,7 +20,7 @@ class NameScreen extends StatefulWidget {
 
   final String initialName;
   final String? initialAvatarBase64;
-  final ValueChanged<String>? onAvatarChanged;
+  final ValueChanged<String?>? onAvatarChanged;
   final ValueChanged<String> onContinue;
 
   @override
@@ -112,29 +112,6 @@ class _NameScreenState extends State<NameScreen> {
                   ),
                 ),
                 const SizedBox(height: 28),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: _chooseAvatar,
-                    icon: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: SoftPop.blueSoft,
-                      backgroundImage: switch (ProfilePhoto.decode(_avatar)) {
-                        final bytes? => MemoryImage(bytes),
-                        null => null,
-                      },
-                      child: _avatar == null
-                          ? const Icon(
-                              Icons.add_a_photo_rounded,
-                              color: SoftPop.blue,
-                            )
-                          : null,
-                    ),
-                    label: Text(
-                      _avatar == null ? 'Add photo (optional)' : 'Change photo',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 StaggeredEntrance(
                   order: 3,
                   child: Column(

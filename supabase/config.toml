@@ -18,3 +18,7 @@ verify_jwt = false
 [functions.space-actions]
 # Firebase ID tokens are verified in the function before privileged changes.
 verify_jwt = false
+
+[functions.task-access]
+# Firebase identity, current membership, and exact history limits are checked inside.
+verify_jwt = false

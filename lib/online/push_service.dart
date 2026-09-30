@@ -13,6 +13,8 @@ class PushService {
 
   StreamSubscription<String>? _rotation;
   StreamSubscription<RemoteMessage>? _openedMessages;
+  StreamSubscription<RemoteMessage>? _foregroundMessages;
+  final _foregroundUpdates = StreamController<void>.broadcast();
   final _openInbox = StreamController<void>.broadcast();
   bool _pendingInboxOpen = false;
   String? _uid;
@@ -25,6 +27,7 @@ class PushService {
 
   /// A push only opens the account inbox. Its items recheck access on tap.
   Stream<void> get inboxOpens => _openInbox.stream;
+  Stream<void> get foregroundUpdates => _foregroundUpdates.stream;
 
   bool takePendingInboxOpen() {
     final pending = _pendingInboxOpen;
@@ -51,6 +54,11 @@ class PushService {
     if (_uid == uid && _rotation != null) return;
     await logOut();
     _uid = uid;
+    _foregroundMessages = FirebaseMessaging.onMessage.listen((_) {
+      if (_uid == uid && FirebaseAuth.instance.currentUser?.uid == uid) {
+        _foregroundUpdates.add(null);
+      }
+    });
     _rotation = FirebaseMessaging.instance.onTokenRefresh.listen((token) {
       unawaited(_register(token).catchError((_) {}));
     });
@@ -114,6 +122,8 @@ class PushService {
     _rotation = null;
     await _openedMessages?.cancel();
     _openedMessages = null;
+    await _foregroundMessages?.cancel();
+    _foregroundMessages = null;
     final id = _documentId;
     _documentId = null;
     if (uid != null &&

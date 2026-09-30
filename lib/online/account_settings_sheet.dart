@@ -323,7 +323,8 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                         decoration: const InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
-                          contentPadding: EdgeInsets.zero,
+                          constraints: BoxConstraints(minHeight: 48),
+                          contentPadding: EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ],
@@ -398,11 +399,23 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                 else ...[
                   if (widget.spaceId case final spaceId?) ...[
                     OutlinedButton.icon(
-                      onPressed: () => NotificationSettingsSheet.show(
-                        context,
-                        widget.backend,
-                        spaceId,
-                      ),
+                      onPressed: () async {
+                        final route = ModalRoute.of(context);
+                        final rootContext = Navigator.of(
+                          context,
+                          rootNavigator: true,
+                        ).context;
+                        final backend = widget.backend;
+                        Navigator.pop(context);
+                        await route?.completed;
+                        if (rootContext.mounted) {
+                          await NotificationSettingsSheet.show(
+                            rootContext,
+                            backend,
+                            spaceId,
+                          );
+                        }
+                      },
                       icon: const Icon(Icons.notifications_outlined),
                       label: const Text('Reminder settings'),
                     ),

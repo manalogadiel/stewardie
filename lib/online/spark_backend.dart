@@ -36,6 +36,7 @@ class SparkBackend {
     String? targetUid,
     List<String>? affectedUids,
     int? taskVersion,
+    int? planRevision,
   }) {
     tx.set(space(spaceId).collection('events').doc(eventId), {
       'type': type,
@@ -45,6 +46,7 @@ class SparkBackend {
       'recipientUids': recipients,
       if (affectedUids != null) 'affectedUids': affectedUids,
       if (taskVersion != null) 'taskVersion': taskVersion,
+      if (planRevision != null) 'planRevision': planRevision,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -164,8 +166,6 @@ class SparkBackend {
         final ref = space(id!).collection('tasks').doc(v['taskId'] as String);
         final operation = v['operationId'] as String;
         await db.runTransaction((tx) async {
-          final current = (await tx.get(ref)).data();
-          final parent = (await tx.get(space(id))).data()!;
           final receipt = ref.collection('operations').doc('${uid}_$operation');
           final previous = await tx.get(receipt);
           if (previous.exists) {
@@ -174,6 +174,8 @@ class SparkBackend {
             }
             return;
           }
+          final current = (await tx.get(ref)).data();
+          final parent = (await tx.get(space(id))).data()!;
           if (current == null) {
             throw StateError('This task is no longer available.');
           }
@@ -225,6 +227,8 @@ class SparkBackend {
             'needHelp' => 'helpRequested',
             'accept' || 'confirmHandoff' => 'covered',
             'complete' => 'completed',
+            'offerHelp' => 'helpOffered',
+            'decline' => 'taskDeclined',
             _ => null,
           };
           if (eventType != null) {
@@ -234,13 +238,18 @@ class SparkBackend {
               'task_${ref.id}_${changes['version']}',
               type: eventType,
               entityId: ref.id,
-              targetUid: eventType == 'covered'
+              taskVersion: eventType == 'helpOffered'
+                  ? changes['version'] as int
+                  : null,
+              targetUid: eventType == 'helpOffered'
+                  ? current['ownerUid'] as String?
+                  : eventType == 'covered' || eventType == 'taskDeclined'
                   ? current['creatorUid'] as String?
                   : null,
               recipients: List<String>.from(
                 parent['memberUids'] as List? ?? [],
               ),
-              affectedUids: eventType == 'covered' || eventType == 'completed'
+              affectedUids: eventType != 'helpRequested'
                   ? {
                       for (final value in [
                         current['creatorUid'],
@@ -260,11 +269,7 @@ class SparkBackend {
             'appliedAt': FieldValue.serverTimestamp(),
           });
         });
-        return {
-          'taskId': ref.id,
-          'task': (await ref.get(const GetOptions(source: Source.server)))
-              .data(),
-        };
+        return {'taskId': ref.id, 'ok': true};
       case 'markTaskDone':
         final opId =
             v['operationId'] as String? ??
@@ -276,66 +281,9 @@ class SparkBackend {
           'action': 'complete',
         });
       case 'listCompletedTasks':
-        final accountDoc = (await db.doc('accounts/$uid').get()).data() ?? {};
-        final isFounder =
-            accountDoc['founderGrant'] == true ||
-            accountDoc['entitlementSource'] == 'founder';
-        final expiry = accountDoc['subscriptionExpiresAt'];
-        DateTime? expiryDate;
-        if (expiry is Timestamp) {
-          expiryDate = expiry.toDate();
-        } else if (expiry is String) {
-          expiryDate = DateTime.tryParse(expiry);
-        }
-        final notExpired =
-            expiryDate != null && expiryDate.isAfter(DateTime.now());
-        final plus = accountDoc['tier'] == 'plus' && (isFounder || notExpired);
-        Query<Map<String, dynamic>> query = space(id!)
-            .collection('tasks')
-            .where('status', isEqualTo: 'completed');
-        final now = DateTime.now().toUtc();
-        DateTime? localHistoryStart;
-        if (!plus) {
-          final spaceData = (await space(id).get()).data();
-          localHistoryStart = SpaceTime.basicHistoryStart(
-            spaceData?['timeZone'] as String?,
-            now,
-          );
-          query = query.where(
-            'completedAt',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(
-              DateTime.utc(
-                now.year,
-                now.month,
-                now.day,
-              ).subtract(const Duration(days: 3)),
-            ),
-          );
-        }
-        query = query.orderBy('completedAt', descending: true).limit(50);
-        if (v['cursorId'] != null) {
-          final cursor = await space(id)
-              .collection('tasks')
-              .doc(v['cursorId'] as String)
-              .get();
-          if (cursor.exists) query = query.startAfterDocument(cursor);
-        }
-        final docs = (await query.get()).docs;
-        return {
-          'tasks': docs
-              .where(
-                (d) =>
-                    plus ||
-                    ((d.data()['completedAt'] as Timestamp?)?.toDate().isBefore(
-                          localHistoryStart!,
-                        ) ==
-                        false),
-              )
-              .map((d) => {...d.data(), 'id': d.id})
-              .toList(),
-          'todayLocalDate': day(now),
-          'nextCursorId': docs.length == 50 ? docs.last.id : null,
-        };
+        return backend.taskAccess('list', v);
+      case 'getTask':
+        return backend.taskAccess('get', v);
       case 'setCheckIn':
         final note = (v['note'] as String? ?? '').trim();
         const endpoint = String.fromEnvironment(
@@ -371,6 +319,7 @@ class SparkBackend {
             .doc(v['planId'] as String);
         await db.runTransaction((tx) async {
           final previous = (await tx.get(planRef)).data();
+          final parent = (await tx.get(space(id))).data()!;
           if (previous != null &&
               previous['lastMutationId'] == v['operationId'])
             return;
@@ -403,6 +352,21 @@ class SparkBackend {
             },
             'updatedAt': FieldValue.serverTimestamp(),
           });
+          final revision = (previous?['revision'] as int? ?? 0) + 1;
+          addSpaceEvent(
+            tx,
+            id,
+            'plan_${planRef.id}_$revision',
+            type: previous == null ? 'planAdded' : 'planChanged',
+            entityId: planRef.id,
+            planRevision: revision,
+            recipients: List<String>.from(parent['memberUids'] as List),
+            affectedUids: {
+              uid,
+              ...List<String>.from(previous?['participants'] as List? ?? []),
+              ...List<String>.from(v['participants'] as List? ?? []),
+            }.toList(),
+          );
         });
         return {'planId': v['planId']};
       case 'removePlan':
@@ -411,6 +375,7 @@ class SparkBackend {
             .doc(v['planId'] as String);
         await db.runTransaction((tx) async {
           final previous = (await tx.get(planRef)).data();
+          final parent = (await tx.get(space(id))).data()!;
           if (previous == null) return;
           if (v['expectedRevision'] != null &&
               (previous['revision'] as int? ?? 0) != v['expectedRevision']) {
@@ -419,16 +384,45 @@ class SparkBackend {
             );
           }
           tx.delete(planRef);
+          addSpaceEvent(
+            tx,
+            id,
+            'plan_${planRef.id}_${previous['revision']}_removed',
+            type: 'planCancelled',
+            entityId: planRef.id,
+            recipients: List<String>.from(parent['memberUids'] as List),
+            affectedUids: {
+              uid,
+              ...List<String>.from(previous['participants'] as List? ?? []),
+            }.toList(),
+          );
         });
         return {'removed': true};
       case 'checkInPlanArrival':
         final planId = v['planId'] as String;
-        await space(id!)
-            .collection('plans')
-            .doc(planId)
-            .collection('arrivals')
-            .doc(uid)
-            .set({'uid': uid, 'checkedInAt': FieldValue.serverTimestamp()});
+        final arrivalEventId = db.collection('eventIds').doc().id;
+        await db.runTransaction((tx) async {
+          final planRef = space(id!).collection('plans').doc(planId);
+          final plan = (await tx.get(planRef)).data();
+          final parent = (await tx.get(space(id))).data()!;
+          if (plan == null) throw StateError('This plan is unavailable.');
+          tx.set(planRef.collection('arrivals').doc(uid), {
+            'uid': uid,
+            'checkedInAt': FieldValue.serverTimestamp(),
+          });
+          addSpaceEvent(
+            tx,
+            id,
+            arrivalEventId,
+            type: 'planArrival',
+            entityId: planId,
+            recipients: List<String>.from(parent['memberUids'] as List),
+            affectedUids: {
+              plan['ownerUid'] as String,
+              ...List<String>.from(plan['participants'] as List? ?? []),
+            }.toList(),
+          );
+        });
         return {'ok': true};
       case 'createInvite':
         final spaceRef = space(id!);
@@ -811,13 +805,37 @@ class SparkBackend {
               ),
             );
           }
+          final contentChanged = ['title', 'note', 'destination'].any(
+            (field) =>
+                updates.containsKey(field) &&
+                updates[field] != (before.data()?[field] ?? ''),
+          );
+          if (contentChanged && updates['status'] != 'requested') {
+            addSpaceEvent(
+              tx,
+              id,
+              assignmentEventId,
+              type: 'taskEdited',
+              entityId: taskId,
+              recipients: List<String>.from(
+                parent.data()?['memberUids'] as List? ?? [],
+              ),
+              affectedUids: {
+                for (final value in [
+                  before.data()?['creatorUid'],
+                  before.data()?['ownerUid'],
+                  before.data()?['requestedUid'],
+                  before.data()?['offeredUid'],
+                ])
+                  if (value is String) value,
+              }.toList(),
+            );
+          }
           tx.update(taskRef, updates);
         });
         return {'ok': true};
       case 'deleteTask':
-        final taskId = v['taskId'] as String;
-        await space(id!).collection('tasks').doc(taskId).delete();
-        return {'ok': true};
+        return backend.taskAccess('delete', v);
       case 'setSubtasks':
         final taskId = v['taskId'] as String;
         await space(id!).collection('tasks').doc(taskId).update({
@@ -951,6 +969,11 @@ class SparkBackend {
         }
         if (prior.exists) {
           if (prior.data()?['token'] == token) {
+            if (prior.data()?['status'] == 'declined') {
+              throw StateError(
+                'This join request was declined. Ask the owner for a new invitation.',
+              );
+            }
             return {'approved': false};
           }
           await pendingRef.delete();
@@ -975,7 +998,10 @@ class SparkBackend {
       case 'declineJoinRequest':
         final sId = id!;
         final targetUid = v['targetUid'] as String;
-        await space(sId).collection('pendingJoins').doc(targetUid).delete();
+        await space(sId)
+            .collection('pendingJoins')
+            .doc(targetUid)
+            .update({'status': 'declined'});
         return {'ok': true};
       case 'createRoutine':
         final ref = space(id!).collection('routines').doc();
@@ -1083,12 +1109,34 @@ class SparkBackend {
         return {'ok': true};
       case 'checkInArrival':
         final taskId = v['taskId'] as String;
-        await space(id!)
-            .collection('tasks')
-            .doc(taskId)
-            .collection('arrivals')
-            .doc(uid)
-            .set({'uid': uid, 'checkedInAt': FieldValue.serverTimestamp()});
+        final arrivalEventId = db.collection('eventIds').doc().id;
+        await db.runTransaction((tx) async {
+          final taskRef = space(id!).collection('tasks').doc(taskId);
+          final task = (await tx.get(taskRef)).data();
+          final parent = (await tx.get(space(id))).data()!;
+          if (task == null) throw StateError('This task is unavailable.');
+          tx.set(taskRef.collection('arrivals').doc(uid), {
+            'uid': uid,
+            'checkedInAt': FieldValue.serverTimestamp(),
+          });
+          addSpaceEvent(
+            tx,
+            id,
+            arrivalEventId,
+            type: 'taskArrival',
+            entityId: taskId,
+            recipients: List<String>.from(parent['memberUids'] as List),
+            affectedUids: {
+              for (final value in [
+                task['creatorUid'],
+                task['ownerUid'],
+                task['requestedUid'],
+                task['offeredUid'],
+              ])
+                if (value is String) value,
+            }.toList(),
+          );
+        });
         return {'ok': true};
       default:
         throw StateError('This action is not available.');

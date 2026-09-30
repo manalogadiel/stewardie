@@ -15,14 +15,16 @@ String? liveRequestKey(
 String? unreadActivityKey(String id, Map<String, dynamic> item) {
   if (item['pushState'] == 'cancelled') return null;
   final spaceId = item['spaceId'] as String?;
-  if (spaceId == null) return null;
+  if (spaceId == null)
+    return item['accountNotice'] == true ? 'activity:$id' : null;
   final kind = item['kind'] as String?;
   final taskId =
       item['taskId'] as String? ??
       (['taskAssigned', 'helpRequested', 'covered', 'completed'].contains(kind)
           ? item['entityId'] as String?
           : null);
-  if (taskId != null && (kind == 'action' || kind == 'taskAssigned')) {
+  if (taskId != null &&
+      (kind == 'action' || kind == 'taskAssigned' || kind == 'helpOffered')) {
     return 'task:$spaceId:$taskId:${item['taskVersion'] ?? 'legacy'}';
   }
   if (kind == 'ownershipOffered') return 'ownership:$spaceId';

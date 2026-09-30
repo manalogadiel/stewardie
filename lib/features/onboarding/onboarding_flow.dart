@@ -14,6 +14,7 @@ import 'screens/all_set_screen.dart';
 import 'screens/features_screen.dart';
 import 'screens/name_screen.dart';
 import 'screens/permissions_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'screens/welcome_screen.dart';
@@ -61,6 +62,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   String _nameDraft = '';
   String _emailDraft = '';
   String? _avatarDraft;
+  Set<PermissionCapability> _skippedPermissions = {};
   int _featurePageIndex = 0;
   bool _initialEmailSent = true;
   bool _loaded = false;
@@ -85,6 +87,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               draft['name'] as String? ?? _currentUser?.displayName ?? '';
           _emailDraft = draft['email'] as String? ?? _currentUser?.email ?? '';
           _avatarDraft = draft['avatarBase64'] as String?;
+          final preferences = draft['permissions'] as Map<String, dynamic>? ?? {};
+          _skippedPermissions = PermissionCapability.values.where((cap) => preferences[cap.name] == 'skipped').toSet();
           _featurePageIndex = draft['featurePageIndex'] as int? ?? 0;
 
           // Reconcile saved step with authenticated state
@@ -137,6 +141,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         return MascotPose.emailVerification;
       case OnboardingStep.permissions:
         return MascotPose.makeItYours;
+      case OnboardingStep.profile:
+        return MascotPose.profile;
       case OnboardingStep.features:
         return MascotPose.butterTask;
       case OnboardingStep.allSet:
@@ -192,8 +198,11 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       case OnboardingStep.permissions:
         // Once verified, cannot step back into email verification
         break;
-      case OnboardingStep.features:
+      case OnboardingStep.profile:
         _goToStep(OnboardingStep.permissions, forward: false);
+        break;
+      case OnboardingStep.features:
+        _goToStep(OnboardingStep.profile, forward: false);
         break;
       case OnboardingStep.allSet:
         // Cannot back out of payoff
@@ -315,15 +324,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           key: const ValueKey('name_screen'),
           child: NameScreen(
             initialName: _nameDraft,
-            initialAvatarBase64: _avatarDraft,
-            onAvatarChanged: (avatar) {
-              _avatarDraft = avatar;
-              _store.saveDraft(
-                uid: _currentUser?.uid,
-                step: OnboardingStep.name,
-                avatarBase64: avatar,
-              );
-            },
             onContinue: (name) {
               _nameDraft = name;
               _goToStep(OnboardingStep.account);
@@ -369,11 +369,28 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           key: const ValueKey('permissions_screen'),
           child: PermissionsScreen(
             adapter: widget.permissionAdapter,
+            initialSkipped: _skippedPermissions,
+            onSkippedChanged: (skipped) {
+              _skippedPermissions = skipped;
+              _store.saveDraft(uid: _currentUser?.uid, step: OnboardingStep.permissions,
+                permissions: {for (final cap in skipped) cap.name: 'skipped'});
+            },
             onContinue: () {
-              _goToStep(OnboardingStep.features);
+              _goToStep(OnboardingStep.profile);
             },
           ),
         );
+
+      case OnboardingStep.profile:
+        return KeyedSubtree(key: const ValueKey('profile_screen'), child: ProfileScreen(
+          name: _nameDraft, initialPhoto: _avatarDraft,
+          onPhotoChanged: (photo) {
+            _avatarDraft = photo;
+            _store.saveDraft(uid: _currentUser?.uid, step: OnboardingStep.profile,
+              avatarBase64: photo, clearAvatar: photo == null);
+          },
+          onContinue: () => _goToStep(OnboardingStep.features),
+        ));
 
       case OnboardingStep.features:
         return KeyedSubtree(

@@ -37,6 +37,10 @@ class ProfilePhoto {
               title: const Text('Choose from photos'),
               onTap: () => Navigator.pop(sheet, ImageSource.gallery),
             ),
+            ListTile(
+              title: const Text('Skip for now'),
+              onTap: () => Navigator.pop(sheet),
+            ),
           ],
         ),
       ),

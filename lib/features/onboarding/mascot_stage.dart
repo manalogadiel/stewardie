@@ -6,6 +6,7 @@ enum MascotPose {
   attentive('assets/illustrations/onboarding-attentive.png'),
   skyKey('assets/illustrations/onboarding-sky-key.png'),
   emailVerification('assets/illustrations/onboarding-email-verification.png'),
+  profile('assets/illustrations/onboarding-profile.png'),
   makeItYours('assets/illustrations/onboarding-make-it-yours.png'),
   butterTask('assets/illustrations/onboarding-butter-task.png'),
   roseCamera('assets/illustrations/onboarding-rose-camera.png'),

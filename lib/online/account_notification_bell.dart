@@ -54,55 +54,75 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
     final ids = widget.spaceIds.toSet().toList()..sort();
     for (final spaceId in ids) {
       subscriptions.add(
-        widget.backend.activeTasks(spaceId).listen((snapshot) {
-          final active = <String>{};
-          for (final task in snapshot.docs) {
-            final key = liveRequestKey(
-              spaceId,
-              task.id,
-              widget.uid,
-              task.data(),
-            );
-            if (key != null) active.add(key);
-          }
-          if (mounted) setState(() => requests['tasks:$spaceId'] = active);
-        }),
+        widget.backend
+            .activeTasks(spaceId)
+            .listen(
+              (snapshot) {
+                final active = <String>{};
+                for (final task in snapshot.docs) {
+                  final key = liveRequestKey(
+                    spaceId,
+                    task.id,
+                    widget.uid,
+                    task.data(),
+                  );
+                  if (key != null) active.add(key);
+                }
+                if (mounted)
+                  setState(() => requests['tasks:$spaceId'] = active);
+              },
+              onError: (Object error) {
+                if (mounted) setState(() => requests.remove('tasks:$spaceId'));
+              },
+            ),
       );
-      subscriptions.add(
-        widget.backend.firestore.doc('spaces/$spaceId').snapshots().listen((
-          snapshot,
-        ) {
-          if (mounted) {
-            setState(
-              () => requests['owner:$spaceId'] =
-                  snapshot.data()?['pendingOwnerUid'] == widget.uid
-                  ? {'ownership:$spaceId'}
-                  : <String>{},
-            );
-          }
-        }),
-      );
-    }
-    for (var offset = 0; offset < ids.length; offset += 30) {
-      final group = ids.skip(offset).take(30).toList();
-      final groupId = '$offset';
       subscriptions.add(
         widget.backend.firestore
-            .collection('accounts/${widget.uid}/activity')
-            .where('spaceId', whereIn: group)
-            .where('readAt', isNull: true)
-            .limit(100)
+            .doc('spaces/$spaceId')
             .snapshots()
-            .listen((snapshot) {
-              final unread = <String>{};
-              for (final doc in snapshot.docs) {
-                final key = unreadActivityKey(doc.id, doc.data());
-                if (key != null) unread.add(key);
-              }
-              if (mounted) setState(() => activity[groupId] = unread);
-            }),
+            .listen(
+              (snapshot) {
+                if (mounted) {
+                  setState(
+                    () => requests['owner:$spaceId'] =
+                        snapshot.data()?['pendingOwnerUid'] == widget.uid
+                        ? {'ownership:$spaceId'}
+                        : <String>{},
+                  );
+                }
+              },
+              onError: (Object error) {
+                if (mounted) setState(() => requests.remove('owner:$spaceId'));
+              },
+            ),
       );
     }
+    subscriptions.add(
+      widget.backend.firestore
+          .collection('accounts/${widget.uid}/activity')
+          .where('readAt', isNull: true)
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .snapshots()
+          .listen(
+            (snapshot) {
+              final unread = <String>{};
+              for (final doc in snapshot.docs) {
+                final data = doc.data();
+                if (data['accountNotice'] != true &&
+                    !ids.contains(data['spaceId']))
+                  continue;
+                final key = unreadActivityKey(doc.id, data);
+                if (key != null) unread.add(key);
+              }
+              if (mounted) setState(() => activity['account'] = unread);
+            },
+            onError: (Object error) {
+              // Keep live requests usable while an index builds or access changes.
+              if (mounted) setState(() => activity.remove('account'));
+            },
+          ),
+    );
   }
 
   @override

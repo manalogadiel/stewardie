@@ -70,22 +70,38 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   late List<Map<String, dynamic>> _subtasks;
   late List<Map<String, dynamic>> _activity;
 
-  String get _taskId => widget.task['id'] as String? ?? widget.task['taskId'] as String;
+  String get _taskId =>
+      widget.task['id'] as String? ?? widget.task['taskId'] as String;
+  bool get _completed => widget.task['status'] == 'completed';
 
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.task['title'] as String? ?? '');
-    _noteController = TextEditingController(text: widget.task['note'] as String? ?? '');
-    _destinationController = TextEditingController(text: widget.task['destination'] as String? ?? '');
+    _titleController = TextEditingController(
+      text: widget.task['title'] as String? ?? '',
+    );
+    _noteController = TextEditingController(
+      text: widget.task['note'] as String? ?? '',
+    );
+    _destinationController = TextEditingController(
+      text: widget.task['destination'] as String? ?? '',
+    );
     _newSubtaskController = TextEditingController();
-    _selectedAssignee = widget.task['requestedUid'] as String? ?? widget.task['ownerUid'] as String?;
-    _helpNeeded = widget.task['helpNeeded'] == true || widget.task['status'] == 'needsHelp';
+    _selectedAssignee =
+        widget.task['requestedUid'] as String? ??
+        widget.task['ownerUid'] as String?;
+    _helpNeeded =
+        widget.task['helpNeeded'] == true ||
+        widget.task['status'] == 'needsHelp';
     _subtasks = List<Map<String, dynamic>>.from(
-      (widget.task['subtasks'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+      (widget.task['subtasks'] as List? ?? []).map(
+        (e) => Map<String, dynamic>.from(e as Map),
+      ),
     );
     _activity = List<Map<String, dynamic>>.from(
-      (widget.task['activity'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+      (widget.task['activity'] as List? ?? []).map(
+        (e) => Map<String, dynamic>.from(e as Map),
+      ),
     );
 
     _titleFocus.addListener(_onFocusChanged);
@@ -94,12 +110,15 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
   }
 
   void _onFocusChanged() {
-    if (!_titleFocus.hasFocus && !_noteFocus.hasFocus && !_destinationFocus.hasFocus) {
+    if (!_titleFocus.hasFocus &&
+        !_noteFocus.hasFocus &&
+        !_destinationFocus.hasFocus) {
       _autoSave();
     }
   }
 
   Future<void> _autoSave() async {
+    if (_completed) return;
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
@@ -174,9 +193,9 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not request help: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not request help: $e')));
       }
     }
   }
@@ -200,9 +219,9 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not take over task: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not take over task: $e')));
       }
     }
   }
@@ -233,7 +252,9 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD32F2F)),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFD32F2F),
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -255,9 +276,8 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not delete: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not delete: $e')));
       }
     }
   }
@@ -276,9 +296,8 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
     } catch (e) {
       if (mounted) {
         setState(() => _busy = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not claim: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not claim: $e')));
       }
     }
   }
@@ -316,7 +335,10 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFE8EEFF),
                       borderRadius: BorderRadius.circular(12),
@@ -341,6 +363,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
               ),
               const SizedBox(height: 12),
               TextField(
+                readOnly: _completed,
                 controller: _titleController,
                 focusNode: _titleFocus,
                 style: const TextStyle(
@@ -357,6 +380,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
               ),
               const SizedBox(height: 16),
               TextField(
+                readOnly: _completed,
                 controller: _noteController,
                 focusNode: _noteFocus,
                 maxLines: 3,
@@ -390,6 +414,7 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                 children: [
                   Expanded(
                     child: TextField(
+                      readOnly: _completed,
                       controller: _destinationController,
                       focusNode: _destinationFocus,
                       style: const TextStyle(
@@ -402,18 +427,27 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                         hintStyle: const TextStyle(color: Color(0xFF8E95A5)),
                         filled: true,
                         fillColor: const Color(0xFFFFFEFB),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E2DA),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE5E2DA),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(color: Color(0xFF244BFF)),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF244BFF),
+                          ),
                         ),
                       ),
                     ),
@@ -443,7 +477,10 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFEFB),
                   borderRadius: BorderRadius.circular(16),
@@ -469,6 +506,14 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                             value: null,
                             child: Text('Unassigned'),
                           ),
+                          if (_selectedAssignee != null &&
+                              !widget.members.any(
+                                (member) => member['uid'] == _selectedAssignee,
+                              ))
+                            DropdownMenuItem<String?>(
+                              value: _selectedAssignee,
+                              child: const Text('Former member'),
+                            ),
                           ...widget.members.map((m) {
                             final uid = m['uid'] as String;
                             final name = m['name'] as String? ?? 'Member';
@@ -478,10 +523,12 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                             );
                           }),
                         ],
-                        onChanged: (val) {
-                          setState(() => _selectedAssignee = val);
-                          _autoSave();
-                        },
+                        onChanged: _completed
+                            ? null
+                            : (val) {
+                                setState(() => _selectedAssignee = val);
+                                _autoSave();
+                              },
                       ),
                     ),
                   ],
@@ -536,7 +583,9 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                     child: Row(
                       children: [
                         InkWell(
-                          onTap: () => _toggleSubtask(index),
+                          onTap: _completed
+                              ? null
+                              : () => _toggleSubtask(index),
                           borderRadius: BorderRadius.circular(8),
                           child: Container(
                             width: 44,
@@ -546,15 +595,23 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                               width: 22,
                               height: 22,
                               decoration: BoxDecoration(
-                                color: isDone ? const Color(0xFF244BFF) : const Color(0xFFFFFEFB),
+                                color: isDone
+                                    ? const Color(0xFF244BFF)
+                                    : const Color(0xFFFFFEFB),
                                 borderRadius: BorderRadius.circular(7),
                                 border: Border.all(
-                                  color: isDone ? const Color(0xFF244BFF) : const Color(0xFFD4D0C8),
+                                  color: isDone
+                                      ? const Color(0xFF244BFF)
+                                      : const Color(0xFFD4D0C8),
                                   width: 1.5,
                                 ),
                               ),
                               child: isDone
-                                  ? const Icon(Icons.check, size: 15, color: Colors.white)
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 15,
+                                      color: Colors.white,
+                                    )
                                   : null,
                             ),
                           ),
@@ -566,74 +623,95 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                               fontFamily: 'NunitoSans',
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: isDone ? const Color(0xFF8E95A5) : const Color(0xFF202633),
-                              decoration: isDone ? TextDecoration.lineThrough : null,
+                              color: isDone
+                                  ? const Color(0xFF8E95A5)
+                                  : const Color(0xFF202633),
+                              decoration: isDone
+                                  ? TextDecoration.lineThrough
+                                  : null,
                             ),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 16, color: Color(0xFF8E95A5)),
-                          tooltip: 'Remove',
-                          onPressed: () => _removeSubtask(index),
-                        ),
+                        if (!_completed)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.close,
+                              size: 16,
+                              color: Color(0xFF8E95A5),
+                            ),
+                            tooltip: 'Remove',
+                            onPressed: () => _removeSubtask(index),
+                          ),
                       ],
                     ),
                   );
                 }),
               const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _newSubtaskController,
-                      style: const TextStyle(
-                        fontFamily: 'NunitoSans',
-                        fontSize: 14,
-                        color: Color(0xFF202633),
-                      ),
-                      onSubmitted: (_) => _addSubtask(),
-                      decoration: InputDecoration(
-                        hintText: 'Add an item...',
-                        hintStyle: const TextStyle(color: Color(0xFF8E95A5)),
-                        filled: true,
-                        fillColor: const Color(0xFFFFFEFB),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E2DA)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF244BFF)),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 44,
-                    child: TextButton(
-                      onPressed: _addSubtask,
-                      style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFE8EEFF),
-                        foregroundColor: const Color(0xFF244BFF),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: const Text(
-                        'Add',
-                        style: TextStyle(
+              if (!_completed)
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _newSubtaskController,
+                        style: const TextStyle(
                           fontFamily: 'NunitoSans',
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: Color(0xFF202633),
+                        ),
+                        onSubmitted: (_) => _addSubtask(),
+                        decoration: InputDecoration(
+                          hintText: 'Add an item...',
+                          hintStyle: const TextStyle(color: Color(0xFF8E95A5)),
+                          filled: true,
+                          fillColor: const Color(0xFFFFFEFB),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E2DA),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE5E2DA),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF244BFF),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      height: 44,
+                      child: TextButton(
+                        onPressed: _addSubtask,
+                        style: TextButton.styleFrom(
+                          backgroundColor: const Color(0xFFE8EEFF),
+                          foregroundColor: const Color(0xFF244BFF),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Add',
+                          style: TextStyle(
+                            fontFamily: 'NunitoSans',
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 24),
               if (_activity.isNotEmpty) ...[
                 const Text(
@@ -647,7 +725,10 @@ class _OnlineTaskDetailSheetState extends State<OnlineTaskDetailSheet> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFEFB),
                     borderRadius: BorderRadius.circular(14),

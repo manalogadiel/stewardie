@@ -74,25 +74,38 @@ class MemberAvatar extends StatelessWidget {
   Widget _face(Uint8List? bytes) => CircleAvatar(
     radius: radius,
     backgroundColor: colorFor(uid),
-    backgroundImage: bytes == null ? null : MemoryImage(bytes),
     child: bytes == null
-        ? SizedBox(
-            width: radius * 2,
-            height: radius * 2,
-            child: Center(
-              child: Text(
-                initialsFor(name),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF202633),
-                  // height:1 prevents line-box misalignment at small sizes.
-                  height: 1,
-                  fontSize: radius.clamp(10.0, 18.0),
-                ),
+        ? _initials()
+        : ClipOval(
+            child: SizedBox(
+              width: radius * 2,
+              height: radius * 2,
+              child: Image.memory(
+                bytes,
+                fit: BoxFit.cover,
+                frameBuilder: (context, child, frame, synchronous) =>
+                    synchronous || frame != null ? child : _initials(),
+                errorBuilder: (context, error, stack) => _initials(),
               ),
             ),
-          )
-        : null,
+          ),
+  );
+
+  Widget _initials() => SizedBox(
+    width: radius * 2,
+    height: radius * 2,
+    child: Center(
+      child: Text(
+        initialsFor(name),
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF202633),
+          // height:1 prevents line-box misalignment at small sizes.
+          height: 1,
+          fontSize: radius.clamp(10.0, 18.0),
+        ),
+      ),
+    ),
   );
 }

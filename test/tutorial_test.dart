@@ -1,3 +1,4 @@
+import 'package:stewardie/features/onboarding/onboarding_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sembast/sembast_memory.dart';
@@ -10,6 +11,90 @@ import 'package:stewardie/features/onboarding/tutorial/tutorial_state.dart';
 import 'package:stewardie/features/onboarding/tutorial/tutorial_target_registry.dart';
 
 void main() {
+  test('removing a draft avatar stays removed after resuming', () async {
+    final db = await databaseFactoryMemory.openDatabase('avatar-draft.db');
+    addTearDown(db.close);
+    final store = OnboardingStore(db);
+    await store.saveDraft(step: OnboardingStep.name, avatarBase64: 'photo');
+    await store.saveDraft(step: OnboardingStep.name, clearAvatar: true);
+    expect((await store.loadDraft(null))!.containsKey('avatarBase64'), isFalse);
+  });
+
+  testWidgets('tour stays usable on a short screen with enlarged text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: SoftPop.theme,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(2.5)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: TutorialOverlay(
+            initialStopIndex: 0,
+            onFinished: () {},
+            onSkipped: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('Next'));
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your day, together'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  group('Explicit continuation', () {
+    late Database db;
+    setUp(() async {
+      db = await databaseFactoryMemory.openDatabase('continuation.db');
+      await TutorialStore(db)
+          .setStatus('new-member', TutorialStatus.awaitingSpace);
+    });
+    tearDown(() async => db.close());
+    testWidgets('continuation is explicit and consumed once per account', (
+      tester,
+    ) async {
+      final store = TutorialStore(db);
+      final coordinator = TutorialCoordinator(db);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () =>
+                    coordinator.continueTour(context, uid: 'new-member'),
+                child: const Text('Continue tour'),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(TutorialOverlay), findsNothing);
+      await tester.tap(find.text('Continue tour'));
+      await tester.pumpAndSettle();
+      expect(find.text('Your day, together'), findsOneWidget);
+      await tester.tap(find.text('Skip tour'));
+      await tester.pumpAndSettle();
+      expect(
+        await tester.runAsync(() => store.getStatus('new-member')),
+        TutorialStatus.skipped,
+      );
+      await tester.tap(find.text('Continue tour'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TutorialOverlay), findsNothing);
+    });
+  });
+
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('TutorialStop definitions and TutorialStore unit tests', () {

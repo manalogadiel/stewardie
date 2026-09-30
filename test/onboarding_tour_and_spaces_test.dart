@@ -41,6 +41,7 @@ class _TourAndSpacesHarnessState extends State<_TourAndSpacesHarness> {
       await TutorialCoordinator(widget.database).checkAndPromptTour(
         context,
         uid: widget.uid,
+        hasSpaces: widget.hasSpaces,
         onTabRequested: (tab) {
           if (mounted && _destination != tab) {
             setState(() => _destination = tab);
@@ -95,6 +96,7 @@ class _TourAndSpacesHarnessState extends State<_TourAndSpacesHarness> {
               TutorialCoordinator(widget.database).replayTour(
                 context,
                 uid: widget.uid,
+                hasSpaces: widget.hasSpaces,
                 onTabRequested: (tab) {
                   if (mounted && _destination != tab) {
                     setState(() => _destination = tab);
@@ -105,9 +107,7 @@ class _TourAndSpacesHarnessState extends State<_TourAndSpacesHarness> {
           ),
         ],
       ),
-      body: Center(
-        child: Text('Current Tab: $_destination'),
-      ),
+      body: Center(child: Text('Current Tab: $_destination')),
     );
   }
 }
@@ -167,17 +167,10 @@ void main() {
         expect(find.byType(TutorialOverlay), findsOneWidget);
         expect(find.text('Your spaces'), findsOneWidget);
 
-        // Complete the tour by advancing to the end
-        for (int i = 0; i < 6; i++) {
-          await tester.tap(find.text('Next'));
-          await tester.pump();
-          await tester.pump(const Duration(milliseconds: 300));
-          expect(tester.takeException(), isNull);
-        }
-
-        // Last stop shows "Got it"
-        expect(find.text('Got it'), findsOneWidget);
-        await tester.tap(find.text('Got it'));
+        // No-space accounts only see the selector stop, then the real sheet.
+        expect(find.text('Stop 1 of 1'), findsOneWidget);
+        expect(find.text('Your day, together'), findsNothing);
+        await tester.tap(find.text('Create or join'));
         await tester.pump();
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

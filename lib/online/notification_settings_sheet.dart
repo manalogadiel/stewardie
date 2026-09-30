@@ -38,6 +38,7 @@ class NotificationSettingsSheet extends StatefulWidget {
 
 class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
   bool enabled = false, spaceEnabled = true, busy = false;
+  bool photos = false, reactions = false, moods = false;
   int quietStart = 22 * 60, quietEnd = 7 * 60;
   String timeZone = 'Asia/Manila';
   String? error;
@@ -67,6 +68,9 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
         quietEnd = docs[0].data()?['quietEnd'] as int? ?? quietEnd;
         timeZone = docs[0].data()?['timeZone'] as String? ?? timeZone;
         spaceEnabled = docs[1].data()?['enabled'] != false;
+        photos = docs[1].data()?['photos'] == true;
+        reactions = docs[1].data()?['reactions'] == true;
+        moods = docs[1].data()?['moods'] == true;
       });
     } catch (_) {
       if (mounted) {
@@ -119,6 +123,9 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
       });
       batch.set(pref(widget.spaceId), {
         'enabled': spaceEnabled,
+        'photos': photos,
+        'reactions': reactions,
+        'moods': moods,
         'quietStart': quietStart,
         'quietEnd': quietEnd,
         'timeZone': timeZone,
@@ -143,7 +150,12 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: media.size.height * 0.85),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + media.viewInsets.bottom),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          12,
+          20,
+          20 + media.viewInsets.bottom + media.viewPadding.bottom,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -166,6 +178,27 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
                 onChanged: enabled
                     ? (value) => setState(() => spaceEnabled = value)
                     : null,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Optional activity',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              SwitchListTile.adaptive(
+                title: const Text('New photos'),
+                value: photos,
+                onChanged: (value) => setState(() => photos = value),
+              ),
+              SwitchListTile.adaptive(
+                title: const Text('Reactions to my photos'),
+                value: reactions,
+                onChanged: (value) => setState(() => reactions = value),
+              ),
+              SwitchListTile.adaptive(
+                title: const Text('Mood check-ins in my inbox'),
+                subtitle: const Text('No mood push alerts'),
+                value: moods,
+                onChanged: (value) => setState(() => moods = value),
               ),
               const SizedBox(height: 8),
               Text(

@@ -43,6 +43,8 @@ test('Spark task acceptance is recipient-only and completion needs an atomic cou
  await assertFails(db('alice').doc('spaces/home/taskCompletions/old').set({title:'Forged',ownerUid:'alice',completedAt:now()}));
  await assertFails(db('alice').collection('spaces/home/taskCompletions').get());
  await assertFails(db('bob').doc('spaces/home/tasks/old').get());
+ await assertFails(db('bob').doc('spaces/home/tasks/task').get());
+ await assertFails(task.update({title:'Changed after completion', updatedAt:now()}));
  await assertSucceeds(db('alice').doc('spaces/home/tasks/old').get());
 });
 test('moods require the trusted writer; members can read their space',async()=>{
@@ -72,6 +74,31 @@ test('space events require a matching atomic transition and inboxes stay server-
  await assertSucceeds(batch.commit());
  await assertFails(d.doc('spaces/home/events/task_task_2').update({type:'completed'}));
  await assertFails(d.doc('spaces/home/events/task_task_2').delete());
+});
+
+test('calendar activity is atomic and cannot name unrelated recipients', async()=>{
+ const d=db('bob');
+ const plan={ownerUid:'bob',title:'Walk',note:'',allDay:false,startMillis:1,endMillis:2,participants:['alice'],revision:1,reminder:'none',updatedAt:now()};
+ const event={type:'planAdded',actorUid:'bob',entityId:'walk',targetUid:null,recipientUids:['alice','bob'],affectedUids:['alice','bob'],planRevision:1,createdAt:now()};
+ await assertFails(d.doc('spaces/home/events/fake-plan').set(event));
+ const batch=d.batch();batch.set(d.doc('spaces/home/plans/walk'),plan);batch.set(d.doc('spaces/home/events/plan_walk_1'),event);
+ await assertSucceeds(batch.commit());
+ const forged=d.batch();forged.update(d.doc('spaces/home/plans/walk'),{title:'Changed',revision:2,updatedAt:now()});
+ forged.set(d.doc('spaces/home/events/plan_walk_2'),{...event,type:'planChanged',planRevision:2,affectedUids:['alice','bob','outsider']});
+ await assertFails(forged.commit());
+ const clean=d.batch();clean.set(d.doc('spaces/home/plans/walk/arrivals/bob'),{uid:'bob',checkedInAt:now()});
+ const {planRevision,...arrivalEvent}=event;
+ clean.set(d.doc('spaces/home/events/arrival'),{...arrivalEvent,type:'planArrival'});
+ await assertSucceeds(clean.commit());
+});
+
+test('help offers need the matching task change and current task version', async()=>{
+ await env.withSecurityRulesDisabled(c=>c.firestore().doc('spaces/home/tasks/task').update({status:'needsHelp',ownerUid:'alice',requestedUid:null,offeredUid:null,updatedAt:ClientTimestamp.now()}));
+ const d=db('bob');
+ const event={type:'helpOffered',actorUid:'bob',entityId:'task',targetUid:'alice',recipientUids:['alice','bob'],affectedUids:['alice','bob'],taskVersion:2,createdAt:now()};
+ await assertFails(d.doc('spaces/home/events/offer').set(event));
+ const batch=d.batch();batch.update(d.doc('spaces/home/tasks/task'),{offeredUid:'bob',version:2,updatedAt:now()});batch.set(d.doc('spaces/home/events/offer'),event);
+ await assertSucceeds(batch.commit());
 });
 test('a creator can reassign an unclaimed task with an atomic event', async()=>{
  await env.withSecurityRulesDisabled(c=>c.firestore().doc('spaces/home/tasks/task').update({status:'unclaimed',requestedUid:null}));
@@ -227,10 +254,10 @@ test('Spark ownership requires consent and preserves account ownership quotas',a
  b.update(d.doc('spaces/home/members/alice'),{role:'member'});
  await assertSucceeds(b.commit());
 });
-test('Spark Basic history query and deterministic task creation work without functions',async()=>{
+test('Basic completed history requires the gateway; task creation stays atomic',async()=>{
  const d=db('bob');
  const cutoff=new Date();cutoff.setUTCHours(0,0,0,0);cutoff.setUTCDate(cutoff.getUTCDate()-3);
- await assertSucceeds(d.collection('spaces/home/tasks').where('status','==','completed').where('completedAt','>=',ClientTimestamp.fromDate(cutoff)).orderBy('completedAt','desc').get());
+ await assertFails(d.collection('spaces/home/tasks').where('status','==','completed').where('completedAt','>=',ClientTimestamp.fromDate(cutoff)).orderBy('completedAt','desc').get());
  const ref=d.doc('spaces/home/tasks/newtask');
  await assertSucceeds(d.runTransaction(async tx=>{
   const old=await tx.get(ref);const parent=await tx.get(d.doc('spaces/home'));

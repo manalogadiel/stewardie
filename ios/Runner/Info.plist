@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>NSCameraUsageDescription</key>
-    <string>Take a photo for a task or a moment in your space.</string>
+    <string>Take a profile photo, or a photo for a task or moment in your space.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Choose a photo to share in your space.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Save a selected moment to your photos.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Share your live location with members in your space.</string>
+    <string>View your position on maps, attach a photo location, or explicitly share a time-limited location with space members.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Keep your time-limited location sharing active for chosen space members when Stewardie is in the background.</string>
     <key>UIBackgroundModes</key>

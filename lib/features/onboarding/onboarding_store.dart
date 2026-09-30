@@ -3,14 +3,15 @@ import 'package:sembast/sembast.dart' hide FieldValue;
 
 import '../../online/online_backend.dart';
 
-/// The 7 distinct steps in the welcome and account onboarding flow.
+/// The 8 distinct steps in the welcome and account onboarding flow.
 enum OnboardingStep {
   welcome(0.0),
-  name(1 / 6),
-  account(2 / 6),
-  verifyEmail(3 / 6),
-  permissions(4 / 6),
-  features(5 / 6),
+  name(1 / 7),
+  account(2 / 7),
+  verifyEmail(3 / 7),
+  permissions(4 / 7),
+  profile(5 / 7),
+  features(6 / 7),
   allSet(1.0);
 
   const OnboardingStep(this.progress);
@@ -35,7 +36,7 @@ class OnboardingStore {
 
   final Database? database;
 
-  static const int currentSchemaVersion = 1;
+  static const int currentSchemaVersion = 2;
 
   static final _store = stringMapStoreFactory.store('onboarding_v1');
 
@@ -51,6 +52,7 @@ class OnboardingStore {
     String? name,
     String? email,
     String? avatarBase64,
+    bool clearAvatar = false,
     int? featurePageIndex,
     Map<String, dynamic>? permissions,
   }) async {
@@ -63,8 +65,10 @@ class OnboardingStore {
     final updated = Map<String, dynamic>.from(existing);
     updated['schemaVersion'] = currentSchemaVersion;
     updated['stepIndex'] = step.index;
+    updated['stepId'] = step.name;
     if (name != null) updated['name'] = name.trim();
     if (email != null) updated['email'] = email.trim();
+    if (clearAvatar) updated.remove('avatarBase64');
     if (avatarBase64 != null) updated['avatarBase64'] = avatarBase64;
     updated.remove('adultConfirmed'); // Migrate legacy draft
     if (featurePageIndex != null)
@@ -80,7 +84,20 @@ class OnboardingStore {
     final db = database;
     if (db == null) return null;
     final key = _draftKey(uid);
-    return await _store.record(key).get(db);
+    final record = await _store.record(key).get(db);
+    if (record == null) return null;
+    final result = Map<String, dynamic>.from(record);
+    final savedId = result['stepId'];
+    if (savedId is String) {
+      result['stepIndex'] = OnboardingStep.values.firstWhere(
+        (step) => step.name == savedId, orElse: () => OnboardingStep.welcome).index;
+    } else if ((result['schemaVersion'] as int? ?? 1) < 2) {
+      const legacy = ['welcome', 'name', 'account', 'verifyEmail', 'permissions', 'features', 'allSet'];
+      final index = (result['stepIndex'] as int? ?? 0).clamp(0, legacy.length - 1);
+      result['stepId'] = legacy[index];
+      result['stepIndex'] = OnboardingStep.values.firstWhere((step) => step.name == legacy[index]).index;
+    }
+    return result;
   }
 
   /// Clears the draft (e.g. upon completion or sign-out).

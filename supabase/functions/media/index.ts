@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { decodeProtectedHeader, importX509, jwtVerify } from "https://esm.sh/jose@5.9.6";
+import { AccessFailure, authorizedTask } from '../_shared/firebase.ts';
 
 const project = "stewardie";
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {auth:{persistSession:false,autoRefreshToken:false}});
@@ -124,7 +125,7 @@ Deno.serve(async req=>{
    await member(space,auth);
    const account=await firestore(`accounts/${auth.uid}`,auth.token,true);
    const plus=account.tier==="plus"&&(account.founderGrant===true||account.entitlementSource==="founder"||(account.subscriptionExpiresAt&&new Date(account.subscriptionExpiresAt).getTime()>Date.now()));
-   const task=taskId?await firestore(`spaces/${space}/tasks/${taskId}`,auth.token):null;
+   const task=taskId?await authorizedTask(space,taskId,auth.uid):null;
    if(task&&task.creatorUid!==auth.uid&&task.ownerUid!==auth.uid)throw new Failure("Only the task creator or responsible person can attach a photo.",403);
    const bytes=new Uint8Array(await photo.arrayBuffer()),thumbnail=new Uint8Array(await thumb.arrayBuffer());
    const dimensions=jpeg(bytes,2000000,1600);jpeg(thumbnail,200000,320);
@@ -138,7 +139,7 @@ Deno.serve(async req=>{
    check(await bucket.upload(`${prefix}/thumb.jpg`,thumbnail,{contentType:"image/jpeg",upsert:true}));
    // Recheck authorization after upload; a concurrent removal must not publish.
    await member(space,auth);
-   const current=taskId?await firestore(`spaces/${space}/tasks/${taskId}`,auth.token):null;
+   const current=taskId?await authorizedTask(space,taskId,auth.uid):null;
    const item=check(await sb.rpc("finish_media",{p_id:id,p_uid:auth.uid,p_published:!current||current.status==="completed"?new Date().toISOString():null,p_title:current?.status==="completed"?current.title:null,p_completed:current?.status==="completed"?current.ownerUid:null,p_plus:plus}));
    return json({item});
   }
@@ -158,7 +159,7 @@ Deno.serve(async req=>{
   }
   if(body.action==="publishTask"){
    if(!validId(body.task))throw new Failure("Invalid task.");
-   const task=await firestore(`spaces/${space}/tasks/${body.task}`,auth.token);
+   const task=await authorizedTask(space,body.task,auth.uid);
    if(task.status!=="completed")throw new Failure("Finish the task first.");
    check(await sb.from("media_items").update({published_at:task.completedAt??new Date().toISOString(),task_title:task.title,completed_by:task.ownerUid}).eq("space_id",space).eq("task_id",body.task).eq("state","ready").is("published_at",null));
    return json({ok:true});
@@ -185,6 +186,7 @@ Deno.serve(async req=>{
   }
   throw new Failure("Unknown photo action.");
  }catch(error){
+  if(error instanceof AccessFailure)return json({error:error.message},error.status);
   if(error instanceof Failure)return json({error:error.message},error.status);
   // Never expose tokens, database details or stack traces to the client/log.
   if(error instanceof SyntaxError)return json({error:"Invalid request."},400);

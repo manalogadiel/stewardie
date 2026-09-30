@@ -6,6 +6,7 @@ import 'tutorial_target_registry.dart';
 enum TutorialStatus {
   notStarted,
   inProgress,
+  awaitingSpace,
   skipped,
   completed,
 }
@@ -45,7 +46,8 @@ class TutorialStops {
     TutorialStopData(
       id: TutorialStopId.spaces,
       title: 'Your spaces',
-      explanation: 'Keep each group in its own space. Switch, create, or join here.',
+      explanation:
+          'Keep each group in its own space. Switch, create, or join here.',
       pose: MascotPose.butterWelcome,
       targetKeyGetter: TutorialTargetRegistry.spacesKey,
       destinationTab: 0,
@@ -116,6 +118,7 @@ class TutorialStore {
     final statusStr = record?['status'] as String?;
     return switch (statusStr) {
       'inProgress' => TutorialStatus.inProgress,
+      'awaitingSpace' => TutorialStatus.awaitingSpace,
       'skipped' => TutorialStatus.skipped,
       'completed' => TutorialStatus.completed,
       _ => TutorialStatus.notStarted,
@@ -125,7 +128,8 @@ class TutorialStore {
   Future<void> setStatus(String uid, TutorialStatus status) async {
     final db = database;
     if (db == null || uid.isEmpty) return;
-    final existing = await _store.record(_key(uid)).get(db) ?? <String, dynamic>{};
+    final existing =
+        await _store.record(_key(uid)).get(db) ?? <String, dynamic>{};
     final updated = Map<String, dynamic>.from(existing);
     updated['status'] = status.name;
     updated['updatedAt'] = DateTime.now().toUtc().toIso8601String();
@@ -142,7 +146,8 @@ class TutorialStore {
   Future<void> setCurrentStopIndex(String uid, int index) async {
     final db = database;
     if (db == null || uid.isEmpty) return;
-    final existing = await _store.record(_key(uid)).get(db) ?? <String, dynamic>{};
+    final existing =
+        await _store.record(_key(uid)).get(db) ?? <String, dynamic>{};
     final updated = Map<String, dynamic>.from(existing);
     updated['stopIndex'] = index;
     await _store.record(_key(uid)).put(db, updated);

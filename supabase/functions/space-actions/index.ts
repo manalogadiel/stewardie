@@ -112,7 +112,9 @@ async function rename(spaceId: string, name: string, uid: string): Promise<Respo
 async function drainDeletion(spaceId: string, uid: string): Promise<Response> {
   const job = await get(`spaceDeletionJobs/${spaceId}`);
   if (!job || job.fields?.requestedBy?.stringValue !== uid) return json(403, { error: 'Unavailable.' });
-  if (job.fields?.status?.stringValue !== 'pending') {
+  if (job.fields?.status?.stringValue === 'done') return json(200, { status: 'done' });
+  if (!['pending','failed'].includes(job.fields?.status?.stringValue ?? '') &&
+      Date.parse(job.fields?.leaseUntil?.timestampValue ?? '') > Date.now()) {
     return json(202, { status: 'queued', retry: 'cron' });
   }
   const secret = Deno.env.get('STEW_WORKER_SECRET');

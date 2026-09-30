@@ -23,6 +23,7 @@ class TutorialCoordinator {
 
   /// In-memory tracker for UIDs that have been prompted during this app session.
   static final Set<String> _promptedUids = <String>{};
+  static final Set<String> _continuingUids = <String>{};
 
   /// In-memory tracker for UIDs that just finished fresh onboarding and are
   /// eligible for the one-time first-use tour offer.
@@ -42,6 +43,7 @@ class TutorialCoordinator {
   /// Clears in-memory session eligibility (e.g. for testing or logout).
   static void resetSessionState() {
     _promptedUids.clear();
+    _continuingUids.clear();
     _eligibleFirstUseUids.clear();
   }
 
@@ -54,6 +56,7 @@ class TutorialCoordinator {
     BuildContext context, {
     required String uid,
     ValueChanged<int>? onTabRequested,
+    bool hasSpaces = true,
   }) async {
     if (uid.isEmpty) return;
     if (database == null) {
@@ -88,6 +91,7 @@ class TutorialCoordinator {
         uid: uid,
         initialStop: 0,
         onTabRequested: onTabRequested,
+        hasSpaces: hasSpaces,
       );
     } else {
       await _store.setStatus(uid, TutorialStatus.skipped);
@@ -101,6 +105,7 @@ class TutorialCoordinator {
     int initialStop = 0,
     ValueChanged<int>? onTabRequested,
     bool isReplay = false,
+    bool hasSpaces = true,
   }) async {
     final overlay = Overlay.of(context);
     final closed = Completer<void>();
@@ -123,8 +128,12 @@ class TutorialCoordinator {
     entry = OverlayEntry(
       builder: (ctx) => TutorialOverlay(
         initialStopIndex: initialStop,
+        stops: hasSpaces ? TutorialStops.all : [TutorialStops.all.first],
+        finishLabel: hasSpaces ? 'Got it' : 'Create or join',
         onTabRequested: onTabRequested,
-        onFinished: () => close(TutorialStatus.completed),
+        onFinished: () => close(
+          hasSpaces ? TutorialStatus.completed : TutorialStatus.awaitingSpace,
+        ),
         onSkipped: () => close(TutorialStatus.skipped),
       ),
     );
@@ -138,6 +147,7 @@ class TutorialCoordinator {
     BuildContext context, {
     required String uid,
     ValueChanged<int>? onTabRequested,
+    bool hasSpaces = true,
   }) async {
     await startTour(
       context,
@@ -145,7 +155,32 @@ class TutorialCoordinator {
       initialStop: 0,
       onTabRequested: onTabRequested,
       isReplay: true,
+      hasSpaces: hasSpaces,
     );
+  }
+
+  /// Explicit continuation after the first membership, never an automatic tour.
+  Future<void> continueTour(
+    BuildContext context, {
+    required String uid,
+    ValueChanged<int>? onTabRequested,
+  }) async {
+    if (!_continuingUids.add(uid)) return;
+    try {
+      if (await _store.getStatus(uid) != TutorialStatus.awaitingSpace ||
+          !context.mounted)
+        return;
+      await _store.setStatus(uid, TutorialStatus.inProgress);
+      if (!context.mounted) return;
+      await startTour(
+        context,
+        uid: uid,
+        initialStop: 1,
+        onTabRequested: onTabRequested,
+      );
+    } finally {
+      _continuingUids.remove(uid);
+    }
   }
 
   /// Clears local tutorial state for the given user (e.g. on account deletion).

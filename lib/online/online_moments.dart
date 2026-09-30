@@ -1,3 +1,5 @@
+import '../features/onboarding/tutorial/tutorial_target_registry.dart';
+
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -233,6 +235,7 @@ class _OnlineMomentsScreenState extends State<OnlineMomentsScreen> {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
+              key: TutorialTargetRegistry.momentsTabTarget,
               onPressed: _add,
               icon: const Icon(Icons.add_a_photo_outlined),
               label: const Text('Add moment'),

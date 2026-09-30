@@ -14,6 +14,7 @@ class ActivityInboxSheet extends StatelessWidget {
     this.onOpenSpace,
     this.onOpenTask,
     this.onOpenOwnership,
+    this.onOpenMoments,
     this.requests = const [],
   });
 
@@ -22,6 +23,7 @@ class ActivityInboxSheet extends StatelessWidget {
   final Future<void> Function(String spaceId)? onOpenSpace;
   final Future<void> Function(String spaceId, String taskId)? onOpenTask;
   final Future<void> Function(String spaceId)? onOpenOwnership;
+  final Future<void> Function(String spaceId)? onOpenMoments;
   final List<Widget> requests;
 
   static Future<void> show(
@@ -59,7 +61,8 @@ class ActivityInboxSheet extends StatelessWidget {
               .where(
                 (doc) =>
                     doc.data()['pushState'] != 'cancelled' &&
-                    spaceNames.containsKey(doc.data()['spaceId']),
+                    (doc.data()['accountNotice'] == true ||
+                        spaceNames.containsKey(doc.data()['spaceId'])),
               )
               .toList();
           return ListView(
@@ -99,7 +102,7 @@ class ActivityInboxSheet extends StatelessWidget {
     final spaceId = data['spaceId'] as String?;
     final kind = data['kind'];
     if (spaceId != null &&
-        (kind == 'taskAssigned' || kind == 'action') &&
+        (kind == 'taskAssigned' || kind == 'action' || kind == 'helpOffered') &&
         data['taskId'] is String) {
       return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: backend.firestore
@@ -150,7 +153,9 @@ class ActivityInboxSheet extends StatelessWidget {
       ),
       subtitle: Text(
         [
-          spaceNames[doc.data()['spaceId']] ?? 'Space',
+          doc.data()['accountNotice'] == true
+              ? 'Account'
+              : spaceNames[doc.data()['spaceId']] ?? 'Space',
           doc.data()['body'] as String? ?? '',
           if (doc.data()['createdAt'] is Timestamp)
             '${MaterialLocalizations.of(context).formatMediumDate((doc.data()['createdAt'] as Timestamp).toDate().toLocal())} '
@@ -158,6 +163,25 @@ class ActivityInboxSheet extends StatelessWidget {
         ].where((text) => text.isNotEmpty).join(' · '),
       ),
       onTap: () async {
+        final cleanupId = doc.data()['cleanupSpaceId'];
+        if (doc.data()['accountNotice'] == true && cleanupId is String) {
+          try {
+            await backend.callSpaceAction('drainDeletion', cleanupId);
+            if (context.mounted)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Cloud cleanup retry requested.')),
+              );
+          } catch (_) {
+            if (context.mounted)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Could not retry. Automatic retry remains scheduled.',
+                  ),
+                ),
+              );
+          }
+        }
         if (doc.data()['readAt'] == null) {
           try {
             await doc.reference.update({
@@ -177,13 +201,21 @@ class ActivityInboxSheet extends StatelessWidget {
               'taskAssigned',
               'action',
               'helpRequested',
+              'helpOffered',
+              'taskDeclined',
+              'taskEdited',
+              'taskArrival',
               'covered',
               'completed',
               'due',
             ].contains(kind) &&
             onOpenTask != null) {
           await onOpenTask!(spaceId, taskId);
-        } else if (kind == 'ownershipOffered' && onOpenOwnership != null) {
+        } else if (['photo', 'reaction'].contains(kind) &&
+            onOpenMoments != null) {
+          await onOpenMoments!(spaceId);
+        } else if (['ownershipOffered', 'joinRequested'].contains(kind) &&
+            onOpenOwnership != null) {
           await onOpenOwnership!(spaceId);
         } else {
           await onOpenSpace?.call(spaceId);

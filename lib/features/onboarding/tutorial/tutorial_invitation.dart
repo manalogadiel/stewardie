@@ -39,10 +39,7 @@ class TutorialInvitationSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const MascotStage(
-              pose: MascotPose.butterWelcome,
-              compact: true,
-            ),
+            const MascotStage(pose: MascotPose.butterWelcome, compact: true),
             const SizedBox(height: 12),
             const Text(
               'A quick look around?',
@@ -77,18 +74,13 @@ class TutorialInvitationSheet extends StatelessWidget {
               ),
               child: const Text(
                 'Show me around',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: onDismiss,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(48, 48),
-              ),
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
               child: const Text(
                 'Explore on my own',
                 style: TextStyle(

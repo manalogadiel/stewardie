@@ -7,8 +7,8 @@ export function eventRecipients(event, currentMemberUids, fallbackAffectedUids =
   const target = typeof event.targetUid === 'string' ? event.targetUid : null;
   return [...new Set(original.filter((uid) =>
     typeof uid === 'string' && current.has(uid) && uid !== event.actorUid && (
-      type === 'ownershipOffered' || type === 'taskAssigned' ? uid === target
-        : type === 'covered' || type === 'completed' ? affected.has(uid)
+      ['ownershipOffered', 'taskAssigned', 'helpOffered'].includes(type) ? uid === target
+        : ['covered', 'completed', 'taskDeclined', 'taskEdited', 'taskCancelled', 'taskArrival', 'planAdded', 'planChanged', 'planCancelled', 'planArrival'].includes(type) ? affected.has(uid)
           : true
     ),
   ))];

@@ -7,10 +7,7 @@ import 'tutorial_state.dart';
 /// using authentic app tokens and styling. Clearly labeled "Example", read-only, and
 /// free of automatic cycling timers.
 class TutorialExampleCard extends StatefulWidget {
-  const TutorialExampleCard({
-    super.key,
-    required this.stopId,
-  });
+  const TutorialExampleCard({super.key, required this.stopId});
 
   final TutorialStopId stopId;
 
@@ -60,11 +57,18 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                   },
                   borderRadius: BorderRadius.circular(6),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.refresh_rounded, size: 14, color: SoftPop.blue),
+                        const Icon(
+                          Icons.refresh_rounded,
+                          size: 14,
+                          color: SoftPop.blue,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           _taskStep == 2 ? 'Replay' : 'Next state',
@@ -113,12 +117,20 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
         children: [
           Row(
             children: [
-              const Icon(Icons.radio_button_checked_rounded, color: SoftPop.blue, size: 18),
+              const Icon(
+                Icons.radio_button_checked_rounded,
+                color: SoftPop.blue,
+                size: 18,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
                   'Home',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: SoftPop.ink),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: SoftPop.ink,
+                  ),
                 ),
               ),
               Container(
@@ -129,7 +141,11 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                 ),
                 child: const Text(
                   'Active',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: SoftPop.blue),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: SoftPop.blue,
+                  ),
                 ),
               ),
             ],
@@ -142,7 +158,10 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF6F5F0),
                     borderRadius: BorderRadius.circular(8),
@@ -154,7 +173,13 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                       children: [
                         Icon(Icons.add_rounded, size: 14, color: SoftPop.ink),
                         SizedBox(width: 4),
-                        Text('Create space', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        Text(
+                          'Create space',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -163,7 +188,10 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
               const SizedBox(width: 6),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF6F5F0),
                     borderRadius: BorderRadius.circular(8),
@@ -173,9 +201,19 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.qr_code_rounded, size: 14, color: SoftPop.ink),
+                        Icon(
+                          Icons.qr_code_rounded,
+                          size: 14,
+                          color: SoftPop.ink,
+                        ),
                         SizedBox(width: 4),
-                        Text('Join space', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        Text(
+                          'Join space',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -204,7 +242,11 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
               ),
               child: const Text(
                 'Everyone',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: SoftPop.blue),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: SoftPop.blue,
+                ),
               ),
             ),
             const SizedBox(width: 6),
@@ -219,7 +261,14 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                 children: [
                   CircleAvatar(radius: 6, backgroundColor: SoftPop.rose),
                   SizedBox(width: 4),
-                  Text('Alex', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: SoftPop.ink)),
+                  Text(
+                    'Alex',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: SoftPop.ink,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -241,13 +290,26 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.sentiment_satisfied_rounded, size: 14, color: SoftPop.blue),
+                        Icon(
+                          Icons.sentiment_satisfied_rounded,
+                          size: 14,
+                          color: SoftPop.blue,
+                        ),
                         SizedBox(width: 4),
-                        Text('Alex · Calm', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        Text(
+                          'Alex · Calm',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ],
                     ),
                     SizedBox(height: 2),
-                    Text('Shared mood (read-only)', style: TextStyle(fontSize: 9, color: SoftPop.secondary)),
+                    Text(
+                      'Shared mood (read-only)',
+                      style: TextStyle(fontSize: 9, color: SoftPop.secondary),
+                    ),
                   ],
                 ),
               ),
@@ -266,13 +328,26 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.calendar_month_rounded, size: 14, color: SoftPop.butter),
+                        Icon(
+                          Icons.calendar_month_rounded,
+                          size: 14,
+                          color: SoftPop.butter,
+                        ),
                         SizedBox(width: 4),
-                        Text('Shared plans', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        Text(
+                          'Shared plans',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ],
                     ),
                     SizedBox(height: 2),
-                    Text('2 events scheduled', style: TextStyle(fontSize: 9, color: SoftPop.secondary)),
+                    Text(
+                      '2 events scheduled',
+                      style: TextStyle(fontSize: 9, color: SoftPop.secondary),
+                    ),
                   ],
                 ),
               ),
@@ -332,7 +407,9 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
-                    decoration: stateInfo.$6 ? TextDecoration.lineThrough : null,
+                    decoration: stateInfo.$6
+                        ? TextDecoration.lineThrough
+                        : null,
                   ),
                 ),
               ),
@@ -372,7 +449,9 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: stateInfo.$6 ? const Color(0xFF2E7D32) : Colors.white,
+                    color: stateInfo.$6
+                        ? const Color(0xFF2E7D32)
+                        : Colors.white,
                   ),
                 ),
               ),
@@ -396,7 +475,11 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
         ),
         border: Border.all(color: const Color(0xFFFFF7EB), width: 1.5),
         boxShadow: const [
-          BoxShadow(color: Color(0x18202633), blurRadius: 8, offset: Offset(0, 3)),
+          BoxShadow(
+            color: Color(0x18202633),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
         ],
       ),
       child: Column(
@@ -421,11 +504,19 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.photo_camera_rounded, color: Colors.white70, size: 16),
+                    Icon(
+                      Icons.photo_camera_rounded,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
                     SizedBox(width: 6),
                     Text(
                       'Study session taco run · 2 ❤️',
-                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
@@ -439,7 +530,11 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
               SizedBox(width: 6),
               Text(
                 'Clay TV Moments Viewer',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: SoftPop.ink),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: SoftPop.ink,
+                ),
               ),
               Spacer(),
               CircleAvatar(radius: 4, backgroundColor: Color(0xFF8B8378)),
@@ -470,8 +565,17 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Alex', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                    Text('Space owner', style: TextStyle(color: SoftPop.secondary, fontSize: 10)),
+                    Text(
+                      'Alex',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      'Space owner',
+                      style: TextStyle(color: SoftPop.secondary, fontSize: 10),
+                    ),
                   ],
                 ),
               ),
@@ -482,7 +586,10 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
             children: [
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 5,
+                    horizontal: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: SoftPop.blueSoft,
                     borderRadius: BorderRadius.circular(8),
@@ -493,9 +600,20 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.person_add_rounded, size: 14, color: SoftPop.blue),
+                        Icon(
+                          Icons.person_add_rounded,
+                          size: 14,
+                          color: SoftPop.blue,
+                        ),
                         SizedBox(width: 4),
-                        Text('Invite code', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: SoftPop.blue)),
+                        Text(
+                          'Invite code',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: SoftPop.blue,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -504,7 +622,10 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
               const SizedBox(width: 6),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 5,
+                    horizontal: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF5F4EE),
                     borderRadius: BorderRadius.circular(8),
@@ -515,9 +636,20 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.repeat_rounded, size: 14, color: SoftPop.ink),
+                        Icon(
+                          Icons.repeat_rounded,
+                          size: 14,
+                          color: SoftPop.ink,
+                        ),
                         SizedBox(width: 4),
-                        Text('Routines', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: SoftPop.ink)),
+                        Text(
+                          'Routines',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: SoftPop.ink,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -550,8 +682,17 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Park picnic spot', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                    Text('Fixed photo/task pin', style: TextStyle(fontSize: 9, color: SoftPop.secondary)),
+                    Text(
+                      'Park picnic spot',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Fixed photo/task pin',
+                      style: TextStyle(fontSize: 9, color: SoftPop.secondary),
+                    ),
                   ],
                 ),
               ),
@@ -574,8 +715,17 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Live location session', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                    Text('Explicit 15m · 30m · 60m manual sharing', style: TextStyle(fontSize: 9, color: SoftPop.secondary)),
+                    Text(
+                      'Live location session',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      'Explicit 15m · 30m · 60m manual sharing',
+                      style: TextStyle(fontSize: 9, color: SoftPop.secondary),
+                    ),
                   ],
                 ),
               ),
@@ -609,7 +759,11 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
               children: [
                 Text(
                   'Task covered',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: SoftPop.ink),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: SoftPop.ink,
+                  ),
                 ),
                 SizedBox(height: 1),
                 Text(
@@ -623,7 +777,11 @@ class _TutorialExampleCardState extends State<TutorialExampleCard> {
           ),
           Text(
             '10m',
-            style: TextStyle(fontSize: 9, color: SoftPop.secondary, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 9,
+              color: SoftPop.secondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
