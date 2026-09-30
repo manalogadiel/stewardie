@@ -141,7 +141,7 @@ class OnlineBackend {
       body: jsonEncode({
         'action': action,
         'spaceId': spaceId,
-        if (name != null) 'name': name,
+        'name': ?name,
       }),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {

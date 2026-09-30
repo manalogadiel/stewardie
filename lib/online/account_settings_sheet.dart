@@ -70,18 +70,23 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
   Future<void> _changePhoto() async {
     try {
       final photo = await ProfilePhoto.choose(context);
-      if (photo == null || !mounted) return;
+      if (photo == null || !mounted) {
+        return;
+      }
       setState(() => _busy = true);
       await ProfilePhoto.save(photo);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Could not save your photo. Please retry.'),
           ),
         );
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -90,12 +95,15 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
       setState(() => _busy = true);
       await ProfilePhoto.remove();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not remove your photo.')),
         );
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -111,12 +119,13 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
         if (newName.isNotEmpty) {
           unawaited(
             widget.backend.updateProfileName(newName).catchError((_) {
-              if (mounted)
+              if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Could not save your name. Please retry.'),
                   ),
                 );
+              }
             }),
           );
         }

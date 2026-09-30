@@ -67,18 +67,25 @@ class PushService {
   }
 
   Future<void> _syncIfPermitted() async {
-    if (!available || _uid == null) return;
+    if (!available || _uid == null) {
+      return;
+    }
     final settings = await FirebaseMessaging.instance.getNotificationSettings();
     if (settings.authorizationStatus != AuthorizationStatus.authorized &&
-        settings.authorizationStatus != AuthorizationStatus.provisional)
+        settings.authorizationStatus != AuthorizationStatus.provisional) {
       return;
+    }
     final token = await FirebaseMessaging.instance.getToken();
-    if (token != null) await _register(token);
+    if (token != null) {
+      await _register(token);
+    }
   }
 
   Future<void> _register(String token) async {
     final uid = _uid;
-    if (uid == null || FirebaseAuth.instance.currentUser?.uid != uid) return;
+    if (uid == null || FirebaseAuth.instance.currentUser?.uid != uid) {
+      return;
+    }
     final id = _id(token);
     final collection = FirebaseFirestore.instance.collection(
       'accounts/$uid/pushDevices',

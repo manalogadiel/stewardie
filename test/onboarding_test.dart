@@ -279,6 +279,7 @@ void main() {
       expect(find.textContaining('What should we'), findsOneWidget);
 
       // Tap continue with empty field -> validates and shows error
+      await tester.ensureVisible(find.byType(FilledButton));
       await tester.tap(find.byType(FilledButton));
       await tester.pump();
       expect(find.text('Enter what you would like to be called'), findsOneWidget);
@@ -286,6 +287,7 @@ void main() {
 
       // Enter spaces only -> still invalid
       await tester.enterText(find.byType(TextField), '    ');
+      await tester.ensureVisible(find.byType(FilledButton));
       await tester.tap(find.byType(FilledButton));
       await tester.pump();
       expect(find.text('Enter what you would like to be called'), findsOneWidget);
@@ -293,6 +295,7 @@ void main() {
 
       // Enter valid name with trailing space
       await tester.enterText(find.byType(TextField), '  Robin  ');
+      await tester.ensureVisible(find.byType(FilledButton));
       await tester.tap(find.byType(FilledButton));
       await tester.pump();
       expect(enteredName, 'Robin');

@@ -97,15 +97,18 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
           !mounted ||
           _freshResolved ||
           DateTime.now().difference(cached.timestamp) >
-              const Duration(minutes: 10))
+              const Duration(minutes: 10)) {
         return;
+      }
       final point = LatLng(cached.latitude, cached.longitude);
       setState(() {
         _currentUserLatLng = point;
         _lastKnownCenter = point;
         _locationStatus = 'Showing a recent device location while locating…';
       });
-      if (_allowAutoCenter && _mapReady) _mapController.move(point, 15);
+      if (_allowAutoCenter && _mapReady) {
+        _mapController.move(point, 15);
+      }
     } catch (_) {
       /* A cached fix is optional. */
     }
@@ -121,7 +124,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
         _lastKnownCenter = latLng;
         _locationStatus = 'Your private device location';
       });
-      if (_allowAutoCenter && _mapReady) _mapController.move(latLng, 15);
+      if (_allowAutoCenter && _mapReady) {
+        _mapController.move(latLng, 15);
+      }
     }
   }
 
@@ -135,11 +140,12 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
 
   Future<void> _initUserLocation() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _locationStatus =
               'Location services are off. Enable them to recenter.',
         );
+      }
       return;
     }
     final pos = await LiveLocationService.instance.determinePosition();
@@ -150,7 +156,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
         _currentUserLatLng = userLatLng;
         _locationStatus = 'Your private device location';
       });
-      if (_allowAutoCenter && _mapReady) _mapController.move(userLatLng, 15.0);
+      if (_allowAutoCenter && _mapReady) {
+        _mapController.move(userLatLng, 15.0);
+      }
     } else if (mounted) {
       final permission = await Geolocator.checkPermission();
       setState(
@@ -165,8 +173,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
 
   Future<void> _recenterOnUser() async {
     _allowAutoCenter = true;
-    if (_currentUserLatLng != null && _mapReady)
+    if (_currentUserLatLng != null && _mapReady) {
       _mapController.move(_currentUserLatLng!, 15);
+    }
     final pos = await LiveLocationService.instance.determinePosition();
     if (pos != null && mounted) {
       final userLatLng = LatLng(pos.latitude, pos.longitude);
@@ -175,7 +184,9 @@ class _SpaceMapSheetState extends State<SpaceMapSheet> {
         _currentUserLatLng = userLatLng;
         _locationStatus = 'Your private device location';
       });
-      if (_mapReady) _mapController.move(userLatLng, 15.0);
+      if (_mapReady) {
+        _mapController.move(userLatLng, 15.0);
+      }
     } else if (mounted) {
       setState(
         () => _locationStatus =

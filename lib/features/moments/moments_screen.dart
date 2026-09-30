@@ -48,8 +48,9 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
           .collection('hidden')
           .snapshots()
           .listen((snapshot) {
-            if (mounted)
+            if (mounted) {
               setState(() => _hidden = snapshot.docs.map((d) => d.id).toSet());
+            }
           });
     }
     _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {

@@ -63,13 +63,22 @@ class OnboardingStore {
     final updated = Map<String, dynamic>.from(existing);
     updated['schemaVersion'] = currentSchemaVersion;
     updated['stepIndex'] = step.index;
-    if (name != null) updated['name'] = name.trim();
-    if (email != null) updated['email'] = email.trim();
-    if (avatarBase64 != null) updated['avatarBase64'] = avatarBase64;
+    if (name != null) {
+      updated['name'] = name.trim();
+    }
+    if (email != null) {
+      updated['email'] = email.trim();
+    }
+    if (avatarBase64 != null) {
+      updated['avatarBase64'] = avatarBase64;
+    }
     updated.remove('adultConfirmed'); // Migrate legacy draft
-    if (featurePageIndex != null)
+    if (featurePageIndex != null) {
       updated['featurePageIndex'] = featurePageIndex;
-    if (permissions != null) updated['permissions'] = permissions;
+    }
+    if (permissions != null) {
+      updated['permissions'] = permissions;
+    }
     updated['updatedAt'] = DateTime.now().toUtc().toIso8601String();
 
     await _store.record(key).put(db, updated);
@@ -78,7 +87,9 @@ class OnboardingStore {
   /// Loads saved draft for the given user (or pre-auth device draft).
   Future<Map<String, dynamic>?> loadDraft(String? uid) async {
     final db = database;
-    if (db == null) return null;
+    if (db == null) {
+      return null;
+    }
     final key = _draftKey(uid);
     return await _store.record(key).get(db);
   }
@@ -86,7 +97,9 @@ class OnboardingStore {
   /// Clears the draft (e.g. upon completion or sign-out).
   Future<void> clearDraft(String? uid) async {
     final db = database;
-    if (db == null) return;
+    if (db == null) {
+      return;
+    }
     await _store.record(_draftKey(uid)).delete(db);
     if (uid != null) {
       await _store.record(_draftKey(null)).delete(db);
@@ -94,27 +107,34 @@ class OnboardingStore {
   }
 
   Future<void> savePendingAvatar(String uid, String avatarBase64) async {
-    if (database == null) return;
+    if (database == null) {
+      return;
+    }
     await _store.record('pending_avatar_$uid').put(database!, {
       'image': avatarBase64,
     });
   }
 
   Future<String?> pendingAvatar(String uid) async {
-    if (database == null) return null;
+    if (database == null) {
+      return null;
+    }
     return (await _store.record('pending_avatar_$uid').get(database!))?['image']
         as String?;
   }
 
   Future<void> clearPendingAvatar(String uid) async {
-    if (database != null)
+    if (database != null) {
       await _store.record('pending_avatar_$uid').delete(database!);
+    }
   }
 
   /// Records email verification resend timestamp to enforce at least 30s cooldown.
   Future<void> recordResendTimestamp(String? uid) async {
     final db = database;
-    if (db == null) return;
+    if (db == null) {
+      return;
+    }
     final key = _draftKey(uid);
     final now = DateTime.now().millisecondsSinceEpoch;
     final existing = await _store.record(key).get(db) ?? <String, dynamic>{};

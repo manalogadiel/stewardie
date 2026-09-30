@@ -43,8 +43,8 @@ class SparkBackend {
       'entityId': entityId,
       'targetUid': targetUid,
       'recipientUids': recipients,
-      if (affectedUids != null) 'affectedUids': affectedUids,
-      if (taskVersion != null) 'taskVersion': taskVersion,
+      'affectedUids': ?affectedUids,
+      'taskVersion': ?taskVersion,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -372,8 +372,9 @@ class SparkBackend {
         await db.runTransaction((tx) async {
           final previous = (await tx.get(planRef)).data();
           if (previous != null &&
-              previous['lastMutationId'] == v['operationId'])
+              previous['lastMutationId'] == v['operationId']) {
             return;
+          }
           if (previous != null &&
               v['expectedRevision'] != null &&
               (previous['revision'] as int? ?? 0) != v['expectedRevision']) {
@@ -776,8 +777,9 @@ class SparkBackend {
           final taskRef = space(id!).collection('tasks').doc(taskId);
           final before = await tx.get(taskRef);
           final parent = await tx.get(space(id));
-          if (!before.exists)
+          if (!before.exists) {
             throw StateError('This task is no longer available.');
+          }
           final nextRecipient = updates['requestedUid'] as String?;
           if (v.containsKey('requestedUid') &&
               nextRecipient == null &&
@@ -989,8 +991,9 @@ class SparkBackend {
         await db.runTransaction((tx) async {
           final parent = await tx.get(space(id));
           final count = parent.data()?['routineCount'] as int? ?? 0;
-          if (count >= 5)
+          if (count >= 5) {
             throw StateError('This space has five routines already.');
+          }
           tx.set(ref, {
             'id': ref.id,
             'title': title,

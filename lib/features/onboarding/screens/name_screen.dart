@@ -48,7 +48,9 @@ class _NameScreenState extends State<NameScreen> {
   }
 
   void _submit() {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
     final trimmed = _nameController.text.trim();
     widget.onContinue(trimmed);
   }
@@ -56,16 +58,19 @@ class _NameScreenState extends State<NameScreen> {
   Future<void> _chooseAvatar() async {
     try {
       final chosen = await ProfilePhoto.choose(context);
-      if (chosen == null || !mounted) return;
+      if (chosen == null || !mounted) {
+        return;
+      }
       setState(() => _avatar = chosen);
       widget.onAvatarChanged?.call(chosen);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Could not use that photo. Try another.'),
           ),
         );
+      }
     }
   }
 

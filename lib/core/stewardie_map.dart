@@ -6,10 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// Public tile key supplied at build time. The free key is not an account secret.
 // MapTiler client keys are public. Keep the pilot key as the plain flutter run
 // default; release builds can override it with --dart-define=MAPTILER_KEY=... .
-const mapTilerKey = String.fromEnvironment(
-  'MAPTILER_KEY',
-  defaultValue: '7uwMZ6Idub8CZM4AXzAR',
-);
+const mapTilerKey = String.fromEnvironment('MAPTILER_KEY');
 
 enum StewardieMapStyle { satellite, streets }
 
@@ -80,7 +77,7 @@ class _StewardieMapState extends State<StewardieMap> {
               key: ValueKey('$url-$retry'),
               urlTemplate: url,
               userAgentPackageName: 'dev.stewardie.app',
-              errorTileCallback: (_, __, ___) {
+              errorTileCallback: (_, _, _) {
                 if (!failed && mounted) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) setState(() => failed = true);
@@ -115,7 +112,7 @@ class _StewardieMapState extends State<StewardieMap> {
                 width: 72,
                 height: 22,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Text(
+                errorBuilder: (_, _, _) => const Text(
                   'MapTiler',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                 ),

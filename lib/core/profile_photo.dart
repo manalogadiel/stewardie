@@ -67,9 +67,12 @@ class ProfilePhoto {
     if (bytes.length > 110000) {
       bytes = Uint8List.fromList(image.encodeJpg(small, quality: 55));
     }
-    if (bytes.length > 110000)
+    if (bytes.length > 110000) {
       throw StateError('This photo is too detailed. Try another.');
-    if (!context.mounted) return null;
+    }
+    if (!context.mounted) {
+      return null;
+    }
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
@@ -92,8 +95,9 @@ class ProfilePhoto {
 
   static Future<void> save(String base64) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null || !user.emailVerified)
+    if (user == null || !user.emailVerified) {
       throw StateError('Verify your email first.');
+    }
     if (base64.length > 160000 || decode(base64) == null) {
       throw StateError('Choose a smaller photo.');
     }
@@ -105,7 +109,8 @@ class ProfilePhoto {
 
   static Future<void> remove() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null)
+    if (uid != null) {
       await FirebaseFirestore.instance.doc('profiles/$uid').delete();
+    }
   }
 }

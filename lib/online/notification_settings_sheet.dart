@@ -102,11 +102,12 @@ class _NotificationSettingsSheetState extends State<NotificationSettingsSheet> {
     });
     try {
       if (enabled && !await PushService.instance.requestPermission()) {
-        if (mounted)
+        if (mounted) {
           setState(
             () => error =
                 'Allow notifications in device settings to enable push.',
           );
+        }
         return;
       }
       final batch = widget.backend.firestore.batch();
