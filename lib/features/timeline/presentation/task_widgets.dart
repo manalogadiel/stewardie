@@ -177,9 +177,11 @@ class _AddTaskState extends ConsumerState<_AddTask> {
                 decoration: const InputDecoration(
                   labelText: 'Task name',
                   hintText: 'What needs doing?',
+                  errorMaxLines: 3,
                 ),
                 validator: taskNameError,
               ),
+              const SizedBox(height: 24),
               DropdownButtonFormField<String>(
                 initialValue: requestedUid ?? '',
                 isExpanded: true,

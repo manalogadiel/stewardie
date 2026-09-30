@@ -250,6 +250,7 @@ class _PlacePickerState extends State<_PlacePicker> {
                 labelText: _naming ? 'Finding place name…' : 'Selected place',
               ),
             ),
+            const SizedBox(height: 24),
             TextField(
               controller: note,
               maxLength: 180,
