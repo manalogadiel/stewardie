@@ -484,7 +484,8 @@ void main() {
         expect(find.textContaining('adult'), findsNothing);
 
         // Verify terms & privacy notice is present
-        expect(find.textContaining('privacy notice'), findsOneWidget);
+        expect(find.text('Privacy Notice'), findsOneWidget);
+        expect(find.text('Community Guidelines'), findsOneWidget);
 
         // Test draft update
         await tester.enterText(

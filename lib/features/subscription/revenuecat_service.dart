@@ -8,11 +8,7 @@ import 'package:flutter/services.dart' show PlatformException;
 import 'package:http/http.dart' as http;
 import 'package:purchases_flutter/purchases_flutter.dart';
 
-enum RevenueCatEnvironment {
-  off,
-  test,
-  production,
-}
+enum RevenueCatEnvironment { off, test, production }
 
 enum PurchaseStatus {
   success,
@@ -34,13 +30,7 @@ class PurchaseExecutionResult {
   bool get isSuccess => status == PurchaseStatus.success;
 }
 
-enum RestoreStatus {
-  success,
-  noPurchases,
-  syncPending,
-  syncFailed,
-  error,
-}
+enum RestoreStatus { success, noPurchases, syncPending, syncFailed, error }
 
 class RestoreExecutionResult {
   const RestoreExecutionResult(this.status, {this.message, this.customerInfo});
@@ -93,10 +83,14 @@ class RevenueCatService extends ChangeNotifier {
     }
     const envOverride = String.fromEnvironment('REVENUECAT_ENVIRONMENT');
     if (envOverride == 'production') {
-      const allowProd = bool.fromEnvironment('ENABLE_PRODUCTION_PURCHASES', defaultValue: false);
+      const allowProd = bool.fromEnvironment(
+        'ENABLE_PRODUCTION_PURCHASES',
+        defaultValue: false,
+      );
       final explicitKey = explicitPlatformKey;
       // Production requires an explicit valid platform key that does not use test keys
-      final validProdKey = explicitKey != null &&
+      final validProdKey =
+          explicitKey != null &&
           explicitKey.isNotEmpty &&
           !explicitKey.startsWith('test_');
       return allowProd && validProdKey
@@ -108,12 +102,14 @@ class RevenueCatService extends ChangeNotifier {
     }
     const testPurchasesEnabled = bool.fromEnvironment(
       'ENABLE_TEST_PURCHASES',
-      defaultValue: false,
+      defaultValue: kDebugMode,
     );
     if (!testPurchasesEnabled && envOverride != 'test') {
       return RevenueCatEnvironment.off;
     }
-    return apiKey.startsWith('test_') ? RevenueCatEnvironment.test : RevenueCatEnvironment.off;
+    return apiKey.startsWith('test_')
+        ? RevenueCatEnvironment.test
+        : RevenueCatEnvironment.off;
   }
 
   static bool get purchasesEnabled => environment != RevenueCatEnvironment.off;
@@ -147,11 +143,18 @@ class RevenueCatService extends ChangeNotifier {
   /// Initializes RevenueCat with safe fallback for Web or environments without native billing.
   Future<void> init({String? userId}) {
     final epoch = ++_epoch;
-    return _queue = _queue.then((_) => epoch == _epoch ? _bind(userId, epoch) : null);
+    return _queue = _queue.then(
+      (_) => epoch == _epoch ? _bind(userId, epoch) : null,
+    );
   }
 
   Future<void> _bind(String? userId, int epoch) async {
-    if (_currentUserId == userId && _initialized && error == null) return;
+    if (_currentUserId == userId &&
+        _initialized &&
+        error == null &&
+        _offerings?.current != null) {
+      return;
+    }
     _currentUserId = userId;
     _isPlus = false;
     _isFounder = false;
@@ -194,8 +197,9 @@ class RevenueCatService extends ChangeNotifier {
       _offerings = offerings;
       // Reconcile in the background without blocking initialization
       reconcileWithBackend();
-    } catch (_) {
+    } catch (e) {
       if (epoch != _epoch) return;
+      debugPrint('[RevenueCat] initialization failed: $e');
       error = 'Purchase information is unavailable. Try again when connected.';
     }
     notifyListeners();
@@ -211,7 +215,9 @@ class RevenueCatService extends ChangeNotifier {
         _updateCustomerInfo(info);
         reconcileWithBackend();
       }
-    } catch (_) { /* A listener failure does not grant or change access. */ }
+    } catch (_) {
+      /* A listener failure does not grant or change access. */
+    }
   }
 
   Future<void> logIn(String uid) => init(userId: uid);
@@ -270,7 +276,8 @@ class RevenueCatService extends ChangeNotifier {
           _isFounder = data['isFounder'] == true;
           _isSubscriptionActive = data['isSubscriptionActive'] == true;
           _entitlementSource = data['entitlementSource'] as String?;
-          _isPlus = data['isPlus'] == true || _isFounder || _isSubscriptionActive;
+          _isPlus =
+              data['isPlus'] == true || _isFounder || _isSubscriptionActive;
           final sub = data['subscription'] as Map<String, dynamic>?;
           if (sub != null) {
             final exp = sub['expiresAt'] as String?;
@@ -292,16 +299,20 @@ class RevenueCatService extends ChangeNotifier {
   /// Purchases a package with explicit status reporting and backend reconciliation.
   Future<PurchaseExecutionResult> purchasePackage(Package package) {
     if (!purchasesEnabled) {
-      return Future.value(const PurchaseExecutionResult(
-        PurchaseStatus.notAllowed,
-        message: 'Purchases are currently disabled.',
-      ));
+      return Future.value(
+        const PurchaseExecutionResult(
+          PurchaseStatus.notAllowed,
+          message: 'Purchases are currently disabled.',
+        ),
+      );
     }
     if (kIsWeb || !_initialized || _currentUserId == null) {
-      return Future.value(const PurchaseExecutionResult(
-        PurchaseStatus.error,
-        message: 'Purchase service is not available. Try again later.',
-      ));
+      return Future.value(
+        const PurchaseExecutionResult(
+          PurchaseStatus.error,
+          message: 'Purchase service is not available. Try again later.',
+        ),
+      );
     }
 
     final epoch = _epoch;
@@ -310,10 +321,12 @@ class RevenueCatService extends ChangeNotifier {
 
     _queue = _queue.then((_) async {
       if (epoch != _epoch || expectedUid != _currentUserId) {
-        completer.complete(const PurchaseExecutionResult(
-          PurchaseStatus.userMismatch,
-          message: 'Account changed before purchase started.',
-        ));
+        completer.complete(
+          const PurchaseExecutionResult(
+            PurchaseStatus.userMismatch,
+            message: 'Account changed before purchase started.',
+          ),
+        );
         return;
       }
 
@@ -323,10 +336,12 @@ class RevenueCatService extends ChangeNotifier {
         );
 
         if (epoch != _epoch || expectedUid != _currentUserId) {
-          completer.complete(const PurchaseExecutionResult(
-            PurchaseStatus.userMismatch,
-            message: 'Account changed during purchase.',
-          ));
+          completer.complete(
+            const PurchaseExecutionResult(
+              PurchaseStatus.userMismatch,
+              message: 'Account changed during purchase.',
+            ),
+          );
           return;
         }
 
@@ -336,83 +351,110 @@ class RevenueCatService extends ChangeNotifier {
         final reconciled = await reconcileWithBackend();
 
         if (epoch != _epoch || expectedUid != _currentUserId) {
-          completer.complete(const PurchaseExecutionResult(
-            PurchaseStatus.userMismatch,
-            message: 'Account changed during purchase reconciliation.',
-          ));
+          completer.complete(
+            const PurchaseExecutionResult(
+              PurchaseStatus.userMismatch,
+              message: 'Account changed during purchase reconciliation.',
+            ),
+          );
           return;
         }
 
         // Confirm purchase against actual subscription state/product rather than founder grant alone
-        final productMatches = _subscriptionProductId == null ||
+        final productMatches =
+            _subscriptionProductId == null ||
             _subscriptionProductId == package.storeProduct.identifier;
         if (reconciled && _isSubscriptionActive && productMatches) {
-          completer.complete(PurchaseExecutionResult(
-            PurchaseStatus.success,
-            customerInfo: purchaseResult.customerInfo,
-          ));
+          completer.complete(
+            PurchaseExecutionResult(
+              PurchaseStatus.success,
+              customerInfo: purchaseResult.customerInfo,
+            ),
+          );
         } else if (!reconciled) {
-          completer.complete(PurchaseExecutionResult(
-            PurchaseStatus.syncPending,
-            message: 'Purchase completed with store, but verification timed out. It will synchronize automatically.',
-            customerInfo: purchaseResult.customerInfo,
-          ));
+          completer.complete(
+            PurchaseExecutionResult(
+              PurchaseStatus.syncPending,
+              message: 'Purchase completed with store, but verification timed out. It will synchronize automatically.',
+              customerInfo: purchaseResult.customerInfo,
+            ),
+          );
         } else {
-          completer.complete(PurchaseExecutionResult(
-            PurchaseStatus.syncPending,
-            message: 'Purchase recorded with store. Subscription activation is pending server authorization.',
-            customerInfo: purchaseResult.customerInfo,
-          ));
+          completer.complete(
+            PurchaseExecutionResult(
+              PurchaseStatus.syncPending,
+              message: 'Purchase recorded with store. Subscription activation is pending server authorization.',
+              customerInfo: purchaseResult.customerInfo,
+            ),
+          );
         }
       } on PlatformException catch (e) {
         if (epoch != _epoch || expectedUid != _currentUserId) {
-          completer.complete(const PurchaseExecutionResult(
-            PurchaseStatus.userMismatch,
-            message: 'Account changed during purchase.',
-          ));
+          completer.complete(
+            const PurchaseExecutionResult(
+              PurchaseStatus.userMismatch,
+              message: 'Account changed during purchase.',
+            ),
+          );
           return;
         }
         final code = PurchasesErrorHelper.getErrorCode(e);
         if (code == PurchasesErrorCode.purchaseCancelledError) {
-          completer.complete(const PurchaseExecutionResult(
-            PurchaseStatus.cancelled,
-            message: 'Purchase was cancelled.',
-          ));
+          completer.complete(
+            const PurchaseExecutionResult(
+              PurchaseStatus.cancelled,
+              message: 'Purchase was cancelled.',
+            ),
+          );
           return;
         }
         if (code == PurchasesErrorCode.paymentPendingError) {
-          completer.complete(const PurchaseExecutionResult(
-            PurchaseStatus.pending,
-            message: 'Payment is pending approval from the store.',
-          ));
+          completer.complete(
+            const PurchaseExecutionResult(
+              PurchaseStatus.pending,
+              message: 'Payment is pending approval from the store.',
+            ),
+          );
           return;
         }
-        debugPrint('[RevenueCat] purchasePackage PlatformException: $e (code: $code)');
-        completer.complete(PurchaseExecutionResult(
-          PurchaseStatus.error,
-          message: 'Purchase could not be completed ($code).',
-        ));
+        debugPrint(
+          '[RevenueCat] purchasePackage PlatformException: $e (code: $code)',
+        );
+        completer.complete(
+          PurchaseExecutionResult(
+            PurchaseStatus.error,
+            message: 'Purchase could not be completed ($code).',
+          ),
+        );
       } catch (e) {
         if (epoch != _epoch || expectedUid != _currentUserId) {
-          completer.complete(const PurchaseExecutionResult(
-            PurchaseStatus.userMismatch,
-            message: 'Account changed during purchase.',
-          ));
+          completer.complete(
+            const PurchaseExecutionResult(
+              PurchaseStatus.userMismatch,
+              message: 'Account changed during purchase.',
+            ),
+          );
           return;
         }
         debugPrint('[RevenueCat] purchasePackage error: $e');
         final msg = e.toString();
-        if (msg.contains('purchaseCancelledError') || msg.contains('cancelled') || msg.contains('Canceled')) {
-          completer.complete(const PurchaseExecutionResult(
-            PurchaseStatus.cancelled,
-            message: 'Purchase was cancelled.',
-          ));
+        if (msg.contains('purchaseCancelledError') ||
+            msg.contains('cancelled') ||
+            msg.contains('Canceled')) {
+          completer.complete(
+            const PurchaseExecutionResult(
+              PurchaseStatus.cancelled,
+              message: 'Purchase was cancelled.',
+            ),
+          );
           return;
         }
-        completer.complete(const PurchaseExecutionResult(
-          PurchaseStatus.error,
-          message: 'Purchase could not be completed. Try again.',
-        ));
+        completer.complete(
+          const PurchaseExecutionResult(
+            PurchaseStatus.error,
+            message: 'Purchase could not be completed. Try again.',
+          ),
+        );
       }
     });
 
@@ -422,10 +464,12 @@ class RevenueCatService extends ChangeNotifier {
   /// Restores previous purchases with distinct outcome states.
   Future<RestoreExecutionResult> restorePurchases() {
     if (kIsWeb || !_initialized || _currentUserId == null) {
-      return Future.value(const RestoreExecutionResult(
-        RestoreStatus.error,
-        message: 'Restore service is unavailable.',
-      ));
+      return Future.value(
+        const RestoreExecutionResult(
+          RestoreStatus.error,
+          message: 'Restore service is unavailable.',
+        ),
+      );
     }
 
     final epoch = _epoch;
@@ -434,10 +478,12 @@ class RevenueCatService extends ChangeNotifier {
 
     _queue = _queue.then((_) async {
       if (epoch != _epoch || expectedUid != _currentUserId) {
-        completer.complete(const RestoreExecutionResult(
-          RestoreStatus.error,
-          message: 'Account changed before restore started.',
-        ));
+        completer.complete(
+          const RestoreExecutionResult(
+            RestoreStatus.error,
+            message: 'Account changed before restore started.',
+          ),
+        );
         return;
       }
 
@@ -445,10 +491,12 @@ class RevenueCatService extends ChangeNotifier {
         final info = await Purchases.restorePurchases();
 
         if (epoch != _epoch || expectedUid != _currentUserId) {
-          completer.complete(const RestoreExecutionResult(
-            RestoreStatus.error,
-            message: 'Account changed during restore.',
-          ));
+          completer.complete(
+            const RestoreExecutionResult(
+              RestoreStatus.error,
+              message: 'Account changed during restore.',
+            ),
+          );
           return;
         }
 
@@ -456,42 +504,49 @@ class RevenueCatService extends ChangeNotifier {
         final hasPlus = info.entitlements.active.containsKey('stewardie_plus');
 
         if (!hasPlus) {
-          completer.complete(RestoreExecutionResult(
-            RestoreStatus.noPurchases,
-            customerInfo: info,
-            message: 'No active purchases found for this account.',
-          ));
+          completer.complete(
+            RestoreExecutionResult(
+              RestoreStatus.noPurchases,
+              customerInfo: info,
+              message: 'No active purchases found for this account.',
+            ),
+          );
           return;
         }
 
         final reconciled = await reconcileWithBackend();
 
         if (epoch != _epoch || expectedUid != _currentUserId) {
-          completer.complete(const RestoreExecutionResult(
-            RestoreStatus.error,
-            message: 'Account changed during restore synchronization.',
-          ));
+          completer.complete(
+            const RestoreExecutionResult(
+              RestoreStatus.error,
+              message: 'Account changed during restore synchronization.',
+            ),
+          );
           return;
         }
 
         if (reconciled && _isSubscriptionActive) {
-          completer.complete(RestoreExecutionResult(
-            RestoreStatus.success,
-            customerInfo: info,
-          ));
+          completer.complete(
+            RestoreExecutionResult(RestoreStatus.success, customerInfo: info),
+          );
         } else {
-          completer.complete(RestoreExecutionResult(
-            RestoreStatus.syncPending,
-            customerInfo: info,
-            message: 'Purchases found. Syncing with your account...',
-          ));
+          completer.complete(
+            RestoreExecutionResult(
+              RestoreStatus.syncPending,
+              customerInfo: info,
+              message: 'Purchases found. Syncing with your account...',
+            ),
+          );
         }
       } catch (e) {
         debugPrint('[RevenueCat] restorePurchases error: $e');
-        completer.complete(const RestoreExecutionResult(
-          RestoreStatus.error,
-          message: 'Could not restore purchases. Check your connection.',
-        ));
+        completer.complete(
+          const RestoreExecutionResult(
+            RestoreStatus.error,
+            message: 'Could not restore purchases. Check your connection.',
+          ),
+        );
       }
     });
 

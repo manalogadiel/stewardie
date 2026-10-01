@@ -1,6 +1,10 @@
+import 'account_deletion_dialog.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../core/stewardie_notices.dart';
 
 import '../core/member_avatar.dart';
 import '../core/sound_feedback.dart';
@@ -188,54 +192,11 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
   }
 
   Future<void> _deleteAccount() async {
-    final confirmController = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlgState) => AlertDialog(
-          title: const Text('Request account deletion'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Type DELETE to request permanent account and shared-media deletion. Your request will be reviewed. You can sign in until processing starts; sign-in may be disabled while cleanup runs.',
-                style: TextStyle(fontFamily: 'NunitoSans', fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: confirmController,
-                autofocus: true,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-                decoration: const InputDecoration(
-                  hintText: 'DELETE',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (_) => setDlgState(() {}),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: confirmController.text.trim() == 'DELETE'
-                  ? () => Navigator.of(ctx).pop(true)
-                  : null,
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFD32F2F),
-              ),
-              child: const Text('Send deletion request'),
-            ),
-          ],
-        ),
-      ),
+      builder: (_) => const AccountDeletionDialog(),
     );
-
-    if (confirmed != true) return;
-
+    if (confirmed != true || !mounted) return;
     setState(() => _busy = true);
     try {
       await widget.backend.requestAccountDeletion();
@@ -452,6 +413,12 @@ class _AccountSettingsSheetState extends State<AccountSettingsSheet> {
                     ),
                     const SizedBox(height: 12),
                   ],
+                  TextButton.icon(
+                    onPressed: () => showStewardieNotice(context),
+                    icon: const Icon(Icons.privacy_tip_outlined),
+                    label: const Text('Privacy Notice'),
+                  ),
+                  const SizedBox(height: 8),
                   if (email.toLowerCase() == 'gadielmanalo19@gmail.com') ...[
                     TextButton.icon(
                       onPressed: () =>

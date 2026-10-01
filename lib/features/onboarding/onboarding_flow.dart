@@ -18,7 +18,6 @@ import 'screens/permissions_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/subscription_screen.dart';
 import '../subscription/revenuecat_service.dart';
-import '../subscription/soft_pop_paywall.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'screens/welcome_screen.dart';
@@ -453,8 +452,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               await RevenueCatService.instance
                   .init(userId: uid)
                   .timeout(const Duration(seconds: 20));
-              if (!mounted || _step != OnboardingStep.subscription) return;
-              await showSoftPopPaywall(context);
             },
           ),
         );

@@ -2,13 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme.dart';
+import '../../../core/stewardie_notices.dart';
 import '../../../online/online_backend.dart';
 import '../mascot_stage.dart';
 import '../staggered_entrance.dart';
 
 /// Screen 3: Add your email
 /// Email and password with autofill, visibility toggle, and clear validation.
-/// Adult-account confirmation (18+) and clear terms/privacy statement.
+/// Readable community guidelines and privacy notice before account creation.
 /// Create account sends the verification email.
 /// Handles errors gracefully without trapping the user in loops.
 class AccountScreen extends StatefulWidget {
@@ -298,13 +299,34 @@ class _AccountScreenState extends State<AccountScreen> {
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          'By continuing, you agree to Stewardie’s community guidelines and privacy notice.',
+                          'By continuing, you agree to the Community Guidelines. Read how we use your data in the Privacy Notice.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 12,
                             height: 1.35,
                             color: SoftPop.secondary,
                           ),
+                        ),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          children: [
+                            TextButton(
+                              onPressed: () => showStewardieNotice(context),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(48, 48),
+                              ),
+                              child: const Text('Privacy Notice'),
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  showStewardieNotice(context, privacy: false),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(48, 48),
+                              ),
+                              child: const Text('Community Guidelines'),
+                            ),
+                          ],
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 12),

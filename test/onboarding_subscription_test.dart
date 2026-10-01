@@ -50,10 +50,13 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('View Plus plans'));
-    await tester.tap(find.text('View Plus plans'));
     await tester.pump();
+    expect(find.text('View Plus plans'), findsNothing);
+    expect(find.text('A little more together'), findsOneWidget);
+    expect(
+      find.text('Basic is free. Personal Plus is optional.'),
+      findsOneWidget,
+    );
     await tester.ensureVisible(find.text('Skip for now'));
     await tester.tap(find.text('Skip for now'));
     expect(skipped, isTrue);
@@ -83,9 +86,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('View Plus plans'));
-    await tester.tap(find.text('View Plus plans'));
+    await tester.pump();
     await tester.pumpAndSettle();
     expect(find.textContaining('continue with Basic'), findsOneWidget);
     await tester.ensureVisible(find.text('Skip for now'));
