@@ -15,3 +15,7 @@ Physical-device creation/join remains to be checked. Restart the app, create a s
 Removed the unnecessary Firebase user reload from Create. The session now reuses its account-scoped onboarding completion future across user/token updates instead of replacing the signed-in app with a loading screen on each update. The completion check resets on sign-out, another UID, or onboarding completion.
 
 The creation dialog now waits for the backend acknowledgement, disables repeated submission while saving, and returns the confirmed space ID. Failures remain in the dialog with the draft intact and a retryable error, rather than closing silently. Two focused widget tests pass for acknowledgement and failed-save retry; physical-device verification is still required.
+
+## Live diagnosis: database quota
+
+On the connected Android device, the October 1 Create attempt logged `[cloud_firestore/resource-exhausted] RESOURCE_EXHAUSTED: Quota exceeded` at the transaction's account read. This is the confirmed remaining blocker, not an internet error. The form now explicitly explains database quota exhaustion. The prior generic error hid the distinction. No billing or quota changes were made; the Firebase Usage dashboard must establish which quota was exhausted. Daily free quotas reset around midnight Pacific time.

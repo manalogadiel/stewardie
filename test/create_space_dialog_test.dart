@@ -1,11 +1,56 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stewardie/core/theme.dart';
 import 'package:stewardie/online/online_home.dart';
 
 void main() {
+  testWidgets('Database quota exhaustion retains the draft and explains the limit', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: SoftPop.theme,
+      home: Scaffold(body: CreateSpaceDialog(onCreate: (_) async {
+        throw FirebaseException(plugin: 'cloud_firestore', code: 'resource-exhausted');
+      })),
+    ));
+    await tester.enterText(find.byType(TextField), 'Friends');
+    await tester.pump();
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+    expect(find.text('The app’s database quota has been reached. Try again after it resets.'), findsOneWidget);
+    expect(find.text('Friends'), findsOneWidget);
+  });
+  testWidgets('Firebase denial is not presented as an internet failure', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: SoftPop.theme,
+        home: Scaffold(
+          body: CreateSpaceDialog(
+            onCreate: (_) async {
+              throw FirebaseException(
+                plugin: 'cloud_firestore',
+                code: 'permission-denied',
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'Friends');
+    await tester.pump();
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Space creation was denied. Check your verified account and space limit.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('connection'), findsNothing);
+  });
   testWidgets('Create waits for acknowledgement and returns the saved space', (
     tester,
   ) async {

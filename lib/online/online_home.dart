@@ -3,6 +3,7 @@ import 'rename_space_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/services.dart';
 
 import 'dart:async';
@@ -123,10 +124,54 @@ class _OnlineHomeState extends State<OnlineHome> {
   bool _hasSpaces = false;
   StreamSubscription<void>? _pushOpens;
   StreamSubscription<void>? _foregroundPush;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _spacesStream;
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedAccountStream;
+  String? _cachedMembersSpaceId;
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedMembersStream;
+  String? _cachedActiveTasksSpaceId;
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedActiveTasksStream;
+  String? _cachedSpaceDocId;
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedSpaceDocStream;
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getMembersStream(String spaceId) {
+    if (_cachedMembersSpaceId != spaceId || _cachedMembersStream == null) {
+      _cachedMembersSpaceId = spaceId;
+      _cachedMembersStream = widget.backend.members(spaceId);
+    }
+    return _cachedMembersStream!;
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getActiveTasksStream(
+    String spaceId,
+  ) {
+    if (_cachedActiveTasksSpaceId != spaceId ||
+        _cachedActiveTasksStream == null) {
+      _cachedActiveTasksSpaceId = spaceId;
+      _cachedActiveTasksStream = widget.backend.activeTasks(spaceId);
+    }
+    return _cachedActiveTasksStream!;
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _getAccountStream() {
+    _cachedAccountStream ??= widget.backend.account(widget.user.uid);
+    return _cachedAccountStream!;
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _getSpaceDocStream(
+    String spaceId,
+  ) {
+    if (_cachedSpaceDocId != spaceId || _cachedSpaceDocStream == null) {
+      _cachedSpaceDocId = spaceId;
+      _cachedSpaceDocStream =
+          widget.backend.firestore.doc('spaces/$spaceId').snapshots();
+    }
+    return _cachedSpaceDocStream!;
+  }
 
   @override
   void initState() {
     super.initState();
+    _spacesStream = widget.backend.spaces(widget.user.uid);
     LiveLocationService.instance.init(widget.backend);
     RevenueCatService.instance.addListener(_onRevenueCatUpdate);
     _pushOpens = PushService.instance.inboxOpens.listen((_) {
@@ -222,6 +267,16 @@ class _OnlineHomeState extends State<OnlineHome> {
   @override
   void didUpdateWidget(OnlineHome old) {
     super.didUpdateWidget(old);
+    if (old.user.uid != widget.user.uid) {
+      _spacesStream = widget.backend.spaces(widget.user.uid);
+      _cachedAccountStream = null;
+      _cachedMembersStream = null;
+      _cachedMembersSpaceId = null;
+      _cachedActiveTasksStream = null;
+      _cachedActiveTasksSpaceId = null;
+      _cachedSpaceDocStream = null;
+      _cachedSpaceDocId = null;
+    }
     // When the parent changes the space via the spaceId prop (not via
     // _switchSpace), reset the per-member filter so the old filter cannot
     // bleed into the new space's task list.
@@ -369,7 +424,7 @@ class _OnlineHomeState extends State<OnlineHome> {
   Widget build(
     BuildContext context,
   ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-    stream: widget.backend.spaces(widget.user.uid),
+    stream: _spacesStream,
     builder: (context, snapshot) {
       final refs = snapshot.data?.docs ?? [];
       if (snapshot.hasData) {
@@ -614,7 +669,7 @@ class _OnlineHomeState extends State<OnlineHome> {
       );
     }
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: widget.backend.members(spaceId),
+      stream: _getMembersStream(spaceId),
       builder: (context, peopleSnapshot) {
         if (peopleSnapshot.hasError) {
           return _todayPage(
@@ -636,7 +691,7 @@ class _OnlineHomeState extends State<OnlineHome> {
             if (doc.data()['status'] == 'active') doc.id: doc.data(),
         };
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: widget.backend.activeTasks(spaceId),
+          stream: _getActiveTasksStream(spaceId),
           builder: (context, taskSnapshot) {
             if (taskSnapshot.hasError) {
               return _todayPage(
@@ -1343,7 +1398,7 @@ class _OnlineHomeState extends State<OnlineHome> {
           return const Center(child: CircularProgressIndicator());
         }
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: widget.backend.members(spaceId),
+          stream: _getMembersStream(spaceId),
           builder: (context, peopleSnapshot) => OnlineMomentsScreen(
             store: librarySnapshot.data!,
             backend: widget.backend,
@@ -1506,7 +1561,7 @@ class _OnlineHomeState extends State<OnlineHome> {
         ),
         _page([
           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: widget.backend.account(widget.user.uid),
+            stream: _getAccountStream(),
             builder: (context, snapshot) {
               final data = snapshot.data?.data();
               final rawPlus = data?['tier'] == 'plus';
@@ -1713,15 +1768,13 @@ class _OnlineHomeState extends State<OnlineHome> {
           const SizedBox(height: 18),
           if (spaceId != null)
             StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: widget.backend.firestore
-                  .doc('spaces/$spaceId')
-                  .snapshots(),
+              stream: _getSpaceDocStream(spaceId),
               builder: (context, spaceSnapshot) {
                 final owner = spaceSnapshot.data?.data()?['ownerUid'];
                 final pendingOwner = spaceSnapshot.data
                     ?.data()?['pendingOwnerUid'];
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: widget.backend.members(spaceId),
+                  stream: _getMembersStream(spaceId),
                   builder: (context, members) => ClayPanel(
                     key: owner != widget.user.uid
                         ? TutorialTargetRegistry.spaceTabTarget
@@ -2316,43 +2369,19 @@ class _OnlineHomeState extends State<OnlineHome> {
             _openInboxSpace(sheet, spaceId, destination: 1),
         requests: [
           for (final ref in refs) ...[
-            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: widget.backend.activeTasks(ref.id),
-              builder: (context, snapshot) => Column(
-                children: [
-                  for (final doc
-                      in snapshot.data?.docs ??
-                          <QueryDocumentSnapshot<Map<String, dynamic>>>[])
-                    if ((doc.data()['status'] == 'requested' &&
-                            doc.data()['requestedUid'] == widget.user.uid) ||
-                        (doc.data()['offeredUid'] != null &&
-                            doc.data()['ownerUid'] == widget.user.uid))
-                      ListTile(
-                        title: Text(
-                          doc.data()['title'] as String? ?? 'Task request',
-                        ),
-                        subtitle: Text(
-                          '${ref.data()['name'] ?? 'Space'} · Awaiting your answer',
-                        ),
-                        trailing: const Icon(Icons.chevron_right_rounded),
-                        onTap: () => _openInboxTask(sheet, ref.id, doc.id),
-                      ),
-                ],
-              ),
+            _SpaceTaskRequestsTile(
+              backend: widget.backend,
+              spaceId: ref.id,
+              spaceName: ref.data()['name'] as String? ?? 'Space',
+              userUid: widget.user.uid,
+              onOpenTask: (taskId) => _openInboxTask(sheet, ref.id, taskId),
             ),
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: widget.backend.firestore
-                  .doc('spaces/${ref.id}')
-                  .snapshots(),
-              builder: (context, snapshot) =>
-                  snapshot.data?.data()?['pendingOwnerUid'] == widget.user.uid
-                  ? ListTile(
-                      title: const Text('Ownership offer'),
-                      subtitle: Text(ref.data()['name'] as String? ?? 'Space'),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      onTap: () => _openInboxSpace(sheet, ref.id),
-                    )
-                  : const SizedBox.shrink(),
+            _SpaceOwnershipOfferTile(
+              backend: widget.backend,
+              spaceId: ref.id,
+              spaceName: ref.data()['name'] as String? ?? 'Space',
+              userUid: widget.user.uid,
+              onTap: () => _openInboxSpace(sheet, ref.id),
             ),
           ],
         ],
@@ -2735,16 +2764,26 @@ class _CreateSpaceDialogState extends State<CreateSpaceDialog> {
         'timeZone': timeZone,
       });
       if (mounted) Navigator.pop(context, id);
-    } catch (failure) {
+    } catch (failure, stack) {
+      if (kDebugMode) {
+        debugPrint('Stewardie createSpace failed: $failure');
+        debugPrintStack(stackTrace: stack);
+      }
       if (!mounted) return;
       setState(() {
         saving = false;
         error = failure is StateError
             ? failure.message
-            : failure is FirebaseException &&
-                  failure.code == 'permission-denied'
-            ? 'Could not create this space. Check your verified account and space limit.'
-            : 'Could not create the space. Check your connection and try again.';
+            : failure is FirebaseException
+            ? switch (failure.code) {
+                'permission-denied' => 'Space creation was denied. Check your verified account and space limit.',
+                'unavailable' || 'deadline-exceeded' => 'Cannot reach the space service. Retry or try another network.',
+                'resource-exhausted' =>
+                  'The app’s database quota has been reached. Try again after it resets.',
+                _ =>
+                  'Could not create the space (${failure.code}). Please retry.',
+              }
+            : 'Could not create the space. Please retry.';
       });
     }
   }
@@ -3007,3 +3046,97 @@ class _CreateTaskDialogState extends State<_CreateTaskDialog> {
     ],
   );
 }
+
+class _SpaceTaskRequestsTile extends StatefulWidget {
+  const _SpaceTaskRequestsTile({
+    required this.backend,
+    required this.spaceId,
+    required this.spaceName,
+    required this.userUid,
+    required this.onOpenTask,
+  });
+
+  final OnlineBackend backend;
+  final String spaceId;
+  final String spaceName;
+  final String userUid;
+  final void Function(String taskId) onOpenTask;
+
+  @override
+  State<_SpaceTaskRequestsTile> createState() => _SpaceTaskRequestsTileState();
+}
+
+class _SpaceTaskRequestsTileState extends State<_SpaceTaskRequestsTile> {
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream =
+      widget.backend.activeTasks(widget.spaceId);
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _stream,
+      builder: (context, snapshot) => Column(
+        children: [
+          for (final doc
+              in snapshot.data?.docs ??
+                  <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+            if ((doc.data()['status'] == 'requested' &&
+                    doc.data()['requestedUid'] == widget.userUid) ||
+                (doc.data()['offeredUid'] != null &&
+                    doc.data()['ownerUid'] == widget.userUid))
+              ListTile(
+                title: Text(
+                  doc.data()['title'] as String? ?? 'Task request',
+                ),
+                subtitle: Text(
+                  '${widget.spaceName} · Awaiting your answer',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => widget.onOpenTask(doc.id),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SpaceOwnershipOfferTile extends StatefulWidget {
+  const _SpaceOwnershipOfferTile({
+    required this.backend,
+    required this.spaceId,
+    required this.spaceName,
+    required this.userUid,
+    required this.onTap,
+  });
+
+  final OnlineBackend backend;
+  final String spaceId;
+  final String spaceName;
+  final String userUid;
+  final VoidCallback onTap;
+
+  @override
+  State<_SpaceOwnershipOfferTile> createState() =>
+      _SpaceOwnershipOfferTileState();
+}
+
+class _SpaceOwnershipOfferTileState extends State<_SpaceOwnershipOfferTile> {
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _stream =
+      widget.backend.firestore.doc('spaces/${widget.spaceId}').snapshots();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: _stream,
+      builder: (context, snapshot) =>
+          snapshot.data?.data()?['pendingOwnerUid'] == widget.userUid
+              ? ListTile(
+                  title: const Text('Ownership offer'),
+                  subtitle: Text(widget.spaceName),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: widget.onTap,
+                )
+              : const SizedBox.shrink(),
+    );
+  }
+}
+
