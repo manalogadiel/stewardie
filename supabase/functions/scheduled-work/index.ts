@@ -2,6 +2,7 @@ import { importPKCS8, SignJWT } from 'https://esm.sh/jose@5.9.6';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { eventInboxId, eventRecipients } from './event_delivery.mjs';
 import { socialEligible, pushEnabled, notificationRollout } from './notification_policy.mjs';
+import { timestampBatch, pendingPushes } from './query_plan.mjs';
 
 // Invoked by Supabase Cron with a private shared secret. Firebase Admin REST
 // bypasses client rules; never expose this endpoint to an app or browser.
@@ -112,6 +113,35 @@ async function list(path: string, showMissing = false): Promise<Doc[]> {
   return docs;
 }
 
+async function queryDocs(parent: string, structuredQuery: unknown): Promise<Doc[]> {
+  const result = await fetch(`${root}${parent ? `/${parent}` : ''}:runQuery`, {
+    method: 'POST', headers: { authorization: `Bearer ${await token()}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ structuredQuery }),
+  });
+  if (!result.ok) throw new Error(`Worker query failed: ${result.status}`);
+  return (await result.json()).filter((row: { document?: Doc }) => row.document).map((row: { document: Doc }) => row.document);
+}
+
+async function changedBatch(parent: string, collection: string, field: string,
+  consume: (doc: Doc) => Promise<void>, descendants = false): Promise<void> {
+  const key = `${parent}_${collection}_${field}`.replaceAll('/', '_');
+  const path = `workerProgress/${key}`;
+  const state = await get(path);
+  const saved = state ? fields(state) : {};
+  const cursor = typeof saved.time === 'string' && typeof saved.name === 'string'
+    ? { time: saved.time, name: saved.name } : undefined;
+  const rows = await queryDocs(parent, timestampBatch(collection, field,
+    new Date(notificationRollout).toISOString(), cursor, descendants));
+  if (!rows.length) return;
+  // Never advance past a failed notification. Deterministic inbox IDs make replay safe.
+  for (const row of rows) await consume(row);
+  const last = rows[rows.length - 1];
+  // Preserve server timestamp precision so the cursor cannot replay its tail.
+  const data = { time: String(fields(last)[field]), name: last.name };
+  const savedOK = state ? await update(path, data, state.updateTime!) : await create(path, data);
+  if (!savedOK) throw new Error('Worker progress changed; retry safely.');
+}
+
 async function create(path: string, data: Fields): Promise<boolean> {
   const result = await request(`${path}?currentDocument.exists=false`, {
     method: 'PATCH', body: JSON.stringify({ fields: packed(data) }),
@@ -206,11 +236,17 @@ async function cleanupSpace(job: Doc): Promise<void> {
     await deleteTree(`accounts/${uid}/spaceRefs/${spaceId}`);
   }
   if (await get(`spaces/${spaceId}`)) await deleteTree(`spaces/${spaceId}`);
+  for (const key of [`due_${spaceId}`, `photos_${spaceId}`,
+    ...[['tasks','updatedAt'],['events','createdAt'],['checkIns','updatedAt'],['reactions','createdAt']]
+      .map(([collection, field]) => `spaces_${spaceId}_${collection}_${field}`)]) {
+    await deleteTree(`workerProgress/${key}`);
+  }
 }
 
 async function cleanupRequestedSpaces(now: Date): Promise<number> {
   let errors = 0;
-  for (const job of await list('spaceDeletionJobs')) {
+  for (const job of await queryDocs('', { from: [{collectionId: 'spaceDeletionJobs'}],
+    where: { fieldFilter: { field: {fieldPath: 'status'}, op: 'IN', value: packed({v: ['pending','failed','processing']}).v } }, limit: 100 })) {
     const data = fields(job);
     if (data.status === 'done' ||
         (data.status === 'processing' && Date.parse(String(data.leaseUntil ?? '')) > now.getTime())) continue;
@@ -314,10 +350,10 @@ async function socialActivity(spaceId: string, space: Fields, now: Date): Promis
     return socialEligible(p, category, time, joined.get(uid));
   };
   if ([...prefs.values()].some((p) => p.moods !== false)) {
-    for (const mood of await list(`spaces/${spaceId}/checkIns`)) {
+    await changedBatch(`spaces/${spaceId}`, 'checkIns', 'updatedAt', async (mood) => {
       const m = fields(mood), author = String(m.uid ?? '');
       const at = String(m.updatedAt ?? '');
-      if (!members.includes(author) || Date.parse(String(m.expiresAt)) <= now.getTime()) continue;
+      if (!members.includes(author) || Date.parse(String(m.expiresAt)) <= now.getTime()) return;
       for (const uid of members) {
         if (uid === author || !eligible(uid, 'moods', at)) continue;
         await create(`accounts/${uid}/activity/mood_${spaceId}_${author}_${local(now, String(space.timeZone ?? 'UTC')).date}`, {
@@ -325,14 +361,21 @@ async function socialActivity(spaceId: string, space: Fields, now: Date): Promis
           createdAt: new Date(at), readAt: null, pushState: 'pending', pushId: `mood_${spaceId}_${author}_${local(now, String(space.timeZone ?? 'UTC')).date}`,
         });
       }
-    }
+    });
   }
   if (![...prefs.values()].some((p) => p.photos !== false || p.reactions !== false)) return;
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-  for (let offset = 0; ; offset += 100) {
-    const { data, error } = await sb.from('media_items').select('id,uploader_uid,published_at')
+  const photoStatePath = `workerProgress/photos_${spaceId}`;
+  const photoState = await get(photoStatePath);
+  const photoCursor = photoState ? fields(photoState) : {};
+  {
+    let photoQuery = sb.from('media_items').select('id,uploader_uid,published_at')
       .eq('space_id', spaceId).eq('state', 'ready').not('published_at', 'is', null)
-      .order('id').range(offset, offset + 99);
+      .gte('published_at', new Date(notificationRollout).toISOString());
+    if (typeof photoCursor.time === 'string' && typeof photoCursor.name === 'string') {
+      photoQuery = photoQuery.or(`published_at.gt.${photoCursor.time},and(published_at.eq.${photoCursor.time},id.gt.${photoCursor.name})`);
+    }
+    const { data, error } = await photoQuery.order('published_at').order('id').limit(100);
     if (error) throw error;
     for (const photo of data ?? []) {
     if (!members.includes(photo.uploader_uid)) continue;
@@ -344,22 +387,32 @@ async function socialActivity(spaceId: string, space: Fields, now: Date): Promis
         readAt: null, pushState: 'pending', pushId: `photo_${spaceId}_${photo.id}`,
       });
     }
-    for (const reaction of await list(`spaces/${spaceId}/moments/${photo.id}/reactions`)) {
+    }
+    if (data?.length) {
+      const last = data[data.length - 1];
+      const progress = { time: last.published_at, name: last.id };
+      const ok = photoState ? await update(photoStatePath, progress, photoState.updateTime!) : await create(photoStatePath, progress);
+      if (!ok) throw new Error('Photo progress changed; retry safely.');
+    }
+  }
+  // New reactions on old photos must remain eligible without rereading every photo.
+  await changedBatch(`spaces/${spaceId}`, 'reactions', 'createdAt', async (reaction) => {
+      const photoId = reaction.name.split('/').at(-3)!;
+      const { data: photo, error } = await sb.from('media_items').select('id,uploader_uid,state').eq('space_id', spaceId).eq('id', photoId).maybeSingle();
+      if (error) throw error;
+      if (!photo || photo.state !== 'ready') return;
       const r = fields(reaction), actor = String(r.uid ?? ''), at = String(r.createdAt ?? '');
       if (!members.includes(actor) || await get(`accounts/${actor}/blocks/${photo.uploader_uid}`) || await get(`accounts/${photo.uploader_uid}/blocks/${actor}`)) {
         if (reaction.updateTime) await remove(reaction.name.replace(`${nameRoot}/`, ''), reaction.updateTime);
-        continue;
+        return;
       }
-      if (!members.includes(actor) || actor === photo.uploader_uid || !eligible(photo.uploader_uid, 'reactions', at)) continue;
+      if (!members.includes(photo.uploader_uid) || actor === photo.uploader_uid || !eligible(photo.uploader_uid, 'reactions', at)) return;
       const day = local(new Date(at), String(space.timeZone ?? 'UTC')).date;
       await create(`accounts/${photo.uploader_uid}/activity/reactions_${spaceId}_${photo.id}_${day}`, {
         spaceId, kind: 'reaction', entityId: photo.id, title: 'Photo reactions', body: 'Your photo received new reactions.',
         createdAt: new Date(at), readAt: null, pushState: 'pending', pushId: `reactions_${spaceId}_${photo.id}_${day}`,
       });
-    }
-    }
-    if ((data?.length ?? 0) < 100) break;
-  }
+  }, true);
 }
 
 async function generatedTask(space: Doc, routine: Doc, today: string, now: Date): Promise<void> {
@@ -699,7 +752,8 @@ async function run(): Promise<{ spaces: number; errors: number }> {
       const id = space.name.split('/').pop()!;
       const today = local(now, String(s.timeZone ?? 'UTC'));
       const routines = await list(`spaces/${id}/routines`);
-      for (const session of await list(`spaces/${id}/locationSessions`)) {
+      for (const session of await queryDocs(`spaces/${id}`, { from: [{collectionId: 'locationSessions'}],
+        where: {fieldFilter: {field: {fieldPath: 'expiresAt'}, op: 'LESS_THAN_OR_EQUAL', value: {timestampValue: now.toISOString()}}}, limit: 100 })) {
         const expiry = Date.parse(String(fields(session).expiresAt ?? ''));
         if (expiry <= now.getTime() && session.updateTime) {
           const data = fields(session), uid = String(data.uid ?? '');
@@ -710,7 +764,7 @@ async function run(): Promise<{ spaces: number; errors: number }> {
             body: JSON.stringify({ writes: [
               { delete: session.name, currentDocument: { updateTime: session.updateTime } },
               ...(!exists ? [{ update: { name: `${nameRoot}/${eventPath}`, fields: packed({
-                type: 'locationEnded', actorUid: uid, entityId: uid, recipientUids: data.recipientUids ?? [], createdAt: new Date(expiry),
+                type: 'locationEnded', actorUid: uid, entityId: uid, recipientUids: data.recipientUids ?? [], createdAt: now,
               }) }, currentDocument: { exists: false } }] : []),
             ] }),
           });
@@ -741,13 +795,22 @@ async function run(): Promise<{ spaces: number; errors: number }> {
           }
         }
       }
-      for (const task of await list(`spaces/${id}/tasks`)) {
-        await activityForTask(id, s, task, today.date, now, today.minute >= 540);
+      await changedBatch(`spaces/${id}`, 'tasks', 'updatedAt',
+        (task) => activityForTask(id, s, task, today.date, now, today.minute >= 540));
+      // Revisit unchanged unfinished tasks once after 9am, not every five minutes.
+      const duePath = `workerProgress/due_${id}`;
+      const dueState = today.minute >= 540 ? await get(duePath) : null;
+      if (today.minute >= 540 && fields(dueState ?? {name: ''}).day !== today.date) {
+        const active = await queryDocs(`spaces/${id}`, {from: [{collectionId: 'tasks'}],
+          where: {fieldFilter: {field: {fieldPath: 'status'}, op: 'IN', value: packed({v: ['unclaimed','requested','accepted','needsHelp']}).v}}, limit: 300});
+        for (const task of active) await activityForTask(id, s, task, today.date, now, true);
+        const ok = dueState ? await update(duePath, {day: today.date}, dueState.updateTime!) : await create(duePath, {day: today.date});
+        if (!ok) throw new Error('Daily progress changed; retry safely.');
       }
-      for (const event of await list(`spaces/${id}/events`)) {
-        await activityForSpaceEvent(id, s, event, now);
-      }
-      for (const join of await list(`spaces/${id}/pendingJoins`)) {
+      await changedBatch(`spaces/${id}`, 'events', 'createdAt',
+        (event) => activityForSpaceEvent(id, s, event, now));
+      for (const join of await queryDocs(`spaces/${id}`, {from: [{collectionId: 'pendingJoins'}],
+        where: {fieldFilter: {field: {fieldPath: 'status'}, op: 'EQUAL', value: {stringValue: 'pending'}}}, limit: 100})) {
         await activityForJoin(id, s, join, now);
       }
       try {
@@ -757,7 +820,12 @@ async function run(): Promise<{ spaces: number; errors: number }> {
         errors++;
         console.error('Optional activity failed', id, error);
       }
-      for (const plan of await list(`spaces/${id}/plans`)) {
+      // Reminder windows never require scanning all historical/far-future plans.
+      for (const plan of await queryDocs(`spaces/${id}`, {from: [{collectionId: 'plans'}],
+        where: {compositeFilter: {op: 'AND', filters: [
+          {fieldFilter: {field: {fieldPath: 'startMillis'}, op: 'GREATER_THAN_OR_EQUAL', value: {integerValue: String(now.getTime() - 2 * 86400000)}}},
+          {fieldFilter: {field: {fieldPath: 'startMillis'}, op: 'LESS_THAN_OR_EQUAL', value: {integerValue: String(now.getTime() + 2 * 86400000)}}},
+        ]}}})) {
         await activityForPlan(id, s, plan, now);
       }
     } catch (error) {
@@ -770,13 +838,15 @@ async function run(): Promise<{ spaces: number; errors: number }> {
   // Private review notices never reach reported people or ordinary members.
   const operatorUid = fields(await get('config/founderPlusGrant') ?? { name: '' }).uid;
   const operators = accounts.filter((account) => account.name.split('/').pop() === operatorUid);
-  for (const report of await list('safetyReports')) {
+  for (const report of await queryDocs('', {from: [{collectionId: 'safetyReports'}],
+    where: {fieldFilter: {field: {fieldPath: 'status'}, op: 'EQUAL', value: {stringValue: 'open'}}}, limit: 100})) {
     const r = fields(report), at = Date.parse(String(r.createdAt ?? ''));
     if (r.status !== 'open' || at < notificationRollout || !Number.isFinite(at)) continue;
     for (const operator of operators) await accountNotice(operator.name.split('/').pop()!, `review_${report.name.split('/').pop()}`,
       'Private review needed', 'A report is waiting in your private review queue.', new Date(at), { reportId: report.name.split('/').pop() });
   }
-  for (const deletion of await list('deletionRequests')) {
+  for (const deletion of await queryDocs('', {from: [{collectionId: 'deletionRequests'}],
+    where: {fieldFilter: {field: {fieldPath: 'status'}, op: 'IN', value: packed({v: ['pending','needsAttention']}).v}}, limit: 100})) {
     const r = fields(deletion), at = Date.parse(String(r.createdAt ?? ''));
     if (!['pending','needsAttention'].includes(String(r.status)) || !Number.isFinite(at) || at < notificationRollout) continue;
     for (const operator of operators) await accountNotice(operator.name.split('/').pop()!, `deletion_review_${deletion.name.split('/').pop()}`,
@@ -785,9 +855,25 @@ async function run(): Promise<{ spaces: number; errors: number }> {
   for (const account of accounts) {
     const uid = account.name.split('/').pop()!;
     try {
-      for (const item of await list(`accounts/${uid}/activity`)) {
-        if (await cancelStalePlanActivity(uid, item)) continue;
-        await deliverPush(uid, item, now);
+      const progressPath = `workerProgress/push_${uid}`;
+      const progress = await get(progressPath);
+      const cursor = progress ? fields(progress).name as string | undefined : undefined;
+      let pending = await queryDocs(`accounts/${uid}`, pendingPushes(cursor));
+      if (!pending.length && cursor) pending = await queryDocs(`accounts/${uid}`, pendingPushes());
+      for (const item of pending) {
+        try {
+          if (await cancelStalePlanActivity(uid, item)) continue;
+          await deliverPush(uid, item, now);
+        } catch (error) {
+          errors++;
+          console.error('Push remains pending for retry', error);
+        }
+      }
+      // Rotate pending work so a quiet-hours or failing item cannot starve others.
+      if (pending.length) {
+        const data = {name: pending[pending.length - 1].name};
+        if (progress) await update(progressPath, data, progress.updateTime!);
+        else await create(progressPath, data);
       }
     } catch (error) {
       console.error('Delivery failed for account', uid, error);

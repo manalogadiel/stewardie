@@ -27,7 +27,7 @@ class OnboardingProgressBar extends StatelessWidget {
 
     return Semantics(
       label:
-          'Onboarding step ${step.index} of 6, ${(progressValue * 100).toInt()}% complete',
+          'Onboarding step ${step.index} of ${OnboardingStep.allSet.index}, ${(progressValue * 100).toInt()}% complete',
       child: SafeArea(
         bottom: false,
         child: Padding(

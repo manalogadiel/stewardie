@@ -16,6 +16,9 @@ import 'screens/features_screen.dart';
 import 'screens/name_screen.dart';
 import 'screens/permissions_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/subscription_screen.dart';
+import '../subscription/revenuecat_service.dart';
+import '../subscription/soft_pop_paywall.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'screens/welcome_screen.dart';
@@ -149,6 +152,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         return MascotPose.profile;
       case OnboardingStep.features:
         return MascotPose.butterTask;
+      case OnboardingStep.subscription:
+        return MascotPose.done;
       case OnboardingStep.allSet:
         return MascotPose.done;
     }
@@ -210,6 +215,9 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         break;
       case OnboardingStep.allSet:
         // Cannot back out of payoff
+        break;
+      case OnboardingStep.subscription:
+        _goToStep(OnboardingStep.features, forward: false);
         break;
     }
   }
@@ -428,7 +436,25 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               );
             },
             onLetsGo: () {
-              _goToStep(OnboardingStep.allSet);
+              _goToStep(OnboardingStep.subscription);
+            },
+          ),
+        );
+
+      case OnboardingStep.subscription:
+        return KeyedSubtree(
+          key: const ValueKey('subscription_screen'),
+          child: SubscriptionScreen(
+            onContinue: () => _goToStep(OnboardingStep.allSet),
+            onExplore: () async {
+              final uid =
+                  _currentUser?.uid ?? widget.backend.auth.currentUser?.uid;
+              if (uid == null) throw StateError('Sign in again.');
+              await RevenueCatService.instance
+                  .init(userId: uid)
+                  .timeout(const Duration(seconds: 20));
+              if (!mounted || _step != OnboardingStep.subscription) return;
+              await showSoftPopPaywall(context);
             },
           ),
         );
