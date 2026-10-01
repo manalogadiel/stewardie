@@ -13,8 +13,6 @@ import 'package:sembast/sembast_memory.dart';
 import 'package:stewardie/core/sound_feedback.dart';
 import 'package:stewardie/core/theme.dart';
 import 'package:stewardie/online/app_sound_settings.dart';
-
-import '../tool/generate_soft_pop_sounds.dart' as audio;
 import 'demo_ui_test.dart' show captureKey, screenshot;
 
 class _User extends Fake implements User {
@@ -222,9 +220,10 @@ void main() {
     expect(plays(), isEmpty);
     outbox.close();
   });
+
   test('WAVs are reproducible, finite, smooth, mastered and mirrored', () {
-    for (final cue in audio.soundRecipes.keys) {
-      final bytes = audio.generateSound(cue);
+    for (final cue in _soundRecipes.keys) {
+      final bytes = _generateSound(cue);
       final source = File('assets/sounds/$cue.wav').readAsBytesSync();
       expect(source, orderedEquals(bytes), reason: cue);
       for (final root in [
@@ -305,4 +304,71 @@ void main() {
       expect(SoundFeedback.settings.value.enabled, isFalse);
     });
   }
+}
+
+const _soundRecipes = <String, (double, List<double>, double)>{
+  'notification': (.70, [523.25, 659.25, 783.99], .13),
+  'success': (.50, [659.25, 783.99, 1046.5], .10),
+  'capture': (.20, [440, 587.33], .035),
+  'saved': (.28, [523.25, 659.25], .10),
+  'moment_shared': (.42, [392, 523.25, 659.25], .09),
+  'space_ready': (.50, [523.25, 783.99], .17),
+  'mood_checked_in': (.22, [349.23, 440], .04),
+  'location_start': (.32, [440, 659.25], .11),
+  'location_stop': (.28, [587.33, 392], .10),
+  'reaction_pop': (.12, [523.25], .0),
+  'attention': (.26, [261.63, 293.66], .10),
+};
+
+Uint8List _generateSound(String name) {
+  const rate = 44100;
+  final (duration, notes, spacing) = _soundRecipes[name]!;
+  final count = (duration * rate).round();
+  final samples = List<double>.filled(count, 0);
+  final decay = duration < .35 ? 18.0 : 9.0;
+  for (var i = 0; i < count; i++) {
+    final t = i / rate;
+    for (var n = 0; n < notes.length; n++) {
+      final age = t - n * spacing;
+      if (age < 0) continue;
+      final attack = min(age / .012, 1.0);
+      final envelope = attack * attack * exp(-age * decay);
+      samples[i] +=
+          (sin(2 * pi * notes[n] * age) +
+              .12 * sin(2 * pi * notes[n] * 2 * age)) *
+          envelope;
+    }
+    final fade = ((count - 1 - i) / (rate * .025)).clamp(0.0, 1.0);
+    samples[i] *= fade * fade;
+  }
+  final peak = samples.map((v) => v.abs()).reduce(max);
+  final rms = sqrt(samples.fold(0.0, (sum, v) => sum + v * v) / count);
+  final gain = min(pow(10, -3 / 20) / peak, pow(10, -14 / 20) / rms);
+  final data = ByteData(44 + count * 2);
+  void ascii(int at, String value) {
+    for (var i = 0; i < value.length; i++) {
+      data.setUint8(at + i, value.codeUnitAt(i));
+    }
+  }
+
+  ascii(0, 'RIFF');
+  data.setUint32(4, data.lengthInBytes - 8, Endian.little);
+  ascii(8, 'WAVEfmt ');
+  data.setUint32(16, 16, Endian.little);
+  data.setUint16(20, 1, Endian.little);
+  data.setUint16(22, 1, Endian.little);
+  data.setUint32(24, rate, Endian.little);
+  data.setUint32(28, rate * 2, Endian.little);
+  data.setUint16(32, 2, Endian.little);
+  data.setUint16(34, 16, Endian.little);
+  ascii(36, 'data');
+  data.setUint32(40, count * 2, Endian.little);
+  for (var i = 0; i < count; i++) {
+    data.setInt16(
+      44 + i * 2,
+      (samples[i] * gain * 32767).truncate(),
+      Endian.little,
+    );
+  }
+  return data.buffer.asUint8List();
 }

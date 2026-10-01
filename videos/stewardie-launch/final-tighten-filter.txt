@@ -1,8 +1,0 @@
-[0:v]trim=start=0:duration=12.89,setpts=PTS-STARTPTS[v0];
-[0:v]trim=start=14:duration=10.49,setpts=PTS-STARTPTS[v1];
-[0:v]trim=start=26:duration=16.89,setpts=PTS-STARTPTS[v2];
-[0:v]trim=start=46:duration=13.21,setpts=PTS-STARTPTS[v3];
-[0:v]trim=start=62:duration=14.01,setpts=PTS-STARTPTS[v4];
-[0:v]trim=start=81:duration=17.29,setpts=PTS-STARTPTS[v5];
-[0:v]trim=start=99:duration=13.61,setpts=PTS-STARTPTS[v6];
-[v0][v1][v2][v3][v4][v5][v6]concat=n=7:v=1:a=0[v]

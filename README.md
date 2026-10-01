@@ -10,7 +10,14 @@
 </p>
 
 <p align="center">
+  <a href="https://youtu.be/y56WUBOP-VQ">
+    <img src="https://img.shields.io/badge/▶_Watch_Demo_Video-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo Video on YouTube" />
+  </a>
+</p>
+
+<p align="center">
   <a href="#overview">Overview</a> •
+  <a href="#demo-video">Demo Video</a> •
   <a href="#pitch--why-stewardie">Pitch</a> •
   <a href="#features">Features</a> •
   <a href="#revenuecat-integration--test-store">RevenueCat Test Store</a> •
@@ -29,6 +36,25 @@ Living together shouldn't feel like managing a corporate project. Everyday share
 **Stewardie** is a cross-platform mobile application built in Flutter that bridges practical coordination with authentic emotional connection. Whether you are managing chores with housemates, coordinating family appointments, or sharing a campus dorm with friends, Stewardie provides a dedicated, warm, and private digital home.
 
 With a signature **Soft Pop pastel clay aesthetic**, satisfying tactile soundscapes, and intuitive flows, Stewardie transforms daily responsibilities into seamless teamwork and everyday routines into shared celebration.
+
+---
+
+## Demo Video
+
+<p align="center">
+  <a href="https://youtu.be/y56WUBOP-VQ">
+    <img src="https://img.youtube.com/vi/y56WUBOP-VQ/maxresdefault.jpg" alt="Stewardie Walkthrough & Demo Video" width="720" style="border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);" />
+  </a>
+  <br>
+  <em><a href="https://youtu.be/y56WUBOP-VQ">▶ Watch the Stewardie Walkthrough & Feature Demo on YouTube</a></em>
+</p>
+
+The walkthrough showcases:
+* The **Today** responsibility flow: Unclaimed, Requested, Covered (*"I've got it!"*), and Done.
+* In-app **Moments camera** and completion photo sharing.
+* Daily **Mood check-ins** (*Sky*, *Butter*, *Rose*) and teammate signals.
+* **Shared Calendar** schedule view and person-aware filtering.
+* **RevenueCat Test Store** simulated in-app purchases and paywall onboarding.
 
 ---
 

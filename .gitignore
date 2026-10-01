@@ -97,3 +97,28 @@ venv/
 **/__pycache__/
 *.egg-info/
 
+# Private Backend, Video Assets, Tools & Agent Guidance
+/backend/
+/supabase/
+/videos/
+/submission/
+/tools/
+/tool/
+/scripts/
+/.agents/
+/AGENTS.md
+/QA.md
+/hosting/
+/templates/
+/docs/shipaton-submission-copy.md
+/docs/*-plan.md
+/docs/*-operations.md
+/docs/*-review/
+/docs/*-script.md
+/docs/*-coverage.md
+/docs/*-setup*.md
+/docs/*-fix*.md
+/docs/*-assets.md
+/docs/*-handoff.md
+/docs/*-status.md
+
