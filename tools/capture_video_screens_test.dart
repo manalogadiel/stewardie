@@ -6,7 +6,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:stewardie/app.dart';
 import 'package:stewardie/core/demo_state.dart';
 import 'package:stewardie/core/theme.dart';
@@ -21,7 +20,7 @@ Future<void> saveScreenshot(GlobalKey key, String targetPath) async {
   await file.parent.create(recursive: true);
   await file.writeAsBytes(png!.buffer.asUint8List());
   image.dispose();
-  print('Saved screenshot: $targetPath (${png.lengthInBytes} bytes)');
+  stdout.writeln('Saved screenshot: $targetPath (${png.lengthInBytes} bytes)');
 }
 
 void main() {
@@ -114,6 +113,6 @@ void main() {
       await saveScreenshot(plusKey, '$outDir/screen_plus.png');
     });
 
-    print('All app screens exported successfully!');
+    stdout.writeln('All app screens exported successfully!');
   });
 }

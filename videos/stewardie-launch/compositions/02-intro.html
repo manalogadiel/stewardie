@@ -32,14 +32,14 @@
           background: #faf8f5;
         }
 
-        /* Ambient Lighting Mesh Backdrop */
+        /* Ambient Studio Softbox Lighting Mesh */
         .ambient-mesh {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 80% 20%, rgba(219, 234, 254, 0.6) 0%, transparent 45%),
-            radial-gradient(circle at 15% 80%, rgba(254, 240, 138, 0.45) 0%, transparent 50%),
-            radial-gradient(circle at 50% 50%, rgba(254, 243, 199, 0.35) 0%, transparent 60%);
+            radial-gradient(circle at 50% 15%, #ffffff 0%, rgba(248, 250, 252, 0.85) 40%, rgba(226, 232, 240, 0.65) 75%, rgba(203, 213, 225, 0.5) 100%),
+            radial-gradient(circle at 80% 25%, rgba(224, 231, 255, 0.45) 0%, transparent 50%),
+            radial-gradient(circle at 15% 75%, rgba(254, 240, 138, 0.25) 0%, transparent 45%);
           z-index: 1;
         }
 
@@ -68,16 +68,17 @@
           align-items: center;
           gap: 12px;
           background: #ffffff;
-          border: 1.5px solid #dbeafe;
+          border: none;
           border-radius: 9999px;
           padding: 8px 20px;
           margin-bottom: 24px;
-          box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+          box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.1), 0 4px 10px -2px rgba(15, 23, 42, 0.05);
         }
         .brand-badge img {
-          width: 26px;
-          height: 26px;
-          border-radius: 50%;
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
         .brand-badge span {
           font-size: 15px;
@@ -115,7 +116,7 @@
           max-width: 720px;
           margin-bottom: 30px;
         }
-        /* Floating Feature Pills */
+        /* Plain White Borderless Feature Button Cards */
         .feature-pills {
           display: flex;
           flex-wrap: wrap;
@@ -123,7 +124,7 @@
         }
         .feature-pill {
           background: #ffffff;
-          border: 1.5px solid #e5e7eb;
+          border: none;
           padding: 10px 20px;
           border-radius: 9999px;
           font-size: 16px;
@@ -132,10 +133,48 @@
           display: flex;
           align-items: center;
           gap: 8px;
-          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.04);
+          box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.08), 0 4px 10px -2px rgba(15, 23, 42, 0.04);
         }
 
-        /* Right Side Hero Stage with Authentic App Phone & Mascot */
+        /* Dynamic Island Top Patch */
+        .dynamic-island {
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 114px;
+          height: 30px;
+          background: #000000;
+          border-radius: 999px;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 12px;
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+          pointer-events: none;
+        }
+        .di-camera {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #030712 60%, #000000 100%);
+          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.4);
+        }
+        .di-sensor {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #070d18;
+        }
+        .screen-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        /* Right Side Hero Stage with Liquid Chrome Phone & Floating Mercury */
         .intro-right {
           position: relative;
           width: 680px;
@@ -152,14 +191,26 @@
           justify-content: center;
           transform: rotateY(-8deg) rotateX(2deg);
         }
+
+        /* Iridescent Liquid Chrome Phone Chassis */
         .intro-phone {
-          width: 300px;
-          height: 630px;
-          background: #ffffff;
-          border-radius: 44px;
-          border: 8px solid #1f2937;
-          box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+          width: 304px;
+          height: 636px;
+          border-radius: 46px;
+          padding: 8px;
+          background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
+          box-shadow:
+            0 35px 80px -15px rgba(15, 23, 42, 0.32),
+            0 0 35px rgba(224, 231, 255, 0.45),
+            inset 0 2px 4px rgba(255, 255, 255, 0.95);
+          position: relative;
+        }
+        .intro-screen-wrap {
+          width: 100%;
+          height: 100%;
+          border-radius: 38px;
           overflow: hidden;
+          background: #ffffff;
           position: relative;
         }
         .intro-screen-img {
@@ -168,6 +219,35 @@
           object-fit: cover;
           display: block;
         }
+
+        /* Suspended Zero-Gravity Liquid Mercury Droplets */
+        .mercury-droplet {
+          position: absolute;
+          border-radius: 50%;
+          background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 22%, #cbd5e1 52%, #64748b 82%, #1e293b 100%);
+          box-shadow: 0 14px 28px -4px rgba(15, 23, 42, 0.4), inset -2px -2px 5px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.95);
+          pointer-events: none;
+          z-index: 15;
+        }
+        .md-1 {
+          width: 44px;
+          height: 44px;
+          top: 40px;
+          left: -48px;
+        }
+        .md-2 {
+          width: 28px;
+          height: 28px;
+          bottom: 120px;
+          left: -32px;
+        }
+        .md-3 {
+          width: 52px;
+          height: 52px;
+          top: 90px;
+          right: -55px;
+        }
+
         .mascot-image {
           position: absolute;
           bottom: -20px;
@@ -181,14 +261,14 @@
           position: absolute;
           top: -16px;
           left: -20px;
-          background: #fef08a;
-          border: 2px solid #fde047;
+          background: #ffffff;
+          border: none;
           border-radius: 9999px;
           padding: 10px 22px;
           font-size: 16px;
           font-weight: 900;
           color: #854d0e;
-          box-shadow: 0 10px 20px rgba(250, 204, 21, 0.35);
+          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1), 0 3px 8px rgba(0, 0, 0, 0.04);
           z-index: 12;
         }
       </style>
@@ -223,13 +303,24 @@
             </div>
           </div>
 
-          <!-- Right Hero Stage with Authentic Phone & Clay Trio -->
+          <!-- Right Hero Stage with Liquid Chrome Phone & Clay Trio -->
           <div class="intro-right">
             <div class="intro-hero-stage" id="c2-card">
-              <!-- Authentic Phone Mockup showing Today screen -->
+              <!-- Iridescent Liquid Chrome Phone Mockup showing Today screen -->
               <div class="intro-phone">
-                <img src="assets/screens/today-intro.png" alt="Stewardie App Screen" class="intro-screen-img" />
+                <div class="intro-screen-wrap">
+                  <div class="dynamic-island" data-layout-allow-overlap>
+                    <div class="di-camera"></div>
+                    <div class="di-sensor"></div>
+                  </div>
+                  <video class="screen-video" src="assets/screencast/02_intro_screencast.mp4" autoplay muted playsinline loop></video>
+                </div>
               </div>
+
+              <!-- Suspended Zero-Gravity Liquid Mercury Droplets -->
+              <div class="mercury-droplet md-1" id="c2-md1" data-layout-allow-overlap data-layout-allow-overflow></div>
+              <div class="mercury-droplet md-2" id="c2-md2" data-layout-allow-overlap data-layout-allow-overflow></div>
+              <div class="mercury-droplet md-3" id="c2-md3" data-layout-allow-overlap data-layout-allow-overflow></div>
 
               <!-- Floating Mascot Badge -->
               <div class="sparkle-badge" id="c2-sparkle" data-layout-allow-overlap>✨ Soft Pop Magic</div>
@@ -252,8 +343,17 @@
           tl.fromTo("#c2-pills", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" }, 1.7);
 
           // Card entrance with elastic 3D depth
-          tl.fromTo("#c2-card", { opacity: 0, scale: 0.85, y: 50 }, { opacity: 1, scale: 1, y: 0, duration: 1.1, ease: "back.out(1.5)" }, 0.6);
+          tl.fromTo("#c2-card", { opacity: 0, scale: 0.85, y: 50 }, { opacity: 1, scale: 1, y: 0, duration: 1.0, ease: "back.out(1.5)" }, 0.6);
           tl.fromTo("#c2-sparkle", { scale: 0, rotation: -20 }, { scale: 1, rotation: 0, duration: 0.6, ease: "back.out(2)" }, 1.4);
+
+          // Zero-gravity mercury droplets entrance
+          tl.fromTo(".mercury-droplet", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, stagger: 0.15, ease: "elastic.out(1, 0.4)" }, 1.1);
+
+          // Slow-motion gravitational suspension sine oscillations
+          tl.to("#c2-card", { y: -12, duration: 3.2, repeat: 3, yoyo: true, ease: "sine.inOut", overwrite: "auto" }, 1.75);
+          tl.to("#c2-md1", { y: -18, x: 6, duration: 2.8, repeat: 3, yoyo: true, ease: "sine.inOut" }, 1.8);
+          tl.to("#c2-md2", { y: 15, x: -5, duration: 3.4, repeat: 3, yoyo: true, ease: "sine.inOut" }, 1.9);
+          tl.to("#c2-md3", { y: -20, x: -8, duration: 3.0, repeat: 3, yoyo: true, ease: "sine.inOut" }, 1.8);
 
           // Breathing float motion on mascot
           tl.to("#c2-mascot", { y: -14, duration: 2.2, repeat: 3, yoyo: true, ease: "sine.inOut" }, 1.8);

@@ -32,13 +32,14 @@
         }
 
         /* Ambient Mesh Backdrop */
+        /* Ambient Studio Softbox Lighting Mesh */
         .ambient-mesh {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 75% 25%, rgba(254, 240, 138, 0.5) 0%, transparent 45%),
-            radial-gradient(circle at 20% 75%, rgba(254, 215, 170, 0.45) 0%, transparent 50%),
-            radial-gradient(circle at 50% 50%, rgba(254, 243, 199, 0.35) 0%, transparent 60%);
+            radial-gradient(circle at 50% 15%, #ffffff 0%, rgba(248, 250, 252, 0.85) 40%, rgba(226, 232, 240, 0.65) 75%, rgba(203, 213, 225, 0.5) 100%),
+            radial-gradient(circle at 75% 25%, rgba(254, 240, 138, 0.45) 0%, transparent 45%),
+            radial-gradient(circle at 20% 75%, rgba(254, 215, 170, 0.35) 0%, transparent 50%);
           z-index: 1;
         }
 
@@ -62,16 +63,55 @@
           z-index: 10;
         }
 
+        /* Iridescent Liquid Chrome Phone Chassis */
         .phone-mockup {
-          width: 320px;
-          height: 670px;
-          background: #ffffff;
+          width: 324px;
+          height: 674px;
           border-radius: 46px;
-          border: 9px solid #1f2937;
-          box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+          padding: 8px;
+          background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
+          box-shadow:
+            0 35px 80px -15px rgba(15, 23, 42, 0.32),
+            0 0 35px rgba(224, 231, 255, 0.45),
+            inset 0 2px 4px rgba(255, 255, 255, 0.95);
           position: relative;
-          overflow: hidden;
           transform: rotateY(0deg) rotateX(1deg);
+        }
+        .phone-inner-wrap {
+          width: 100%;
+          height: 100%;
+          border-radius: 38px;
+          overflow: hidden;
+          position: relative;
+          background: #faf8f5;
+        }
+
+        /* Suspended Zero-Gravity Liquid Mercury Droplets */
+        .mercury-droplet {
+          position: absolute;
+          border-radius: 50%;
+          background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 22%, #cbd5e1 52%, #64748b 82%, #1e293b 100%);
+          box-shadow: 0 14px 28px -4px rgba(15, 23, 42, 0.4), inset -2px -2px 5px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.95);
+          pointer-events: none;
+          z-index: 25;
+        }
+        .spaces-md-1 {
+          width: 42px;
+          height: 42px;
+          top: -22px;
+          left: -42px;
+        }
+        .spaces-md-2 {
+          width: 26px;
+          height: 26px;
+          bottom: 120px;
+          left: -32px;
+        }
+        .spaces-md-3 {
+          width: 50px;
+          height: 50px;
+          top: 70px;
+          right: -48px;
         }
 
         /* Screen Interior */
@@ -89,17 +129,21 @@
           display: block;
         }
 
-        /* Shared Plan Card Overlay on Calendar */
+        /* Refractive Frosted Shared Plan Card Overlay on Calendar */
         .plan-card-overlay {
           position: absolute;
           bottom: 24px;
           left: 14px;
           right: 14px;
-          background: #fdfbf7;
-          border: 2px solid #2563eb;
+          background: rgba(253, 251, 247, 0.92);
+          backdrop-filter: blur(24px) saturate(180%);
+          border: 1.5px solid rgba(255, 255, 255, 0.95);
           border-radius: 24px;
           padding: 14px 16px;
-          box-shadow: 0 8px 24px rgba(37, 99, 235, 0.16);
+          box-shadow:
+            0 12px 30px rgba(37, 99, 235, 0.16),
+            0 0 1px 1px rgba(199, 210, 254, 0.5),
+            inset 0 1px 2px rgba(255, 255, 255, 0.9);
           display: flex;
           flex-direction: column;
           gap: 6px;
@@ -150,15 +194,20 @@
         .crew-avatar.alex { background: #16a34a; }
         .crew-avatar.sam { background: #9333ea; }
 
-        /* Authentic MoodSheet Component */
+        /* Refractive Frosted MoodSheet Component */
         .mood-sheet {
           position: absolute;
           bottom: 0;
           left: 0;
           right: 0;
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.94);
+          backdrop-filter: blur(28px) saturate(190%);
+          border-top: 1.5px solid rgba(255, 255, 255, 0.95);
           border-radius: 36px 36px 0 0;
-          box-shadow: 0 -16px 50px rgba(32, 38, 51, 0.22);
+          box-shadow:
+            0 -16px 50px rgba(32, 38, 51, 0.22),
+            0 0 1px 1px rgba(199, 210, 254, 0.5),
+            inset 0 1px 2px rgba(255, 255, 255, 0.9);
           padding: 14px 18px 22px 18px;
           z-index: 30;
           transform: translateY(100%);
@@ -301,17 +350,18 @@
           z-index: 5;
         }
         .feature-badge {
-          background: #ffffff;
+          background: rgba(255, 255, 255, 0.75);
+          backdrop-filter: blur(24px) saturate(180%);
           padding: 16px 26px;
           border-radius: 24px;
-          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.08);
+          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 1px 1px rgba(199, 210, 254, 0.4);
           font-size: 18px;
           font-weight: 700;
           color: #1f2937;
           display: flex;
           align-items: center;
           gap: 12px;
-          border: 1px solid #eef1f6;
+          border: 1px solid rgba(255, 255, 255, 0.9);
         }
         .badge-icon {
           font-size: 24px;
@@ -338,14 +388,20 @@
 
           <!-- Centered Phone Mockup with Authentic Calendar & MoodSheet -->
           <div class="phone-wrapper" id="el-phone" data-layout-allow-overflow>
-            <div class="phone-mockup" data-layout-allow-overflow>
-              <div class="screen-inner" data-layout-allow-overflow>
-                <!-- Authentic Flutter Shared Calendar Base Screen -->
-                <img src="assets/screens/calendar.png" alt="Stewardie Shared Calendar" class="screen-bg" />
+            <!-- Suspended Zero-Gravity Liquid Mercury Droplets -->
+            <div class="mercury-droplet spaces-md-1" id="el-spaces-md1" data-layout-allow-overlap></div>
+            <div class="mercury-droplet spaces-md-2" id="el-spaces-md2" data-layout-allow-overlap></div>
+            <div class="mercury-droplet spaces-md-3" id="el-spaces-md3" data-layout-allow-overlap></div>
 
-                <!-- Shared Plan Card Overlay -->
-                <div class="plan-card-overlay" id="el-plan-card" data-layout-allow-overlap data-layout-allow-occlusion>
-                  <div class="plan-top" data-layout-allow-overlap data-layout-allow-occlusion>
+            <div class="phone-mockup" data-layout-allow-overflow>
+              <div class="phone-inner-wrap">
+                <div class="screen-inner" data-layout-allow-overflow>
+                  <!-- Authentic Flutter Shared Calendar Base Screen -->
+                  <img src="assets/screens/calendar.png" alt="Stewardie Shared Calendar" class="screen-bg" />
+
+                  <!-- Shared Plan Card Overlay -->
+                  <div class="plan-card-overlay" id="el-plan-card" data-layout-allow-overlap data-layout-allow-occlusion>
+                    <div class="plan-top" data-layout-allow-overlap data-layout-allow-occlusion>
                     <span class="plan-tag" data-layout-allow-overlap data-layout-allow-occlusion>Crew Event</span>
                     <span style="font-size: 12px; font-weight: 700; color: #1e40af;" data-layout-allow-overlap data-layout-allow-occlusion>Saturday</span>
                   </div>
@@ -403,6 +459,7 @@
                 <div class="cursor-pointer" id="el-cursor"></div>
               </div>
             </div>
+            </div>
           </div>
 
           <!-- Floating Right Badges & Mascot -->
@@ -447,6 +504,13 @@
             duration: 1.0,
             ease: "power2.out"
           }, 0.4);
+
+          // Zero-gravity mercury droplets entrance & floating sine loops
+          tl.fromTo(".mercury-droplet", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, stagger: 0.12, ease: "elastic.out(1, 0.4)" }, 0.5);
+          tl.to("#el-phone", { y: "-=10", duration: 3.2, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.2);
+          tl.to("#el-spaces-md1", { y: -16, x: 6, duration: 2.8, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.2);
+          tl.to("#el-spaces-md2", { y: 15, x: -5, duration: 3.4, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.3);
+          tl.to("#el-spaces-md3", { y: -18, x: -7, duration: 3.0, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.4);
 
           // Subtle mascot breathing
           tl.to("#el-mascot", {

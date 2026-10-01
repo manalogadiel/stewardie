@@ -60,8 +60,40 @@ app.*.map.json
 .widget_preview/
 /tools/supabase-core/node_modules/
 
+# Dart / Flutter local telemetry and app data
+/.dart-appdata/
+
+# Temporary test images and screenshots
+/test_*.jpg
+/test_*.png
+*.tmp
+*.temp
+
+# Dot log files
+.*.log
+
+# Video generation caches, thumbnails & raw screencasts
+.thumbnails/
+**/.thumbnails/
+/videos/**/assets/screencast/
+/videos/**/stewardie-logo.png
+
+# Environment and secrets
+*.env
+*.env.*
+.env*
+*service-account*.json
+*.pem
+*.key
+*.p12
+
+# Windows thumbnail caches
+Thumbs.db
+ehthumbs.db
+
 # Python / Virtual environments
 .venv/
 venv/
 **/__pycache__/
 *.egg-info/
+

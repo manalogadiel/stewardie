@@ -12,7 +12,11 @@
           width: 100%;
           height: 100%;
           overflow: hidden;
-          background: radial-gradient(circle at 50% 35%, rgba(254, 240, 138, 0.45) 0%, transparent 60%), radial-gradient(circle at 20% 70%, rgba(219, 234, 254, 0.45) 0%, transparent 55%), radial-gradient(circle at 80% 70%, rgba(254, 205, 211, 0.4) 0%, transparent 55%), #faf9f6;
+          background:
+            radial-gradient(circle at 50% 15%, #ffffff 0%, rgba(248, 250, 252, 0.85) 40%, rgba(226, 232, 240, 0.65) 75%, rgba(203, 213, 225, 0.5) 100%),
+            radial-gradient(circle at 50% 35%, rgba(254, 240, 138, 0.35) 0%, transparent 55%),
+            radial-gradient(circle at 20% 70%, rgba(219, 234, 254, 0.35) 0%, transparent 50%),
+            radial-gradient(circle at 80% 70%, rgba(254, 205, 211, 0.3) 0%, transparent 50%);
           font-family: Inter, system-ui, -apple-system, sans-serif;
           display: flex;
           align-items: center;
@@ -27,12 +31,71 @@
           align-items: center;
           justify-content: center;
           text-align: center;
+          z-index: 5;
         }
+
+        /* Suspended Zero-Gravity Liquid Mercury Droplets */
+        .mercury-droplet {
+          position: absolute;
+          border-radius: 50%;
+          background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 22%, #cbd5e1 52%, #64748b 82%, #1e293b 100%);
+          box-shadow: 0 14px 28px -4px rgba(15, 23, 42, 0.4), inset -2px -2px 5px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.95);
+          pointer-events: none;
+          z-index: 10;
+        }
+        .outro-md-1 {
+          width: 48px;
+          height: 48px;
+          top: 140px;
+          left: 360px;
+        }
+        .outro-md-2 {
+          width: 32px;
+          height: 32px;
+          top: 260px;
+          left: 420px;
+        }
+        .outro-md-3 {
+          width: 52px;
+          height: 52px;
+          top: 160px;
+          right: 380px;
+        }
+        .outro-md-4 {
+          width: 28px;
+          height: 28px;
+          bottom: 240px;
+          right: 420px;
+        }
+
+        /* Hero Logo Emblem in Liquid Chrome Rim */
+        .logo-chrome-rim {
+          width: 110px;
+          height: 110px;
+          border-radius: 30px;
+          padding: 5px;
+          background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
+          box-shadow:
+            0 20px 40px -10px rgba(15, 23, 42, 0.3),
+            0 0 25px rgba(224, 231, 255, 0.5),
+            inset 0 1px 2px rgba(255, 255, 255, 0.95);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 20px;
+        }
+        .logo-hero-img {
+          width: 100%;
+          height: 100%;
+          border-radius: 25px;
+          object-fit: cover;
+        }
+
         .celebrate-image {
-          width: 460px;
+          width: 440px;
           height: auto;
           filter: drop-shadow(0 24px 40px rgba(32, 38, 51, 0.16));
-          margin-bottom: 28px;
+          margin-bottom: 20px;
         }
         .outro-title {
           font-size: 74px;
@@ -51,21 +114,24 @@
           font-size: 28px;
           font-weight: 600;
           color: #4b5563;
-          margin-bottom: 36px;
+          margin-bottom: 32px;
           letter-spacing: -0.015em;
         }
         .cta-button {
           display: inline-flex;
           align-items: center;
           gap: 16px;
-          background: #1a3cd4;
+          background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #4338ca 100%);
           color: #ffffff;
           padding: 20px 52px;
           border-radius: 9999px;
           font-size: 26px;
           font-weight: 800;
-          box-shadow: 0 16px 40px rgba(26, 60, 212, 0.35);
-          border: none;
+          box-shadow:
+            0 16px 40px rgba(26, 60, 212, 0.35),
+            inset 0 1px 2px rgba(255, 255, 255, 0.8),
+            0 0 1px 1px rgba(199, 210, 254, 0.6);
+          border: 1.5px solid rgba(255, 255, 255, 0.6);
           letter-spacing: -0.01em;
         }
         .cta-platform-badges {
@@ -75,14 +141,15 @@
           align-items: center;
         }
         .platform-badge {
-          background: #ffffff;
-          border: 1.5px solid #e5e7eb;
+          background: rgba(255, 255, 255, 0.75);
+          backdrop-filter: blur(24px) saturate(180%);
+          border: 1.5px solid rgba(255, 255, 255, 0.9);
           padding: 10px 22px;
           border-radius: 9999px;
           color: #1f2937;
           font-size: 16px;
           font-weight: 700;
-          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+          box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 1px 1px rgba(199, 210, 254, 0.4);
           display: flex;
           align-items: center;
           gap: 8px;
@@ -90,7 +157,18 @@
       </style>
 
       <div id="root" data-composition-id="scene7" data-width="1920" data-height="1080">
+        <!-- Suspended Zero-Gravity Liquid Mercury Droplets -->
+        <div class="mercury-droplet outro-md-1" id="c7-md1" data-layout-allow-overlap></div>
+        <div class="mercury-droplet outro-md-2" id="c7-md2" data-layout-allow-overlap></div>
+        <div class="mercury-droplet outro-md-3" id="c7-md3" data-layout-allow-overlap></div>
+        <div class="mercury-droplet outro-md-4" id="c7-md4" data-layout-allow-overlap></div>
+
         <div class="outro-container">
+          <!-- Official Logo Emblem in Liquid Chrome Rim -->
+          <div class="logo-chrome-rim" id="c7-logo" data-layout-allow-overlap>
+            <img src="assets/branding/stewardie-icon.png" alt="Stewardie Official Logo" class="logo-hero-img" />
+          </div>
+
           <img id="c7-mascot" class="celebrate-image" src="assets/illustrations/celebrate.png" alt="Celebration Mascots">
 
           <h1 id="c7-title" class="outro-title">
@@ -117,11 +195,19 @@
           const tl = gsap.timeline({ paused: true });
           window.__timelines["scene7"] = tl;
 
-          tl.fromTo("#c7-mascot", { opacity: 0, scale: 0.7, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.9, ease: "back.out(1.8)" }, 0.2);
+          tl.fromTo("#c7-logo", { opacity: 0, scale: 0.5, y: -20 }, { opacity: 1, scale: 1, y: 0, duration: 0.8, ease: "back.out(2)" }, 0.1);
+          tl.fromTo("#c7-mascot", { opacity: 0, scale: 0.7, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.9, ease: "back.out(1.8)" }, 0.3);
+          tl.fromTo(".mercury-droplet", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.8, stagger: 0.1, ease: "elastic.out(1, 0.4)" }, 0.5);
           tl.fromTo("#c7-title", { opacity: 0, y: 25 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.6);
           tl.fromTo("#c7-tagline", { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.0);
           tl.fromTo("#c7-cta", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.7, ease: "back.out(2)" }, 1.4);
           tl.fromTo("#c7-badges", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.8);
+
+          // Zero-gravity slow-motion floating sine oscillations
+          tl.to("#c7-md1", { y: -18, x: 8, duration: 2.8, repeat: 5, yoyo: true, ease: "sine.inOut" }, 1.0);
+          tl.to("#c7-md2", { y: 15, x: -6, duration: 3.4, repeat: 5, yoyo: true, ease: "sine.inOut" }, 1.1);
+          tl.to("#c7-md3", { y: -20, x: -8, duration: 3.0, repeat: 5, yoyo: true, ease: "sine.inOut" }, 1.0);
+          tl.to("#c7-md4", { y: 16, x: 6, duration: 3.2, repeat: 5, yoyo: true, ease: "sine.inOut" }, 1.2);
 
           // Joyful mascot bounce
           tl.to("#c7-mascot", { y: -16, duration: 0.8, repeat: 15, yoyo: true, ease: "sine.inOut" }, 1.6);

@@ -32,13 +32,14 @@
         }
 
         /* Ambient Mesh Backdrop */
+        /* Ambient Studio Softbox Lighting Mesh */
         .ambient-mesh {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 75% 25%, rgba(254, 205, 211, 0.55) 0%, transparent 45%),
-            radial-gradient(circle at 20% 70%, rgba(254, 240, 138, 0.45) 0%, transparent 50%),
-            radial-gradient(circle at 50% 50%, rgba(253, 230, 138, 0.35) 0%, transparent 60%);
+            radial-gradient(circle at 50% 15%, #ffffff 0%, rgba(248, 250, 252, 0.85) 40%, rgba(226, 232, 240, 0.65) 75%, rgba(203, 213, 225, 0.5) 100%),
+            radial-gradient(circle at 75% 25%, rgba(254, 205, 211, 0.45) 0%, transparent 45%),
+            radial-gradient(circle at 20% 70%, rgba(254, 240, 138, 0.35) 0%, transparent 50%);
           z-index: 1;
         }
 
@@ -62,16 +63,55 @@
           z-index: 10;
         }
 
+        /* Iridescent Liquid Chrome Phone Chassis */
         .phone-mockup {
-          width: 320px;
-          height: 670px;
-          background: #ffffff;
+          width: 324px;
+          height: 674px;
           border-radius: 46px;
-          border: 9px solid #1f2937;
-          box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+          padding: 8px;
+          background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
+          box-shadow:
+            0 35px 80px -15px rgba(15, 23, 42, 0.32),
+            0 0 35px rgba(224, 231, 255, 0.45),
+            inset 0 2px 4px rgba(255, 255, 255, 0.95);
           position: relative;
-          overflow: hidden;
           transform: rotateY(0deg) rotateX(1deg);
+        }
+        .phone-inner-wrap {
+          width: 100%;
+          height: 100%;
+          border-radius: 38px;
+          overflow: hidden;
+          position: relative;
+          background: #faf8f5;
+        }
+
+        /* Suspended Zero-Gravity Liquid Mercury Droplets */
+        .mercury-droplet {
+          position: absolute;
+          border-radius: 50%;
+          background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 22%, #cbd5e1 52%, #64748b 82%, #1e293b 100%);
+          box-shadow: 0 14px 28px -4px rgba(15, 23, 42, 0.4), inset -2px -2px 5px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.95);
+          pointer-events: none;
+          z-index: 25;
+        }
+        .moments-md-1 {
+          width: 42px;
+          height: 42px;
+          top: -20px;
+          left: -40px;
+        }
+        .moments-md-2 {
+          width: 28px;
+          height: 28px;
+          bottom: 110px;
+          left: -30px;
+        }
+        .moments-md-3 {
+          width: 50px;
+          height: 50px;
+          top: 60px;
+          right: -45px;
         }
 
         /* Screen Interior */
@@ -295,21 +335,60 @@
           gap: 24px;
           z-index: 5;
         }
+        /* Plain White Borderless Feature Badge */
         .feature-badge {
           background: #ffffff;
           padding: 16px 26px;
           border-radius: 24px;
-          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.08);
+          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.1), 0 4px 12px rgba(32, 38, 51, 0.05);
           font-size: 18px;
           font-weight: 700;
           color: #1f2937;
           display: flex;
           align-items: center;
           gap: 12px;
-          border: 1px solid #eef1f6;
+          border: none;
         }
         .badge-icon {
           font-size: 24px;
+        }
+
+        /* Dynamic Island Top Patch */
+        .dynamic-island {
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 114px;
+          height: 30px;
+          background: #000000;
+          border-radius: 999px;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 12px;
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+          pointer-events: none;
+        }
+        .di-camera {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #030712 60%, #000000 100%);
+          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.4);
+        }
+        .di-sensor {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #070d18;
+        }
+        .screen-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
         .mascot-camera {
           width: 230px;
@@ -333,62 +412,69 @@
 
           <!-- Centered Phone Mockup with Authentic Moments Screen & ClayTelevision -->
           <div class="phone-wrapper" id="el-phone" data-layout-allow-overflow>
-            <div class="phone-mockup" data-layout-allow-overflow>
-              <div class="screen-inner" data-layout-allow-overflow>
-                <!-- Authentic Flutter Moments Screen Background -->
-                <img src="assets/screens/moments.png" alt="Stewardie Moments Screen" class="screen-bg" />
+            <!-- Suspended Zero-Gravity Liquid Mercury Droplets -->
+            <div class="mercury-droplet moments-md-1" id="el-moments-md1" data-layout-allow-overlap></div>
+            <div class="mercury-droplet moments-md-2" id="el-moments-md2" data-layout-allow-overlap></div>
+            <div class="mercury-droplet moments-md-3" id="el-moments-md3" data-layout-allow-overlap></div>
 
-                <!-- Authentic ClayTelevision Frame Overlay -->
-                <div class="clay-tv" id="el-clay-tv" data-layout-allow-overlap>
-                  <div class="tv-antenna-left"></div>
-                  <div class="tv-antenna-right"></div>
-                  <div class="tv-screen-bezel">
-                    <div class="tv-screen">
-                      <img src="assets/illustrations/moments-selfie-group.png" alt="Crew Selfie" class="tv-photo" />
-                      <div class="tv-meta-bar">
-                        <div class="tv-caption">Taco Tuesday with the crew! 🌮</div>
-                        <div class="tv-author">Shared by Jamie • Just now</div>
+            <div class="phone-mockup" data-layout-allow-overflow>
+              <div class="phone-inner-wrap">
+                <div class="screen-inner" data-layout-allow-overflow>
+                  <!-- Authentic Flutter Moments Screen Background -->
+                  <img src="assets/screens/moments.png" alt="Stewardie Moments Screen" class="screen-bg" />
+
+                  <!-- Authentic ClayTelevision Frame Overlay -->
+                  <div class="clay-tv" id="el-clay-tv" data-layout-allow-overlap>
+                    <div class="tv-antenna-left"></div>
+                    <div class="tv-antenna-right"></div>
+                    <div class="tv-screen-bezel">
+                      <div class="tv-screen">
+                        <img src="assets/illustrations/moments-selfie-group.png" alt="Crew Selfie" class="tv-photo" />
+                        <div class="tv-meta-bar">
+                          <div class="tv-caption">Taco Tuesday with the crew! 🌮</div>
+                          <div class="tv-author">Shared by Jamie • Just now</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="tv-controls">
+                      <div class="tv-dial-group">
+                        <div class="tv-dial"></div>
+                        <div class="tv-dial"></div>
+                      </div>
+                      <div class="tv-speaker-slits">
+                        <div class="tv-slit"></div>
+                        <div class="tv-slit"></div>
+                        <div class="tv-slit"></div>
                       </div>
                     </div>
                   </div>
-                  <div class="tv-controls">
-                    <div class="tv-dial-group">
-                      <div class="tv-dial"></div>
-                      <div class="tv-dial"></div>
-                    </div>
-                    <div class="tv-speaker-slits">
-                      <div class="tv-slit"></div>
-                      <div class="tv-slit"></div>
-                      <div class="tv-slit"></div>
-                    </div>
+
+                  <!-- Reaction Bar -->
+                  <div class="reaction-bar" id="el-reaction-bar" data-layout-allow-overlap>
+                    <button class="reaction-btn">
+                      <span style="font-size: 18px;">💖</span>
+                      <span id="el-count-heart">4</span>
+                    </button>
+                    <button class="reaction-btn">
+                      <span style="font-size: 18px;">🎉</span>
+                      <span id="el-count-cheer">2</span>
+                    </button>
+                    <button class="reaction-btn">
+                      <span style="font-size: 18px;">😂</span>
+                      <span>3</span>
+                    </button>
+                    <button class="reaction-btn">
+                      <span style="font-size: 18px;">👍</span>
+                      <span>5</span>
+                    </button>
                   </div>
-                </div>
 
-                <!-- Reaction Bar -->
-                <div class="reaction-bar" id="el-reaction-bar" data-layout-allow-overlap>
-                  <button class="reaction-btn">
-                    <span style="font-size: 18px;">💖</span>
-                    <span id="el-count-heart">4</span>
-                  </button>
-                  <button class="reaction-btn">
-                    <span style="font-size: 18px;">🎉</span>
-                    <span id="el-count-cheer">2</span>
-                  </button>
-                  <button class="reaction-btn">
-                    <span style="font-size: 18px;">😂</span>
-                    <span>3</span>
-                  </button>
-                  <button class="reaction-btn">
-                    <span style="font-size: 18px;">👍</span>
-                    <span>5</span>
-                  </button>
+                  <!-- Animated Flying Clay Reactions -->
+                  <img src="assets/illustrations/reaction-heart.png" alt="Clay Heart" class="flying-reaction" id="el-heart" data-layout-allow-overlap />
+                  <img src="assets/illustrations/reaction-cheer.png" alt="Clay Cheer" class="flying-reaction" id="el-cheer" data-layout-allow-overlap />
+                  <img src="assets/illustrations/reaction-haha.png" alt="Clay Haha" class="flying-reaction" id="el-haha" data-layout-allow-overlap />
+                  <img src="assets/illustrations/reaction-like.png" alt="Clay Like" class="flying-reaction" id="el-like" data-layout-allow-overlap />
                 </div>
-
-                <!-- Animated Flying Clay Reactions -->
-                <img src="assets/illustrations/reaction-heart.png" alt="Clay Heart" class="flying-reaction" id="el-heart" data-layout-allow-overlap />
-                <img src="assets/illustrations/reaction-cheer.png" alt="Clay Cheer" class="flying-reaction" id="el-cheer" data-layout-allow-overlap />
-                <img src="assets/illustrations/reaction-haha.png" alt="Clay Haha" class="flying-reaction" id="el-haha" data-layout-allow-overlap />
-                <img src="assets/illustrations/reaction-like.png" alt="Clay Like" class="flying-reaction" id="el-like" data-layout-allow-overlap />
               </div>
             </div>
           </div>
@@ -435,6 +521,13 @@
             duration: 0.8,
             ease: "power2.out"
           }, 0.4);
+
+          // Zero-gravity mercury droplets entrance & floating sine loops
+          tl.fromTo(".mercury-droplet", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, stagger: 0.12, ease: "elastic.out(1, 0.4)" }, 0.5);
+          tl.to("#el-phone", { y: "-=10", duration: 3.2, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.2);
+          tl.to("#el-moments-md1", { y: -16, x: 6, duration: 2.8, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.2);
+          tl.to("#el-moments-md2", { y: 15, x: -5, duration: 3.4, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.3);
+          tl.to("#el-moments-md3", { y: -18, x: -7, duration: 3.0, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.4);
 
           // Subtle floating camera mascot
           tl.to("#el-mascot", {

@@ -18,7 +18,7 @@ UPDATED_LINES = [
     {
         "id": "05-location",
         "frame": 5,
-        "text": "Wondering when everyone will be back for dinner? Stewardie includes private, temporary location sharing. See estimated arrival times and battery levels during active 15-minute windows—keeping everyone in the loop without invasive 24/7 tracking.",
+        "text": "Wondering when everyone will be back for dinner? Stewardie includes private, temporary location sharing. See estimated arrival times during active 15-minute windows—keeping everyone in the loop without invasive 24/7 tracking.",
         "instruct": "Reassuring, thoughtful, clear, friendly"
     },
     {
@@ -44,6 +44,8 @@ def main():
     out_dir = project_root / "videos" / "stewardie-launch" / "assets" / "audio" / "narration"
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    target_ids = set(sys.argv[1:]) if len(sys.argv) > 1 else None
+
     print("Loading Qwen3-TTS model: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice on CPU...")
     model = Qwen3TTSModel.from_pretrained(
         "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
@@ -54,6 +56,8 @@ def main():
 
     speaker = "aiden"
     for item in UPDATED_LINES:
+        if target_ids and item["id"] not in target_ids:
+            continue
         out_file = out_dir / f"{item['id']}.wav"
         print(f"\n[Frame {item['frame']}] Synthesizing {item['id']}...")
         print(f"Text: \"{item['text']}\"")

@@ -1,56 +1,209 @@
-# Stewardie
+<p align="center">
+  <img src="assets/branding/stewardie-icon.png" alt="Stewardie Logo" width="140" style="border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);" />
+</p>
 
-A Flutter shared-life app for families, friends, housemates, dormmates, and crews.
+<h1 align="center">Stewardie</h1>
 
-Status: The normal Flutter app uses Firebase verified email/password identity with Supabase shared data and private photo storage. New cloud spaces are enabled by default; old Firebase data is preserved for a later reviewed import. Today / Moments / Space remains unchanged. See [live migration and verification](docs/supabase-core-migration.md); older Spark verification describes the previous backend.
+<p align="center">
+  <strong>Your people. Your plans. Your little moments.</strong><br>
+  <em>A cozy, tactile shared-life companion app for families, housemates, dormmates, and crews.</em>
+</p>
 
-## Start here
+<p align="center">
+  <a href="#overview">Overview</a> •
+  <a href="#pitch--why-stewardie">Pitch</a> •
+  <a href="#features">Features</a> •
+  <a href="#revenuecat-integration--test-store">RevenueCat Test Store</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#how-to-run">How to Run</a> •
+  <a href="#collaborators">Collaborators</a> •
+  <a href="#project-documentation">Documentation</a>
+</p>
 
-The Supabase cloud is deployed and enabled for new spaces. Run `flutter run` normally; see [migration progress and preserved data](docs/supabase-core-migration.md).
+---
 
-Repository handoff: [final review and verification](docs/repository-handoff.md). This is a source-code submission; device and store-release requirements are tracked separately.
+## Overview
 
-Latest audio follow-up: [louder Soft Pop sounds and account controls](docs/soft-pop-sound-expansion-verification.md), with device listening and iOS compilation still open.
+Living together shouldn't feel like managing a corporate project. Everyday shared life is filled with chores that need doing, schedules that clash, and little moments that get lost in noisy group chat threads. 
 
-Latest implementation: [permissions, tour, Moments and notifications verification](docs/permissions-tour-moments-notifications-verification.md). Firebase rules and Supabase gateways/worker are deployed; native device delivery and GPS checks remain documented gates.
+**Stewardie** is a cross-platform mobile application built in Flutter that bridges practical coordination with authentic emotional connection. Whether you are managing chores with housemates, coordinating family appointments, or sharing a campus dorm with friends, Stewardie provides a dedicated, warm, and private digital home.
 
-1. [Product plan](docs/shared-spaces-product-plan.md) — behavior and scope.
-2. [UI and assets](docs/ui-plan.md) — screens, tokens, approved visual direction, and assets needed.
-3. [Technical and launch plan](docs/technical-launch-plan.md) — proposed architecture and staged build.
-4. [Subscription plan v1](docs/stewardie-subscription-plan.md) — Basic and personal Plus, approved pilot quotas, target pricing, and launch gates.
-5. [Character reference](docs/soft-pop-character-reference.png) — visual reference, not production-ready assets.
+With a signature **Soft Pop pastel clay aesthetic**, satisfying tactile soundscapes, and intuitive flows, Stewardie transforms daily responsibilities into seamless teamwork and everyday routines into shared celebration.
 
-The project-local [Soft Pop UI skill](.agents/skills/soft-pop-ui/SKILL.md) provides design guidance. Optional upstream skills are not bundled or installed by this setup.
+---
 
-This repository's plans are the working copies going forward. Earlier copies in the Codex output folder are historical snapshots. The technical plan's observations about the old Kalinga repository are historical, not descriptions of this repository.
+## Pitch — Why Stewardie?
 
-## Run the app
+> ### *"Who's taking out the recycling? Did anyone feed the cat? Are we free on Thursday?"*
 
-Use this repository in Antigravity. Fully restart the app after pulling these changes:
+Most shared organizers feel either like cold enterprise ticketing systems or chaotic messaging group chats where tasks get buried. **Stewardie changes that dynamic completely:**
 
-```sh
-flutter pub get
-flutter run
-```
+* 🤝 **Zero-Friction Responsibility, No Micromanagement**: Tasks aren't just assigned; they flow naturally through clear states—*Unclaimed*, *Requested*, *Covered* ("I've got it!"), and *Done*. Need a hand? One tap offers help or hands off the task without awkward reminders.
+* 🎨 **Soft Pop Tactile Design**: Say goodbye to sterile grey grids. Stewardie is crafted with warm pastel clay tones, playful clay companions, fluid physics-based micro-interactions, and comforting acoustic sound feedback that makes opening the app a joy.
+* 💛 **Connection Embedded in Coordination**: Check in with a daily mood (Sky, Butter, or Rose) that rests quietly by your avatar. Celebrate chore completion by snapping photo proofs, sharing quick memories, and leaving grateful heart reactions.
+* 🔒 **Privacy-First By Default**: Your shared life belongs exclusively to your circle. Private cloud storage, granular member controls, server-verified time-limited live location sharing, and encrypted data gateways ensure personal data stays safe.
 
-The default `lib/main.dart` is the signed-in cloud app. `lib/main_online.dart` is an alias; `lib/main_fixture.dart` is the separate offline visual fixture (check the file name before using older commands). Firebase configuration is already present. Accounts must verify their email before shared access. No Blaze upgrade, Functions deployment, or store account is needed for the current trial.
+---
 
-Debug `flutter run` enables RevenueCat's simulated Test Store (no real charge). Disable it with `--dart-define=ENABLE_TEST_PURCHASES=false`. Production purchases remain guarded and unconfigured. New onboarding shows a skippable full-page paywall; see [verification](docs/onboarding-plus-and-logo-verification.md).
+## Features
 
-Tasks, memberships, moods, and calendar plans synchronize through the protected Supabase gateway. Personal Plus is protected server-side and never upgrades other members. Today and Moments retain the approved clay assets and interactions. New shared photos use private Supabase storage and member-checked access. Existing local photos require an explicit Share this photo to space action. Moments refreshes on entry, foreground resume, successful upload, and every 20 seconds while open. Remembered accounts store an email/name only; signing back in still requires secure authentication, with platform autofill where available.
+### 🏠 Shared Spaces & Dynamic Memberships
+* Create dedicated spaces for your **Family**, **Housemates**, **Friends**, or **Crew**.
+* Join via **6-character invite codes**, **universal links**, or **QR code scanning** with a built-in mobile scanner.
+* Space owners can regenerate codes, require member approval, or manage access permissions effortlessly.
 
-Daily moods expire at midnight in each space's configured time zone through an authenticated server write. Completed-task history uses the authenticated core gateway: Basic covers today and the previous three space-local calendar dates, including daylight-saving boundaries; Plus can page through all retained authorized history. Unfinished tasks remain accessible through Supabase. Public purchases remain disabled. Camera orientation, gallery export, and real two-device behavior still need native-device checks by the owner.
+### 📋 The "Today" Responsibility Flow
+* Clear, organized categorization:
+  * **Unclaimed**: Tasks open for anyone to grab.
+  * **Requested**: Politely directed requests waiting for an "I've got it!" acceptance.
+  * **Covered**: Tasks actively owned and being tackled.
+  * **Done**: Completed tasks with completion receipts.
+* Single-action completion with optional photo attachments and notes.
+* Integrated subtasks, take-over offers, and collaborative handoff workflows.
 
-See [cloud setup](docs/live-firebase-setup.md), [implementation record](docs/spark-polish-verification.md), and [backend instructions](backend/firebase/README.md). Earlier verification documents describe historical slices, not the current runtime. Store release still requires the launch gates in the product, subscription, and technical plans.
+### 📅 Shared Calendar & Agenda
+* Unified chronological timeline of events, recurring routines, and commitments.
+* **Person-Aware Filtering**: Toggle between *Shared (Everyone)*, *Your*, or specific co-members to view relevant schedules without switching identities.
+* Day agenda view with month picker and all-day multi-day event spans.
 
-The Android pilot features for QR invites, calendar reminders, offline edits, and safety controls are staged locally. See [implementation status, backend deployment, and release gates](docs/pilot-completion-verification.md). The current Firestore rules/indexes and scheduled worker were deployed and checked on September 28; the deletion-request page is not public, and `flutter run` does not deploy backend changes.
+### 📸 Moments & In-App Camera
+* Dedicated in-app camera with preview, flip, flash, and gallery import options.
+* Attach completion photos to tasks or post standalone candid moments (cooking dinner, home improvements, hangout memories).
+* Stored securely in private cloud storage with member-only access and heart/gratitude reactions.
 
-The private [account-deletion operator runbook](docs/account-deletion-operations.md) and dry-run-first cleanup tool are now in the repository. One disposable live account passed cross-service cleanup on September 28; the external request page, retention-policy review, and wider device testing remain pilot gates.
+### 🌈 Daily Mood Check-Ins
+* Low-pressure daily check-ins pairing a mood status with customized pastel clay colors (*Sky*, *Butter*, *Rose*).
+* Automatically expires at midnight in the space's local timezone so old feelings are never stale.
+* Quick "Could use a hand" action to signal teammates without altering task assignments.
 
-Location, calendar import, and scheduled reminders are staged in code; real plan-reminder and FCM delivery still need physical-device tests. Firebase Cloud Messaging replaces the earlier OneSignal transport; the in-app activity inbox remains independent of push. Google OAuth is still unconfigured. Follow [the rollout steps and device checks](docs/location-calendar-reminders-setup.md). Do not treat native background location, push, or Google access as verified by a Flutter build alone.
+### 📍 Maps & Location Context
+* **Task Destinations**: Pin addresses and map locations to tasks and errands with external direction launching.
+* **Moment Geotagging**: Optional location tags on captured photos showing where memories happened.
+* **Temporary Live Location Sharing**: Explicit, time-limited live location sharing (15, 30, or 60 minutes) scoped strictly to authorized space members, with server-enforced expiration.
 
-The map and navigation refresh is deployed for the private pilot. [Pilot key setup](docs/map-navigation-rollout.md) explains the free development key; the [completion verification record](docs/map-navigation-completion-verification.md) lists the native-device and multi-account checks still open.
+---
 
-The [September 30 implementation record](docs/public-testing-implementation-status.md) separates this round's local changes and deployed backend code from unfinished dashboard, device, billing, and release checks.
+## RevenueCat Integration & Test Store
 
-The latest [media, tour and Soft Pop polish record](docs/media-tour-soft-pop-polish-verification.md) covers reliable photo/task retries, camera layout, account-backed tours, sharing controls, and the deployed three-space Basic cap, with remaining device checks listed separately.
+Stewardie implements an ethical freemium subscription architecture governed by the **Stewardie Subscription Plan v1**:
+* **Basic (Free)**: Up to 3 active spaces, full access to all active & unfinished tasks, shared task completion, and today plus the previous 3 days of completed task history.
+* **Personal Plus (Paid)**: Unlocks complete authorized task history paging, higher personal quotas, and personalized features. Subscriptions belong to an *individual account* across all authorized spaces and never lock out or force co-members to pay.
+
+### 💳 Simulated Test Store (Debug Mode)
+Stewardie integrates **RevenueCat (`purchases_flutter`)** to orchestrate in-app purchases and subscription entitlements.
+
+To make local development, QA, and feature testing seamless without real credit cards or sandbox app store credentials, **Stewardie includes RevenueCat's Simulated Test Store out of the box in debug builds**:
+* **Pre-Configured Offerings**: Debug runs immediately fetch mock offerings with monthly (`stewardie_plus_monthly_499`) and annual (`stewardie_plus_annual_3999`) tiers.
+* **Simulated Purchases**: You can trigger and test the full-page onboarding paywall, subscription sheets, and entitlement upgrades without actual transactions.
+* **Easy Toggles**:
+  * Run normally with Test Store: `flutter run` (enabled by default in debug).
+  * Explicitly disable test purchasing:
+    ```sh
+    flutter run --dart-define=ENABLE_TEST_PURCHASES=false
+    ```
+  * Switch off RevenueCat environment:
+    ```sh
+    flutter run --dart-define=REVENUECAT_ENVIRONMENT=off
+    ```
+
+---
+
+## Tech Stack
+
+| Domain | Technology / Package | Description |
+|---|---|---|
+| **Client Framework** | [Flutter](https://flutter.dev/) (Dart 3.13+) | Cross-platform mobile architecture for Android and iOS |
+| **State Management** | [Flutter Riverpod](https://riverpod.dev/) (`^3.4.3`) | Robust, reactive, and declarative state orchestration |
+| **Navigation & Routing** | [GoRouter](https://pub.dev/packages/go_router) (`^18.0.1`) | Declarative URL-based deep linking and route guards |
+| **Authentication & Identity** | [Firebase Auth](https://firebase.google.com/docs/auth) (`^6.7.0`) | Verified email/password identity, JWT session verification |
+| **Cloud Database & Storage** | [Supabase](https://supabase.com/) | Cloud PostgreSQL with Row Level Security (RLS), atomic SQL RPC gateways, and private S3-compatible media buckets |
+| **Push Notifications** | [Firebase Cloud Messaging (FCM)](https://firebase.google.com/docs/cloud-messaging) | Account-bound device tokens and background activity alerts |
+| **Monetization & In-App Purchases** | [RevenueCat](https://www.revenuecat.com/) (`purchases_flutter ^10.13.1`) | Subscription entitlement lifecycle with simulated Test Store |
+| **Mapping & Location** | `flutter_map` (`^7.0.2`), `latlong2`, `geolocator` | OpenStreetMap & MapTiler raster tiles, device location services |
+| **Camera & Media** | `camera` (`^0.12.1`), `image_picker`, `gal` | Custom in-app camera capture, preview, compression, and gallery export |
+| **QR Code & Scanner** | `mobile_scanner` (`^7.4.2`), `qr_flutter` (`^4.1.0`) | Invite code QR generation and real-time camera scanning |
+| **Offline Cache & Persistence** | [Sembast](https://pub.dev/packages/sembast) (`^3.8.11`), `path_provider` | High-performance local NoSQL document database for offline resilience |
+| **Design & Typography** | Google Fonts (Fredoka & Nunito Sans) | Custom bundled typography and Soft Pop pastel clay tokens |
+
+---
+
+## How to Run
+
+### Prerequisites
+* [Flutter SDK](https://docs.flutter.dev/get-started/install) (`^3.13.0` or higher)
+* [Dart SDK](https://dart.dev/get-dart)
+* Android Studio (with Android SDK & emulator / physical device) or Xcode (macOS for iOS builds)
+* Git
+
+### Step-by-Step Setup
+
+1. **Clone the Repository**:
+   ```sh
+   git clone https://github.com/manalogadiel/stewardie.git
+   cd stewardie
+   ```
+
+2. **Install Dependencies**:
+   ```sh
+   flutter pub get
+   ```
+
+3. **Run the App in Debug Mode**:
+   Running the default target launches the cloud-connected app with the **RevenueCat Simulated Test Store** active:
+   ```sh
+   flutter run
+   ```
+
+4. **Alternative Run Modes**:
+   * **Run with Test Purchases Disabled**:
+     ```sh
+     flutter run --dart-define=ENABLE_TEST_PURCHASES=false
+     ```
+   * **Run the Offline Visual Fixture** (Standalone UI fixture with seeded mock data, no cloud credentials required):
+     ```sh
+     flutter run -t lib/main_fixture.dart
+     ```
+
+5. **Run Tests & Code Analysis**:
+   ```sh
+   # Run Flutter unit and widget tests
+   flutter test
+
+   # Run Dart static analysis
+   flutter analyze
+   ```
+
+---
+
+## Collaborators
+
+Stewardie is lovingly designed and engineered by:
+
+<p align="center">
+  <a href="https://github.com/manalogadiel">
+    <img src="https://github.com/manalogadiel.png?size=100" width="100" height="100" style="border-radius: 50%;" alt="Gadiel Manalo" />
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/kuroi17">
+    <img src="https://github.com/kuroi17.png?size=100" width="100" height="100" style="border-radius: 50%;" alt="georgie" />
+  </a>
+</p>
+
+<p align="center">
+  <strong><a href="https://github.com/manalogadiel">Gadiel Manalo</a></strong> &nbsp;|&nbsp; <strong><a href="https://github.com/kuroi17">georgie</a></strong>
+</p>
+
+* **[Gadiel Manalo (@manalogadiel)](https://github.com/manalogadiel)** — Project Architect, Core Flutter & Backend Engineering, Supabase/Firebase Integration, Database Migration, and Subscription Infrastructure.
+* **[georgie (@kuroi17)](https://github.com/kuroi17)** — Core Contributor, Feature Implementation, UI/UX Polish, and Design Engineering.
+
+---
+
+## Project Documentation
+
+For in-depth architectural specifications and verification audits, consult the [docs/](docs/) directory:
+* [Product Plan](docs/shared-spaces-product-plan.md) — Feature behaviors, audience scope, and roadmap.
+* [UI and Asset Plan](docs/ui-plan.md) — Visual tokens, Soft Pop clay style guidelines, and screen hierarchies.
+* [Subscription Plan v1](docs/stewardie-subscription-plan.md) — Tier boundaries, quotas, and pricing models.
+* [Supabase Migration & Gateways](docs/supabase-core-migration.md) — PostgreSQL schema, RPC functions, and live cloud deployment.
+* [Onboarding & Paywall Verification](docs/onboarding-plus-and-logo-verification.md) — RevenueCat paywall flows and launcher asset verification.
+* [Soft Pop Sound Design](docs/soft-pop-sound-expansion-verification.md) — Tactile soundscapes and volume controls.

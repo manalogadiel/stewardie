@@ -32,13 +32,14 @@
         }
 
         /* Ambient Mesh Backdrop */
+        /* Ambient Studio Softbox Lighting Mesh */
         .ambient-mesh {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 18% 22%, rgba(219, 234, 254, 0.65) 0%, transparent 45%),
-            radial-gradient(circle at 82% 75%, rgba(220, 252, 231, 0.6) 0%, transparent 45%),
-            radial-gradient(circle at 50% 50%, rgba(254, 243, 199, 0.45) 0%, transparent 60%);
+            radial-gradient(circle at 50% 12%, #ffffff 0%, rgba(248, 250, 252, 0.85) 40%, rgba(226, 232, 240, 0.65) 75%, rgba(203, 213, 225, 0.5) 100%),
+            radial-gradient(circle at 85% 20%, rgba(219, 234, 254, 0.5) 0%, transparent 45%),
+            radial-gradient(circle at 15% 75%, rgba(220, 252, 231, 0.35) 0%, transparent 45%);
           z-index: 1;
         }
 
@@ -65,14 +66,14 @@
           font-size: 14px;
           font-weight: 800;
           color: #1e40af;
-          background: rgba(219, 234, 254, 0.8);
-          border: 1px solid rgba(191, 219, 254, 0.9);
-          padding: 6px 16px;
+          background: #ffffff;
+          border: none;
+          padding: 6px 18px;
           border-radius: 999px;
           text-transform: uppercase;
           letter-spacing: 0.1em;
           margin-bottom: 12px;
-          backdrop-filter: blur(8px);
+          box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.15);
         }
         .section-title {
           font-size: 48px;
@@ -98,37 +99,93 @@
           z-index: 5;
         }
 
-        /* Live Sync Bridge connecting phones */
+        /* Plain White Borderless Live Sync Bridge (No Light Dot) */
         .sync-bridge {
           position: absolute;
           top: 40px;
           left: 50%;
           transform: translateX(-50%);
           background: #ffffff;
-          border: 2px solid #3b82f6;
+          border: none;
           border-radius: 999px;
-          padding: 8px 20px;
+          padding: 8px 22px;
           display: flex;
           align-items: center;
           gap: 10px;
-          box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.35);
+          box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.05);
           z-index: 30;
           font-size: 13px;
           font-weight: 800;
           color: #1e40af;
           white-space: nowrap;
         }
-        .sync-pulse-dot {
+
+        /* Dynamic Island Top Patch */
+        .dynamic-island {
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 114px;
+          height: 30px;
+          background: #000000;
+          border-radius: 999px;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 12px;
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+          pointer-events: none;
+        }
+        .di-camera {
           width: 10px;
           height: 10px;
           border-radius: 50%;
-          background: #10b981;
-          box-shadow: 0 0 10px #10b981;
-          animation: pulse 1.2s infinite ease-in-out;
+          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #030712 60%, #000000 100%);
+          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.4);
         }
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
+        .di-sensor {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #070d18;
+        }
+        .screen-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
           50% { transform: scale(1.4); opacity: 0.7; }
+        }
+
+        /* Suspended Zero-Gravity Liquid Mercury Droplets */
+        .mercury-droplet {
+          position: absolute;
+          border-radius: 50%;
+          background: radial-gradient(circle at 32% 28%, #ffffff 0%, #f1f5f9 22%, #cbd5e1 52%, #64748b 82%, #1e293b 100%);
+          box-shadow: 0 14px 28px -4px rgba(15, 23, 42, 0.4), inset -2px -2px 5px rgba(0, 0, 0, 0.35), inset 2px 2px 5px rgba(255, 255, 255, 0.95);
+          pointer-events: none;
+          z-index: 35;
+        }
+        .sync-md-1 {
+          width: 36px;
+          height: 36px;
+          top: 15px;
+          left: 45%;
+        }
+        .sync-md-2 {
+          width: 24px;
+          height: 24px;
+          top: 95px;
+          left: 53%;
+        }
+        .sync-md-3 {
+          width: 44px;
+          height: 44px;
+          bottom: 30px;
+          left: 48%;
         }
 
         /* Phone Device Shell */
@@ -145,29 +202,41 @@
           padding: 6px 18px;
           border-radius: 999px;
           margin-bottom: 14px;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.9);
           z-index: 10;
+          backdrop-filter: blur(16px);
         }
         .label-phone-a {
           background: #ffffff;
           color: #1e40af;
-          border: 1.5px solid #dbeafe;
+          border: none;
         }
         .label-phone-b {
           background: #ffffff;
           color: #166534;
-          border: 1.5px solid #dcfce7;
+          border: none;
         }
 
+        /* Iridescent Liquid Chrome Phone Chassis */
         .phone-mockup {
-          width: 320px;
-          height: 690px;
-          background: #ffffff;
+          width: 324px;
+          height: 694px;
           border-radius: 46px;
-          border: 9px solid #1f2937;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.05);
+          padding: 8px;
+          background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
+          box-shadow:
+            0 35px 80px -15px rgba(15, 23, 42, 0.32),
+            0 0 35px rgba(224, 231, 255, 0.45),
+            inset 0 2px 4px rgba(255, 255, 255, 0.95);
           position: relative;
+        }
+        .phone-inner-wrap {
+          width: 100%;
+          height: 100%;
+          border-radius: 38px;
           overflow: hidden;
+          position: relative;
+          background: #faf8f5;
         }
         .phone-mockup-left {
           transform: rotateY(5deg) rotateX(2deg);
@@ -210,29 +279,30 @@
           color: #1e3a8a;
         }
 
-        /* Interactive Task Card Overlay */
+        /* Interactive Task Card Overlay (Borderless White Card) */
         .task-card-overlay {
           position: absolute;
           top: 498px;
           left: 14px;
           right: 14px;
           background: #ffffff;
-          border: 1.5px solid #e5e7eb;
+          border: none;
           border-radius: 20px;
           padding: 12px 14px;
           display: flex;
           align-items: center;
           gap: 12px;
-          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 10px 24px -2px rgba(0, 0, 0, 0.12);
           z-index: 25;
         }
         .task-card-overlay.active-target {
-          border-color: #2563eb;
-          box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
+          border: none;
+          box-shadow: 0 14px 30px rgba(37, 99, 235, 0.22);
         }
         .task-card-overlay.claimed-state {
-          border-color: #16a34a;
-          background: #f0fdf4;
+          border: none;
+          background: #ffffff;
+          box-shadow: 0 12px 28px rgba(22, 163, 74, 0.2);
         }
         .task-checkbox {
           width: 22px;
@@ -266,29 +336,31 @@
           color: #4b5563;
           margin-top: 2px;
         }
+        /* Plain White Claim Button Card */
         .claim-btn {
           font-size: 11px;
           font-weight: 800;
-          color: #ffffff;
-          background: #2563eb;
+          color: #1d4ed8;
+          background: #ffffff;
           border: none;
           padding: 6px 14px;
           border-radius: 12px;
           cursor: pointer;
           flex-shrink: 0;
-          box-shadow: 0 3px 8px rgba(37, 99, 235, 0.3);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
-        /* Quick Add Modal Sheet on Phone A */
+        /* Plain White Borderless Quick Add Modal Sheet */
         .add-modal {
           position: absolute;
           bottom: 0;
           left: 0;
           right: 0;
           background: #ffffff;
+          border: none;
           border-radius: 28px 28px 0 0;
           padding: 16px 20px 24px 20px;
-          box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.18);
+          box-shadow: 0 -16px 45px rgba(15, 23, 42, 0.16);
           z-index: 40;
           opacity: 0;
           transform: translateY(100%);
@@ -296,7 +368,7 @@
         .sheet-drag-pill {
           width: 36px;
           height: 4px;
-          background: #d1d5db;
+          background: #cbd5e1;
           border-radius: 2px;
           margin: 0 auto 12px auto;
         }
@@ -308,8 +380,8 @@
         }
         .modal-input {
           width: 100%;
-          background: #f3f4f6;
-          border: 1px solid #e5e7eb;
+          background: #f1f5f9;
+          border: none;
           border-radius: 12px;
           padding: 10px 12px;
           font-size: 12px;
@@ -317,32 +389,36 @@
           color: #111827;
           margin-bottom: 12px;
           box-sizing: border-box;
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
         }
+        /* Plain White Add Task Button Card */
         .modal-btn {
-          background: #2563eb;
-          color: #ffffff;
+          background: #ffffff;
+          color: #1d4ed8;
           font-size: 13px;
           font-weight: 800;
           text-align: center;
           padding: 10px 0;
           border-radius: 14px;
-          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
           cursor: pointer;
+          border: none;
         }
 
-        /* Push Notification Banner on Phone B */
+        /* Plain White Borderless Push Notification Banner on Phone B */
         .push-banner {
           position: absolute;
           top: 14px;
           left: 12px;
           right: 12px;
-          background: #111827;
+          background: #ffffff;
+          border: none;
           border-radius: 18px;
           padding: 10px 12px;
           display: flex;
           align-items: center;
           gap: 10px;
-          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+          box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12);
           z-index: 45;
           opacity: 0;
         }
@@ -401,9 +477,8 @@
 
           <!-- Dual Phone Rig -->
           <div class="phones-rig">
-            <!-- Sync Bridge -->
+            <!-- Sync Bridge (No Light Dot) -->
             <div class="sync-bridge" id="el-sync-bridge">
-              <div class="sync-pulse-dot"></div>
               <span>Live Cloud Sync</span>
             </div>
 
@@ -411,72 +486,93 @@
             <div class="phone-container" id="el-phone-a">
               <div class="phone-label label-phone-a">📱 Jamie (Creator)</div>
               <div class="phone-mockup phone-mockup-left">
-                <div class="screen-inner" data-layout-allow-overflow>
-                  <!-- Authentic Flutter Today Screen -->
-                  <img src="assets/screens/today-jamie.png" alt="Stewardie Today Screen" class="screen-bg" />
-
-                  <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
-                  <div class="metric-overlay-cov" data-layout-allow-overlap>
-                    <div class="metric-val" id="el-metric-cov">2</div>
-                  </div>
-
-                  <!-- Interactive Task Card on Phone A -->
-                  <div class="task-card-overlay active-target" id="el-task-new-a" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
-                    <div class="task-checkbox" id="el-check-a"></div>
-                    <div class="task-body">
-                      <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
-                      <div class="task-meta" id="el-meta-a">Unclaimed • Added just now</div>
+                <div class="phone-inner-wrap">
+                  <div class="screen-inner" data-layout-allow-overflow>
+                    <!-- Dynamic Island Top Patch -->
+                    <div class="dynamic-island" data-layout-allow-overlap>
+                      <div class="di-camera"></div>
+                      <div class="di-sensor"></div>
                     </div>
-                  </div>
 
-                  <!-- Authentic Add Task Modal Sheet -->
-                  <div class="add-modal" id="el-add-modal" data-layout-allow-overlap data-layout-allow-overflow>
-                    <div class="sheet-drag-pill"></div>
-                    <div class="modal-title">Add to Today</div>
-                    <div class="modal-input">Pick up oat milk &amp; coffee beans ☕</div>
-                    <div class="modal-btn" id="el-modal-btn">Add Task</div>
-                  </div>
+                    <!-- Screencast Video on Phone A -->
+                    <video class="screen-video" src="assets/screencast/03_today_screencast.mp4" autoplay muted playsinline loop></video>
 
-                  <!-- Cursor on Phone A -->
-                  <div class="cursor-pointer" id="el-cursor-a"></div>
+                    <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
+                    <div class="metric-overlay-cov" data-layout-allow-overlap>
+                      <div class="metric-val" id="el-metric-cov">2</div>
+                    </div>
+
+                    <!-- Interactive Task Card on Phone A -->
+                    <div class="task-card-overlay active-target" id="el-task-new-a" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
+                      <div class="task-checkbox" id="el-check-a"></div>
+                      <div class="task-body">
+                        <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
+                        <div class="task-meta" id="el-meta-a">Unclaimed • Added just now</div>
+                      </div>
+                    </div>
+
+                    <!-- Authentic Add Task Modal Sheet -->
+                    <div class="add-modal" id="el-add-modal" data-layout-allow-overlap data-layout-allow-overflow>
+                      <div class="sheet-drag-pill"></div>
+                      <div class="modal-title">Add to Today</div>
+                      <div class="modal-input">Pick up oat milk &amp; coffee beans ☕</div>
+                      <div class="modal-btn" id="el-modal-btn">Add Task</div>
+                    </div>
+
+                    <!-- Cursor on Phone A -->
+                    <div class="cursor-pointer" id="el-cursor-a"></div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <!-- Suspended Zero-Gravity Liquid Mercury Droplets -->
+            <div class="mercury-droplet sync-md-1" id="el-sync-md1" data-layout-allow-overlap></div>
+            <div class="mercury-droplet sync-md-2" id="el-sync-md2" data-layout-allow-overlap></div>
+            <div class="mercury-droplet sync-md-3" id="el-sync-md3" data-layout-allow-overlap></div>
 
             <!-- Phone B: Alex (Housemate) -->
             <div class="phone-container" id="el-phone-b">
               <div class="phone-label label-phone-b">⚡ Alex (Roommate)</div>
               <div class="phone-mockup phone-mockup-right">
-                <div class="screen-inner" data-layout-allow-overflow>
-                  <!-- Authentic Flutter Today Screen -->
-                  <img src="assets/screens/today-alex.png" alt="Stewardie Today Screen" class="screen-bg" />
-
-                  <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
-                  <div class="metric-overlay-cov" data-layout-allow-overlap>
-                    <div class="metric-val" id="el-metric-cov-b">2</div>
-                  </div>
-
-                  <!-- Task arriving on Phone B -->
-                  <div class="task-card-overlay active-target" id="el-task-new-b" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
-                    <div class="task-checkbox" id="el-check-b"></div>
-                    <div class="task-body">
-                      <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
-                      <div class="task-meta" id="el-meta-b">Added by Jamie • Just now</div>
+                <div class="phone-inner-wrap">
+                  <div class="screen-inner" data-layout-allow-overflow>
+                    <!-- Dynamic Island Top Patch -->
+                    <div class="dynamic-island" data-layout-allow-overlap>
+                      <div class="di-camera"></div>
+                      <div class="di-sensor"></div>
                     </div>
-                    <button class="claim-btn" id="el-claim-btn" data-layout-allow-overlap>Claim</button>
-                  </div>
 
-                  <!-- Push Notification Banner on Phone B -->
-                  <div class="push-banner" id="el-push-banner" data-layout-allow-overlap>
-                    <div class="push-icon">☕</div>
-                    <div class="push-content">
-                      <div class="push-title">Jamie added a new task</div>
-                      <div class="push-desc">Pick up oat milk &amp; coffee beans ☕</div>
+                    <!-- Authentic Flutter Today Screen -->
+                    <img src="assets/screens/today-alex.png" alt="Stewardie Today Screen" class="screen-bg" />
+
+                    <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
+                    <div class="metric-overlay-cov" data-layout-allow-overlap>
+                      <div class="metric-val" id="el-metric-cov-b">2</div>
                     </div>
-                  </div>
 
-                  <!-- Cursor on Phone B -->
-                  <div class="cursor-pointer" id="el-cursor-b"></div>
+                    <!-- Task arriving on Phone B -->
+                    <div class="task-card-overlay active-target" id="el-task-new-b" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
+                      <div class="task-checkbox" id="el-check-b"></div>
+                      <div class="task-body">
+                        <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
+                        <div class="task-meta" id="el-meta-b">Added by Jamie • Just now</div>
+                      </div>
+                      <button class="claim-btn" id="el-claim-btn" data-layout-allow-overlap>Claim</button>
+                    </div>
+
+                    <!-- Push Notification Banner on Phone B -->
+                    <div class="push-banner" id="el-push-banner" data-layout-allow-overlap>
+                      <div class="push-icon">☕</div>
+                      <div class="push-content">
+                        <div class="push-title">Jamie added a new task</div>
+                        <div class="push-desc">Pick up oat milk &amp; coffee beans ☕</div>
+                      </div>
+                    </div>
+
+                    <!-- Cursor on Phone B -->
+                    <div class="cursor-pointer" id="el-cursor-b"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -494,7 +590,8 @@
           tl.from("#el-header", { y: -30, opacity: 0, duration: 0.8, ease: "power2.out" }, 0.2);
           tl.from("#el-phone-a", { y: 60, opacity: 0, duration: 1.0, ease: "power3.out" }, 0.4);
 
-          // 1.5s - 3.5s: Jamie creates task on Phone A
+          // 1.5s - 3.5s: Jamie creates task on Phone A + Camera Focus Pull Zoom-In
+          tl.to("#el-phone-a", { scale: 1.05, duration: 0.8, ease: "power2.out" }, 1.5);
           tl.fromTo("#el-add-modal", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(1.8)" }, 1.5);
           tl.fromTo("#el-cursor-a", { x: 260, y: 620, opacity: 0 }, { x: 160, y: 650, opacity: 1, duration: 0.6, ease: "power2.out" }, 2.0);
           // Tap Save
@@ -506,6 +603,10 @@
           tl.to("#el-task-new-a", { opacity: 1, duration: 0.4, ease: "power2.out" }, 3.0);
           tl.fromTo("#el-sync-bridge", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 3.2);
 
+          // Zero-gravity mercury droplets entrance
+          tl.fromTo(".mercury-droplet", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, stagger: 0.12, ease: "elastic.out(1, 0.4)" }, 3.2);
+          tl.to("#el-phone-a", { scale: 1.0, duration: 0.6, ease: "power2.inOut" }, 3.5);
+
           // 3.5s - 5.5s: Phone B (Alex) glides in from right
           tl.from("#el-phone-b", { x: 80, y: 60, opacity: 0, duration: 1.0, ease: "power3.out" }, 3.5);
 
@@ -515,7 +616,8 @@
           tl.to("#el-task-new-b", { opacity: 1, duration: 0.4 }, 6.0);
           tl.to("#el-push-banner", { y: -20, opacity: 0, duration: 0.4, ease: "power2.in" }, 7.5);
 
-          // 7.8s - 10.5s: Alex taps "Claim"
+          // 7.8s - 10.5s: Alex taps "Claim" + Camera Focus Pull Zoom-In on Phone B
+          tl.to("#el-phone-b", { scale: 1.05, duration: 0.8, ease: "power2.out" }, 7.8);
           tl.fromTo("#el-cursor-b", { x: 200, y: 600, opacity: 0 }, { x: 260, y: 520, opacity: 1, duration: 0.6, ease: "power2.out" }, 7.8);
           tl.to("#el-claim-btn", { scale: 0.9, duration: 0.15, yoyo: true, repeat: 1 }, 8.5);
           tl.to("#el-cursor-b", { opacity: 0, duration: 0.3 }, 8.8);
@@ -535,9 +637,19 @@
           tl.to("#el-meta-b", { innerText: "Covered by You • Just now", duration: 0.2 }, 9.2);
           tl.to(["#el-metric-cov", "#el-metric-cov-b"], { innerText: "3", color: "#166534", duration: 0.3 }, 9.3);
 
+          // Camera reset to equilibrium
+          tl.to("#el-phone-b", { scale: 1.0, duration: 0.6, ease: "power2.inOut" }, 10.5);
+
           // Mascot celebration pop
           tl.fromTo("#el-mascot-celebrate", { scale: 0.6, opacity: 0, y: 20 }, { scale: 1, opacity: 1, y: 0, duration: 0.7, ease: "back.out(2)" }, 9.2);
           tl.to("#el-mascot-celebrate", { y: -15, duration: 0.4, repeat: 14, yoyo: true, ease: "sine.inOut" }, 9.9);
+
+          // Slow-motion gravitational suspension sine oscillations
+          tl.to("#el-phone-a", { y: -10, duration: 3.2, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.45);
+          tl.to("#el-phone-b", { y: 10, duration: 3.5, repeat: 4, yoyo: true, ease: "sine.inOut" }, 4.55);
+          tl.to("#el-sync-md1", { y: -16, x: 6, duration: 2.8, repeat: 5, yoyo: true, ease: "sine.inOut" }, 3.2);
+          tl.to("#el-sync-md2", { y: 18, x: -8, duration: 3.6, repeat: 5, yoyo: true, ease: "sine.inOut" }, 3.2);
+          tl.to("#el-sync-md3", { y: -14, x: -6, duration: 3.0, repeat: 5, yoyo: true, ease: "sine.inOut" }, 3.2);
 
           // 18.8s - 20.0s: Fade out
           tl.to("#root", { opacity: 0, duration: 1.2, ease: "power2.in" }, 18.8);
