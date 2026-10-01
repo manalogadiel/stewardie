@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/stewardie-icon.png" alt="Stewardie Logo" width="140" style="border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);" />
+  <img src="assets/branding/stewardie-icon2.png" alt="Stewardie Logo" width="140" style="border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);" />
 </p>
 
 <h1 align="center">Stewardie</h1>
