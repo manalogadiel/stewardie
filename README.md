@@ -13,6 +13,14 @@
   <a href="https://youtu.be/y56WUBOP-VQ">
     <img src="https://img.shields.io/badge/▶_Watch_Demo_Video-YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo Video on YouTube" />
   </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/manalogadiel/stewardie/releases/latest">
+    <img src="https://img.shields.io/badge/📱_Download_Android_APK-Latest_Release-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download Android APK" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-AGPLv3-blue.svg?style=for-the-badge" alt="License: AGPLv3" />
+  </a>
 </p>
 
 <p align="center">
@@ -24,7 +32,8 @@
   <a href="#tech-stack">Tech Stack</a> •
   <a href="#how-to-run">How to Run</a> •
   <a href="#collaborators">Collaborators</a> •
-  <a href="#project-documentation">Documentation</a>
+  <a href="#project-documentation">Documentation</a> •
+  <a href="#license">License</a>
 </p>
 
 ---
@@ -233,3 +242,12 @@ For in-depth architectural specifications and verification audits, consult the [
 * [Supabase Migration & Gateways](docs/supabase-core-migration.md) — PostgreSQL schema, RPC functions, and live cloud deployment.
 * [Onboarding & Paywall Verification](docs/onboarding-plus-and-logo-verification.md) — RevenueCat paywall flows and launcher asset verification.
 * [Soft Pop Sound Design](docs/soft-pop-sound-expansion-verification.md) — Tactile soundscapes and volume controls.
+
+---
+
+## License
+
+This software codebase is licensed under the [GNU Affero General Public License v3.0 (AGPLv3)](LICENSE).
+
+> **Intellectual Property & Trademarks Notice:**
+> The AGPLv3 license applies strictly to the source code of this repository. All Stewardie branding, logos, proprietary mascot character designs (including Sky, Butter, and Rose Soft Pop clay companions), and custom soundscapes remain the exclusive copyright of the authors and may not be used in commercial derivative works without prior express written consent.
