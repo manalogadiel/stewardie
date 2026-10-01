@@ -3,15 +3,16 @@ import 'package:sembast/sembast.dart' hide FieldValue;
 
 import '../../online/online_backend.dart';
 
-/// The 8 distinct steps in the welcome and account onboarding flow.
+/// The welcome/account flow, including an optional subscription step.
 enum OnboardingStep {
   welcome(0.0),
-  name(1 / 7),
-  account(2 / 7),
-  verifyEmail(3 / 7),
-  permissions(4 / 7),
-  profile(5 / 7),
-  features(6 / 7),
+  name(1 / 8),
+  account(2 / 8),
+  verifyEmail(3 / 8),
+  permissions(4 / 8),
+  profile(5 / 8),
+  features(6 / 8),
+  subscription(7 / 8),
   allSet(1.0);
 
   const OnboardingStep(this.progress);
@@ -36,7 +37,7 @@ class OnboardingStore {
 
   final Database? database;
 
-  static const int currentSchemaVersion = 2;
+  static const int currentSchemaVersion = 3;
 
   static final _store = stringMapStoreFactory.store('onboarding_v1');
 
@@ -117,6 +118,26 @@ class OnboardingStore {
       result['stepId'] = legacy[index];
       result['stepIndex'] = OnboardingStep.values
           .firstWhere((step) => step.name == legacy[index])
+          .index;
+    } else if ((result['schemaVersion'] as int? ?? 1) == 2) {
+      // Old index 7 was All set. Never reinterpret it as the new Plus step.
+      const previous = [
+        'welcome',
+        'name',
+        'account',
+        'verifyEmail',
+        'permissions',
+        'profile',
+        'features',
+        'allSet',
+      ];
+      final index = (result['stepIndex'] as int? ?? 0).clamp(
+        0,
+        previous.length - 1,
+      );
+      result['stepId'] = previous[index];
+      result['stepIndex'] = OnboardingStep.values
+          .firstWhere((step) => step.name == previous[index])
           .index;
     }
     return result;

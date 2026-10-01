@@ -138,21 +138,23 @@ void main() {
       expect(OnboardingStep.welcome.progress, 0.0);
 
       expect(OnboardingStep.name.index, 1);
-      expect(OnboardingStep.name.progress, closeTo(1 / 7, 0.001));
+      expect(OnboardingStep.name.progress, closeTo(1 / 8, 0.001));
 
       expect(OnboardingStep.account.index, 2);
-      expect(OnboardingStep.account.progress, closeTo(2 / 7, 0.001));
+      expect(OnboardingStep.account.progress, closeTo(2 / 8, 0.001));
 
       expect(OnboardingStep.verifyEmail.index, 3);
-      expect(OnboardingStep.verifyEmail.progress, closeTo(3 / 7, 0.001));
+      expect(OnboardingStep.verifyEmail.progress, closeTo(3 / 8, 0.001));
 
       expect(OnboardingStep.permissions.index, 4);
-      expect(OnboardingStep.permissions.progress, closeTo(4 / 7, 0.001));
+      expect(OnboardingStep.permissions.progress, closeTo(4 / 8, 0.001));
 
       expect(OnboardingStep.features.index, 6);
-      expect(OnboardingStep.features.progress, closeTo(6 / 7, 0.001));
+      expect(OnboardingStep.features.progress, closeTo(6 / 8, 0.001));
 
-      expect(OnboardingStep.allSet.index, 7);
+      expect(OnboardingStep.subscription.index, 7);
+      expect(OnboardingStep.subscription.progress, closeTo(7 / 8, 0.001));
+      expect(OnboardingStep.allSet.index, 8);
       expect(OnboardingStep.allSet.progress, 1.0);
     });
   });
