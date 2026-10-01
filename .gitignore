@@ -37,7 +37,8 @@ migrate_working_dir/
 *.jks
 *.keystore
 /.local/
-/backend/firebase/functions/node_modules/
+**/node_modules/
+/promo/
 /backend/firebase/functions/.env*
 /backend/firebase/functions/*service-account*.json
 /firebase-debug.log
