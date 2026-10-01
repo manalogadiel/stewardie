@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as image;
 import 'package:image_picker/image_picker.dart';
 
+import 'member_avatar.dart';
 import 'theme.dart';
 
 /// Small metadata-free square avatars fit safely in a single profile document.
@@ -71,24 +72,30 @@ class ProfilePhoto {
     );
   }
 
-  static Future<void> save(String base64) async {
+  static Future<void> save(String base64, {String? photoUrl}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || !user.emailVerified) {
       throw StateError('Verify your email first.');
     }
-    if (base64.length > 160000 || decode(base64) == null) {
+    if (photoUrl == null && (base64.length > 160000 || decode(base64) == null)) {
       throw StateError('Choose a smaller photo.');
     }
-    await FirebaseFirestore.instance.doc('profiles/${user.uid}').set({
-      'imageBase64': base64,
+    final data = <String, dynamic>{
+      if (base64.isNotEmpty) 'imageBase64': base64,
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    };
+    if (photoUrl != null) {
+      data['photoUrl'] = photoUrl;
+    }
+    await FirebaseFirestore.instance.doc('profiles/${user.uid}').set(data);
+    MemberAvatar.updateCache(user.uid, decode(base64));
   }
 
   static Future<void> remove() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       await FirebaseFirestore.instance.doc('profiles/$uid').delete();
+      MemberAvatar.updateCache(uid, null);
     }
   }
 }

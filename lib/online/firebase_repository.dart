@@ -77,6 +77,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
   final _historyEpoch = <String, int>{};
   final _operationIds = <String, String>{};
   final _acknowledgedActions = <String, Map<String, dynamic>>{};
+  final _lastHistoryRefresh = <String, DateTime>{};
   bool loading = true;
   String? error;
   @override
@@ -375,7 +376,12 @@ class FirebaseTimelineRepository extends TimelineRepository {
           }
         }
         _notify();
-        unawaited(refreshHistory(id));
+        final last = _lastHistoryRefresh[id];
+        final now = DateTime.now();
+        if (last == null || now.difference(last) >= const Duration(seconds: 10)) {
+          _lastHistoryRefresh[id] = now;
+          unawaited(refreshHistory(id));
+        }
       }, onError: denied),
       backend.firestore
           .collection('spaces')

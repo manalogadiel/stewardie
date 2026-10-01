@@ -537,7 +537,7 @@ class OnlineBackend {
         (data?['founderGrant'] == true ||
             data?['entitlementSource'] == 'founder' ||
             (expiry is Timestamp && expiry.toDate().isAfter(DateTime.now())));
-    return (data?['spaceIds'] as List? ?? []).length < (plus ? 50 : 3);
+    return (data?['spaceIds'] as List? ?? []).length < (plus ? 50 : 1);
   }
 
   Future<void> updateProfileName(String newName) async {

@@ -158,7 +158,7 @@ class _SoftPopPaywallState extends State<SoftPopPaywall> {
                       icon: Icons.cottage_rounded,
                       color: SoftPop.butter,
                       title: 'Up to 20 shared spaces',
-                      subtitle: 'Basic includes 3 spaces in total, created or joined.',
+                      subtitle: 'Basic includes 1 space in total, created or joined.',
                     ),
                     Divider(height: 20, color: SoftPop.canvas),
                     _PerkRow(

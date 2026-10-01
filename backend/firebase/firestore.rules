@@ -32,8 +32,8 @@ service cloud.firestore {
         && d.spaceIds.hasAll(d.ownedSpaceIds);
     }
     function accountCapacity(old, d) {
-      let maxSpaces = isTierPlus(d) ? 50 : 3;
-      let maxOwned = isTierPlus(d) ? 20 : 3;
+      let maxSpaces = isTierPlus(d) ? 50 : 1;
+      let maxOwned = isTierPlus(d) ? 20 : 1;
       let oldSpaces = old.get('spaceIds', []).size();
       let oldOwned = old.get('ownedSpaceIds', []).size();
       return (d.spaceIds.size() <= oldSpaces || d.spaceIds.size() <= maxSpaces)

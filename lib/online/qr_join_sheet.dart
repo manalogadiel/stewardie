@@ -74,7 +74,7 @@ class _QrJoinSheetState extends State<QrJoinSheet>
     try {
       if (!await widget.backend.canAddSpace()) {
         throw StateError(
-          'Basic includes 3 spaces. Leave a space before joining another.',
+          'Basic includes 1 space. Upgrade to Plus or leave a space before joining another.',
         );
       }
       final invite = await widget.backend.call('previewInvite', {

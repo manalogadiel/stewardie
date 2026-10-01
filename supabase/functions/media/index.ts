@@ -73,10 +73,17 @@ async function firestore(path:string,token:string,optional=false) {
  }
  const body=await res.json();return Object.fromEntries(Object.entries(body.fields??{}).map(([k,v])=>[k,unpack(v)]));
 }
+const spaceMemberCache = new Map<string, { memberUids: string[]; expiresAt: number }>();
 async function member(space:string,auth:{uid:string,token:string}) {
  if(!validId(space))throw new Failure("Invalid space.");
+ const cached=spaceMemberCache.get(space);
+ if(cached && cached.expiresAt > Date.now()) {
+  if(!cached.memberUids.includes(auth.uid))throw new Failure("You are no longer in this space.",403);
+  return;
+ }
  const parent=await firestore(`spaces/${space}`,auth.token);
  if(!Array.isArray(parent.memberUids)||!parent.memberUids.includes(auth.uid))throw new Failure("You are no longer in this space.",403);
+ spaceMemberCache.set(space,{memberUids:parent.memberUids,expiresAt:Date.now()+60000});
 }
 function check(result:any) {if(result.error)throw new Failure(result.error.message,400);return result.data;}
 function json(body:unknown,status=200){return new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json"}});}

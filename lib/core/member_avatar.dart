@@ -50,6 +50,11 @@ class MemberAvatar extends StatefulWidget {
         .toUpperCase();
   }
 
+  static void updateCache(String uid, Uint8List? bytes) =>
+      _MemberAvatarState.updateCache(uid, bytes);
+
+  static void clearCache() => _MemberAvatarState.clearCache();
+
   @override
   State<MemberAvatar> createState() => _MemberAvatarState();
 }
@@ -57,10 +62,19 @@ class MemberAvatar extends StatefulWidget {
 class _MemberAvatarState extends State<MemberAvatar> {
   // Reuse decoded bytes across routes, bounded and scoped to the signed-in UID.
   static final Map<String, Uint8List?> _photos = {};
+  static final Set<String> _pendingFetches = {};
   static String? _cacheAccount;
-  Stream<DocumentSnapshot<Map<String, dynamic>>>? _stream;
+
+  static void updateCache(String uid, Uint8List? bytes) {
+    _photos[uid] = bytes;
+  }
+
+  static void clearCache() {
+    _photos.clear();
+    _pendingFetches.clear();
+  }
+
   String? _identity;
-  String? _encoded;
   Uint8List? _bytes;
   String get uid => widget.uid;
   String get name => widget.name;
@@ -73,16 +87,50 @@ class _MemberAvatarState extends State<MemberAvatar> {
         : FirebaseAuth.instance.currentUser?.uid;
     if (_cacheAccount != account) {
       _photos.clear();
+      _pendingFetches.clear();
       _cacheAccount = account;
     }
     final identity = '$account/$uid';
     if (_identity == identity) return;
     _identity = identity;
-    _encoded = null;
-    _bytes = account == null ? null : _photos[uid];
-    _stream = account == null
-        ? null
-        : FirebaseFirestore.instance.doc('profiles/$uid').snapshots();
+
+    if (account == null) {
+      _bytes = null;
+      return;
+    }
+
+    if (_photos.containsKey(uid)) {
+      _bytes = _photos[uid];
+    } else {
+      _bytes = null;
+      _fetchPhoto(account, uid);
+    }
+  }
+
+  void _fetchPhoto(String account, String targetUid) {
+    if (_pendingFetches.contains(targetUid)) return;
+    _pendingFetches.add(targetUid);
+
+    FirebaseFirestore.instance
+        .doc('profiles/$targetUid')
+        .get(const GetOptions(source: Source.serverAndCache))
+        .then((doc) {
+      _pendingFetches.remove(targetUid);
+      if (_cacheAccount != account) return;
+      final encoded = doc.data()?['imageBase64'] as String?;
+      final bytes = ProfilePhoto.decode(encoded);
+      if (_photos.length >= 100 && !_photos.containsKey(targetUid)) {
+        _photos.remove(_photos.keys.first);
+      }
+      _photos[targetUid] = bytes;
+      if (mounted && uid == targetUid) {
+        setState(() {
+          _bytes = bytes;
+        });
+      }
+    }).catchError((_) {
+      _pendingFetches.remove(targetUid);
+    });
   }
 
   @override
@@ -94,27 +142,7 @@ class _MemberAvatarState extends State<MemberAvatar> {
         shape: BoxShape.circle,
         color: selected ? const Color(0xFFFFF7EB) : null,
       ),
-      child: _stream == null
-          ? _face(null)
-          : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              key: ValueKey(_identity),
-              stream: _stream,
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  final encoded =
-                      snapshot.data!.data()?['imageBase64'] as String?;
-                  if (encoded != _encoded || encoded == null) {
-                    _encoded = encoded;
-                    _bytes = ProfilePhoto.decode(encoded);
-                    if (_photos.length >= 100 && !_photos.containsKey(uid)) {
-                      _photos.remove(_photos.keys.first);
-                    }
-                    _photos[uid] = _bytes;
-                  }
-                }
-                return _face(_bytes);
-              },
-            ),
+      child: _face(_bytes),
     );
   }
 

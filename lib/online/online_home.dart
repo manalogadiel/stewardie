@@ -55,7 +55,7 @@ class OnlineHome extends StatefulWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Basic includes 3 spaces. Leave a space before creating or joining another.',
+                'Basic includes 1 space. Upgrade to Plus or leave a space before creating or joining another.',
               ),
             ),
           );
