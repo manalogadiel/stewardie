@@ -24,7 +24,7 @@
         }
         .outro-container {
           position: relative;
-          width: 1600px;
+          width: 1200px;
           height: 900px;
           display: flex;
           flex-direction: column;
@@ -47,32 +47,32 @@
           width: 48px;
           height: 48px;
           top: 140px;
-          left: 360px;
+          left: 420px;
         }
         .outro-md-2 {
           width: 32px;
           height: 32px;
           top: 260px;
-          left: 420px;
+          left: 480px;
         }
         .outro-md-3 {
           width: 52px;
           height: 52px;
           top: 160px;
-          right: 380px;
+          right: 440px;
         }
         .outro-md-4 {
           width: 28px;
           height: 28px;
           bottom: 240px;
-          right: 420px;
+          right: 460px;
         }
 
         /* Hero Logo Emblem in Liquid Chrome Rim */
         .logo-chrome-rim {
-          width: 110px;
-          height: 110px;
-          border-radius: 30px;
+          width: 105px;
+          height: 105px;
+          border-radius: 28px;
           padding: 5px;
           background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
           box-shadow:
@@ -82,28 +82,28 @@
           display: flex;
           align-items: center;
           justify-content: center;
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
         .logo-hero-img {
           width: 100%;
           height: 100%;
-          border-radius: 25px;
+          border-radius: 23px;
           object-fit: cover;
         }
 
         .celebrate-image {
-          width: 440px;
+          width: 380px;
           height: auto;
           filter: drop-shadow(0 24px 40px rgba(32, 38, 51, 0.16));
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
         .outro-title {
-          font-size: 74px;
+          font-size: 64px;
           font-weight: 900;
           color: #111827;
-          line-height: 1.1;
+          line-height: 1.12;
           letter-spacing: -0.035em;
-          margin-bottom: 16px;
+          margin-bottom: 14px;
         }
         .brand-gradient {
           background: linear-gradient(135deg, #1a3cd4 0%, #4338ca 50%, #7c3aed 100%);
@@ -111,44 +111,167 @@
           -webkit-text-fill-color: transparent;
         }
         .outro-tagline {
-          font-size: 28px;
+          font-size: 26px;
           font-weight: 600;
           color: #4b5563;
-          margin-bottom: 32px;
+          margin-bottom: 26px;
           letter-spacing: -0.015em;
         }
         .cta-button {
           display: inline-flex;
           align-items: center;
-          gap: 16px;
+          gap: 14px;
           background: #ffffff;
           color: #1d4ed8;
-          padding: 22px 56px;
+          padding: 20px 52px;
           border-radius: 9999px;
-          font-size: 26px;
+          font-size: 24px;
           font-weight: 900;
           box-shadow: 0 20px 48px -8px rgba(15, 23, 42, 0.16), 0 8px 18px -4px rgba(15, 23, 42, 0.08);
           border: none;
           letter-spacing: -0.01em;
         }
         .cta-platform-badges {
-          margin-top: 32px;
+          margin-top: 26px;
           display: flex;
-          gap: 16px;
+          gap: 14px;
           align-items: center;
         }
         .platform-badge {
           background: #ffffff;
           border: none;
-          padding: 12px 24px;
+          padding: 10px 22px;
           border-radius: 9999px;
           color: #1f2937;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 700;
           box-shadow: 0 10px 26px -4px rgba(15, 23, 42, 0.1), 0 4px 10px -2px rgba(15, 23, 42, 0.05);
           display: flex;
           align-items: center;
           gap: 8px;
+        }
+
+        /* 3D Tilted Perspective Cards with Depth Blur on Sides */
+        .tilted-deck {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          display: flex;
+          flex-direction: column;
+          gap: 22px;
+          perspective: 1200px;
+          perspective-origin: center;
+          z-index: 6;
+          width: 360px;
+        }
+        .deck-left {
+          left: 40px;
+        }
+        .deck-right {
+          right: 40px;
+        }
+        .tilted-card {
+          background: #ffffff;
+          border: none;
+          border-radius: 22px;
+          padding: 16px 20px;
+          box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12), 0 4px 14px rgba(15, 23, 42, 0.06);
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          transform-style: preserve-3d;
+          transition: transform 0.3s ease;
+        }
+        .deck-left .card-far {
+          transform: rotateY(26deg) rotateX(4deg) scale(0.92);
+          filter: blur(2.5px);
+          opacity: 0.65;
+        }
+        .deck-left .card-mid {
+          transform: rotateY(24deg) rotateX(2deg) scale(0.98);
+          filter: blur(1.0px);
+          opacity: 0.85;
+        }
+        .deck-left .card-near {
+          transform: rotateY(20deg) rotateX(0deg) scale(1.04);
+          filter: blur(0px);
+          opacity: 1.0;
+          box-shadow: 0 24px 55px rgba(15, 23, 42, 0.16), 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+        .deck-right .card-far {
+          transform: rotateY(-26deg) rotateX(4deg) scale(0.92);
+          filter: blur(2.5px);
+          opacity: 0.65;
+        }
+        .deck-right .card-mid {
+          transform: rotateY(-24deg) rotateX(2deg) scale(0.98);
+          filter: blur(1.0px);
+          opacity: 0.85;
+        }
+        .deck-right .card-near {
+          transform: rotateY(-20deg) rotateX(0deg) scale(1.04);
+          filter: blur(0px);
+          opacity: 1.0;
+          box-shadow: 0 24px 55px rgba(15, 23, 42, 0.16), 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+        .card-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 14px;
+          background: #eff6ff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 22px;
+          flex-shrink: 0;
+        }
+        .card-icon.rose { background: #ffe4e6; }
+        .card-icon.emerald { background: #d1fae5; }
+        .card-icon.amber { background: #fef3c7; }
+        .card-icon.purple { background: #f3e8ff; }
+        .card-icon.cyan { background: #cffafe; }
+        .card-text {
+          text-align: left;
+        }
+        .card-title {
+          font-size: 15px;
+          font-weight: 800;
+          color: #111827;
+        }
+        .card-desc {
+          font-size: 12px;
+          font-weight: 600;
+          color: #64748b;
+          margin-top: 2px;
+        }
+
+        /* Moving Celebrating Mascots */
+        .moving-mascot {
+          position: absolute;
+          height: auto;
+          filter: drop-shadow(0 20px 35px rgba(32, 38, 51, 0.2));
+          z-index: 12;
+          pointer-events: none;
+        }
+        #c7-mascot-explorer {
+          left: 170px;
+          top: 60px;
+          width: 200px;
+        }
+        #c7-mascot-camera {
+          right: 170px;
+          top: 60px;
+          width: 230px;
+        }
+        #c7-mascot-task {
+          left: 190px;
+          bottom: 70px;
+          width: 210px;
+        }
+        #c7-mascot-mood {
+          right: 190px;
+          bottom: 70px;
+          width: 210px;
         }
       </style>
 
@@ -159,6 +282,63 @@
         <div class="mercury-droplet outro-md-3" id="c7-md3" data-layout-allow-overlap></div>
         <div class="mercury-droplet outro-md-4" id="c7-md4" data-layout-allow-overlap></div>
 
+        <!-- 3D Tilted Perspective Cards Deck: Left Side (Farther blurry) -->
+        <div class="tilted-deck deck-left" id="c7-deck-left">
+          <div class="tilted-card card-far">
+            <div class="card-icon">⚡</div>
+            <div class="card-text">
+              <div class="card-title">Zero Nagging Chores</div>
+              <div class="card-desc">Multi-user task synchronization</div>
+            </div>
+          </div>
+          <div class="tilted-card card-mid">
+            <div class="card-icon rose">📸</div>
+            <div class="card-text">
+              <div class="card-title">Candid Moments</div>
+              <div class="card-desc">Nostalgic retro clay TV memories</div>
+            </div>
+          </div>
+          <div class="tilted-card card-near">
+            <div class="card-icon emerald">🗺️</div>
+            <div class="card-text">
+              <div class="card-title">Private Location Sharing</div>
+              <div class="card-desc">15m, 30m &amp; 1hr flexible arrival windows</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3D Tilted Perspective Cards Deck: Right Side (Farther blurry) -->
+        <div class="tilted-deck deck-right" id="c7-deck-right">
+          <div class="tilted-card card-far">
+            <div class="card-icon amber">📅</div>
+            <div class="card-text">
+              <div class="card-title">Household Calendar</div>
+              <div class="card-desc">Coordinate dinner &amp; deep cleans</div>
+            </div>
+          </div>
+          <div class="tilted-card card-mid">
+            <div class="card-icon purple">🌱</div>
+            <div class="card-text">
+              <div class="card-title">Emotional Pulse</div>
+              <div class="card-desc">Empathy-driven daily check-ins</div>
+            </div>
+          </div>
+          <div class="tilted-card card-near">
+            <div class="card-icon cyan">🔒</div>
+            <div class="card-text">
+              <div class="card-title">Private Spaces</div>
+              <div class="card-desc">Instant invite QR codes &amp; cloud sync</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dynamic Moving Mascots -->
+        <img id="c7-mascot-explorer" class="moving-mascot" src="assets/illustrations/mascot-map-explorer.png" alt="Map Explorer Mascot" data-layout-allow-overlap />
+        <img id="c7-mascot-camera" class="moving-mascot" src="assets/illustrations/tour-moment-camera.png" alt="Camera Mascot" data-layout-allow-overlap />
+        <img id="c7-mascot-task" class="moving-mascot" src="assets/illustrations/tour-task-helper.png" alt="Task Mascot" data-layout-allow-overlap />
+        <img id="c7-mascot-mood" class="moving-mascot" src="assets/illustrations/tour-mood-checkin.png" alt="Mood Check-in Mascot" data-layout-allow-overlap />
+
+        <!-- Center Outro Content -->
         <div class="outro-container">
           <!-- Official Logo Emblem in Liquid Chrome Rim -->
           <div class="logo-chrome-rim" id="c7-logo" data-layout-allow-overlap>
@@ -181,7 +361,7 @@
           </div>
 
           <div id="c7-badges" class="cta-platform-badges">
-            <div class="platform-badge"><span>📱</span> iOS &amp; Android Ready</div>
+            <div class="platform-badge"><span>📱</span> Flutter · Android Pilot</div>
             <div class="platform-badge"><span>🔒</span> Private &amp; Cloud-Synced</div>
             <div class="platform-badge"><span>⚡</span> Instant QR Space Setup</div>
           </div>
@@ -191,13 +371,25 @@
           const tl = gsap.timeline({ paused: true });
           window.__timelines["scene7"] = tl;
 
+          // Logo & Mascot entrance
           tl.fromTo("#c7-logo", { opacity: 0, scale: 0.5, y: -20 }, { opacity: 1, scale: 1, y: 0, duration: 0.8, ease: "back.out(2)" }, 0.1);
           tl.fromTo("#c7-mascot", { opacity: 0, scale: 0.7, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.9, ease: "back.out(1.8)" }, 0.3);
+
+          // Tilted Perspective Deck Entrances
+          tl.fromTo("#c7-deck-left .tilted-card", { opacity: 0, x: -60 }, { opacity: 1, x: 0, stagger: 0.15, duration: 0.8, ease: "power3.out" }, 0.4);
+          tl.fromTo("#c7-deck-right .tilted-card", { opacity: 0, x: 60 }, { opacity: 1, x: 0, stagger: 0.15, duration: 0.8, ease: "power3.out" }, 0.4);
+
+          // Moving Mascots Entrance
+          tl.fromTo(".moving-mascot", { opacity: 0, scale: 0.6, y: 30 }, { opacity: 1, scale: 1, y: 0, stagger: 0.12, duration: 0.9, ease: "back.out(1.6)" }, 0.5);
+
+          // Liquid Mercury Droplets Entrance
           tl.fromTo(".mercury-droplet", { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.8, stagger: 0.1, ease: "elastic.out(1, 0.4)" }, 0.5);
+
+          // Typography & CTA
           tl.fromTo("#c7-title", { opacity: 0, y: 25 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.6);
           tl.fromTo("#c7-tagline", { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.0);
-          tl.fromTo("#c7-cta", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.7, ease: "back.out(2)" }, 1.4);
-          tl.fromTo("#c7-badges", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.8);
+          tl.fromTo("#c7-cta", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.7, ease: "back.out(2)" }, 1.3);
+          tl.fromTo("#c7-badges", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.6);
 
           // Zero-gravity slow-motion floating sine oscillations
           tl.to("#c7-md1", { y: -18, x: 8, duration: 2.8, repeat: 5, yoyo: true, ease: "sine.inOut" }, 1.0);
@@ -205,8 +397,12 @@
           tl.to("#c7-md3", { y: -20, x: -8, duration: 3.0, repeat: 5, yoyo: true, ease: "sine.inOut" }, 1.0);
           tl.to("#c7-md4", { y: 16, x: 6, duration: 3.2, repeat: 5, yoyo: true, ease: "sine.inOut" }, 1.2);
 
-          // Joyful mascot bounce
-          tl.to("#c7-mascot", { y: -16, duration: 0.8, repeat: 15, yoyo: true, ease: "sine.inOut" }, 1.6);
+          // Joyful mascot floating / dancing motion for all mascots
+          tl.to("#c7-mascot", { y: -16, duration: 1.8, repeat: 10, yoyo: true, ease: "sine.inOut" }, 1.2);
+          tl.to("#c7-mascot-explorer", { y: -14, x: 6, rotation: 3, duration: 2.4, repeat: 10, yoyo: true, ease: "sine.inOut" }, 1.0);
+          tl.to("#c7-mascot-camera", { y: -18, x: -6, rotation: -3, duration: 2.1, repeat: 10, yoyo: true, ease: "sine.inOut" }, 1.1);
+          tl.to("#c7-mascot-task", { y: 15, x: 8, rotation: 2, duration: 2.6, repeat: 10, yoyo: true, ease: "sine.inOut" }, 1.3);
+          tl.to("#c7-mascot-mood", { y: -15, x: -8, rotation: -2, duration: 2.3, repeat: 10, yoyo: true, ease: "sine.inOut" }, 1.2);
 
           tl.seek(0);
         </script>

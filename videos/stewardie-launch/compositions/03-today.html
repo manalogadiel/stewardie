@@ -120,36 +120,74 @@
           white-space: nowrap;
         }
 
-        /* Dynamic Island Top Patch */
-        .dynamic-island {
+        /* iPhone 11 Pro Top Notch */
+        .iphone-notch {
           position: absolute;
-          top: 10px;
+          top: 0;
           left: 50%;
           transform: translateX(-50%);
-          width: 114px;
-          height: 30px;
+          width: 168px;
+          height: 33px;
           background: #000000;
-          border-radius: 999px;
+          border-bottom-left-radius: 18px;
+          border-bottom-right-radius: 18px;
           z-index: 100;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 0 12px;
-          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+          justify-content: center;
           pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
-        .di-camera {
+        .iphone-notch::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: -10px;
           width: 10px;
           height: 10px;
-          border-radius: 50%;
-          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #030712 60%, #000000 100%);
-          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.4);
+          background: transparent;
+          border-top-right-radius: 10px;
+          box-shadow: 4px -4px 0 0 #000000;
         }
-        .di-sensor {
-          width: 7px;
-          height: 7px;
+        .iphone-notch::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          right: -10px;
+          width: 10px;
+          height: 10px;
+          background: transparent;
+          border-top-left-radius: 10px;
+          box-shadow: -4px -4px 0 0 #000000;
+        }
+        .notch-speaker {
+          width: 50px;
+          height: 4.5px;
+          background: #1c1c1e;
+          border-radius: 3px;
+          border: 0.5px solid #2c2c2e;
+          box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+          position: absolute;
+          top: 6px;
+        }
+        .notch-camera {
+          width: 11px;
+          height: 11px;
           border-radius: 50%;
-          background: #070d18;
+          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #050b14 65%, #000000 100%);
+          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.5);
+          position: absolute;
+          right: 32px;
+          top: 10px;
+        }
+        .notch-sensor {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #090e17;
+          position: absolute;
+          left: 36px;
+          top: 13px;
         }
         .screen-video {
           width: 100%;
@@ -215,17 +253,19 @@
           border: none;
         }
 
-        /* Iridescent Liquid Chrome Phone Chassis */
+        /* Realistic iPhone 11 Pro (Space Gray) with Soft Yellow Rim Light */
         .phone-mockup {
           width: 324px;
           height: 694px;
           border-radius: 46px;
           padding: 8px;
-          background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
+          background: linear-gradient(145deg, #2b303c 0%, #171a21 35%, #2a313d 70%, #11141a 100%);
           box-shadow:
-            0 35px 80px -15px rgba(15, 23, 42, 0.32),
-            0 0 35px rgba(224, 231, 255, 0.45),
-            inset 0 2px 4px rgba(255, 255, 255, 0.95);
+            0 35px 85px -15px rgba(10, 15, 26, 0.45),
+            0 0 0 1.5px rgba(254, 240, 138, 0.45),
+            0 0 35px rgba(254, 240, 138, 0.2),
+            inset 0 1px 2px rgba(255, 255, 255, 0.3),
+            inset 0 -1px 2px rgba(0, 0, 0, 0.8);
           position: relative;
         }
         .phone-inner-wrap {
@@ -406,7 +446,7 @@
         /* Plain White Borderless Push Notification Banner on Phone B */
         .push-banner {
           position: absolute;
-          top: 14px;
+          top: 42px;
           left: 12px;
           right: 12px;
           background: #ffffff;
@@ -429,11 +469,11 @@
         .push-title {
           font-size: 11px;
           font-weight: 800;
-          color: #ffffff;
+          color: #111827;
         }
         .push-desc {
           font-size: 11px;
-          color: #e5e7eb;
+          color: #4b5563;
         }
 
         /* Cursor Simulator */
@@ -453,14 +493,27 @@
         /* Mascot Celebrator */
         .mascot-celebrator {
           position: absolute;
-          right: 90px;
-          bottom: 50px;
-          width: 170px;
+          right: 50px;
+          bottom: 35px;
+          width: 260px;
           height: auto;
-          filter: drop-shadow(0 20px 30px rgba(32, 38, 51, 0.2));
+          filter: drop-shadow(0 20px 30px rgba(32, 38, 51, 0.22));
           z-index: 15;
           opacity: 0;
         }
+
+        /* Fixed safe zones: headings, labels and phones cannot intersect. */
+        .stage-container {padding-top:0;}
+        .header-block {position:absolute;top:65px;left:0;width:100%;margin:0;}
+        .section-title {font-size:64px;line-height:1.15;margin-top:16px;}
+        .phones-rig {position:absolute;top:255px;left:445px;width:1030px;height:720px;gap:240px;justify-content:space-between;align-items:flex-start;}
+        .phone-container {width:350px;flex:none;}
+        .phone-label {position:absolute;top:-46px;left:0;width:100%;text-align:center;font-size:18px;}
+        .phone-mockup {width:350px;height:716px;padding:8px;transform:none;}
+        .screen-bg,.screen-video {object-fit:contain;background:#faf9f6;}
+        .sync-bridge {position:absolute;top:300px;left:515px;width:230px;background:#fff9df;font-size:19px;}
+        .mascot-celebrator {right:65px;bottom:65px;width:180px;}
+        .mercury-droplet {display:none;}
       </style>
 
       <div id="root" data-composition-id="scene3" data-width="1920" data-height="1080">
@@ -470,55 +523,27 @@
           <!-- Top Header -->
           <div class="header-block" id="el-header">
             <div class="section-tag">Shared Responsibilities</div>
-            <h2 class="section-title">Instant Multi-User <span class="gradient-sync">Task Sync</span></h2>
+            <h2 class="section-title">Ask. Cover. <span class="gradient-sync">Finish.</span></h2>
           </div>
 
           <!-- Dual Phone Rig -->
           <div class="phones-rig">
             <!-- Sync Bridge (No Light Dot) -->
             <div class="sync-bridge" id="el-sync-bridge">
-              <span>Live Cloud Sync</span>
+              <span>One clear request</span>
             </div>
 
             <!-- Phone A: Jamie (Creator) -->
             <div class="phone-container" id="el-phone-a">
-              <div class="phone-label label-phone-a">📱 Jamie (Creator)</div>
+              <div class="phone-label label-phone-a">Create a request</div>
               <div class="phone-mockup phone-mockup-left">
                 <div class="phone-inner-wrap">
                   <div class="screen-inner" data-layout-allow-overflow>
-                    <!-- Dynamic Island Top Patch -->
-                    <div class="dynamic-island" data-layout-allow-overlap>
-                      <div class="di-camera"></div>
-                      <div class="di-sensor"></div>
-                    </div>
+                    <!-- iPhone 11 Pro Top Notch -->
+                    
 
-                    <!-- Screencast Video on Phone A -->
-                    <video class="screen-video" src="assets/screencast/03_today_screencast.mp4" data-start="0" data-duration="20" autoplay muted playsinline loop></video>
-
-                    <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
-                    <div class="metric-overlay-cov" data-layout-allow-overlap>
-                      <div class="metric-val" id="el-metric-cov">2</div>
-                    </div>
-
-                    <!-- Interactive Task Card on Phone A -->
-                    <div class="task-card-overlay active-target" id="el-task-new-a" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
-                      <div class="task-checkbox" id="el-check-a"></div>
-                      <div class="task-body">
-                        <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
-                        <div class="task-meta" id="el-meta-a">Unclaimed • Added just now</div>
-                      </div>
-                    </div>
-
-                    <!-- Authentic Add Task Modal Sheet -->
-                    <div class="add-modal" id="el-add-modal" data-layout-allow-overlap data-layout-allow-overflow>
-                      <div class="sheet-drag-pill"></div>
-                      <div class="modal-title">Add to Today</div>
-                      <div class="modal-input">Pick up oat milk &amp; coffee beans ☕</div>
-                      <div class="modal-btn" id="el-modal-btn">Add Task</div>
-                    </div>
-
-                    <!-- Cursor on Phone A -->
-                    <div class="cursor-pointer" id="el-cursor-a"></div>
+                    <!-- Screencast Video on Phone A (Clean, 0 overlaps) -->
+                    <video id="vid-today-screencast" class="screen-video" src="assets/screencast/03_today_screencast.mp4" data-start="0" data-duration="20" autoplay muted playsinline loop></video>
                   </div>
                 </div>
               </div>
@@ -531,45 +556,16 @@
 
             <!-- Phone B: Alex (Housemate) -->
             <div class="phone-container" id="el-phone-b">
-              <div class="phone-label label-phone-b">⚡ Alex (Roommate)</div>
+              <div class="phone-label label-phone-b">See who it’s for</div>
               <div class="phone-mockup phone-mockup-right">
                 <div class="phone-inner-wrap">
                   <div class="screen-inner" data-layout-allow-overflow>
-                    <!-- Dynamic Island Top Patch -->
-                    <div class="dynamic-island" data-layout-allow-overlap>
-                      <div class="di-camera"></div>
-                      <div class="di-sensor"></div>
-                    </div>
+                    <!-- iPhone 11 Pro Top Notch -->
+                    
 
                     <!-- Authentic Flutter Today Screen -->
-                    <img src="assets/screens/today-alex.png" alt="Stewardie Today Screen" class="screen-bg" />
+                    <img src="assets/screens/today-apples-recorded.png" alt="Recorded Today view: Please buy some apples at the market" class="screen-bg" />
 
-                    <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
-                    <div class="metric-overlay-cov" data-layout-allow-overlap>
-                      <div class="metric-val" id="el-metric-cov-b">2</div>
-                    </div>
-
-                    <!-- Task arriving on Phone B -->
-                    <div class="task-card-overlay active-target" id="el-task-new-b" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
-                      <div class="task-checkbox" id="el-check-b"></div>
-                      <div class="task-body">
-                        <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
-                        <div class="task-meta" id="el-meta-b">Added by Jamie • Just now</div>
-                      </div>
-                      <button class="claim-btn" id="el-claim-btn" data-layout-allow-overlap>Claim</button>
-                    </div>
-
-                    <!-- Push Notification Banner on Phone B -->
-                    <div class="push-banner" id="el-push-banner" data-layout-allow-overlap>
-                      <div class="push-icon">☕</div>
-                      <div class="push-content">
-                        <div class="push-title">Jamie added a new task</div>
-                        <div class="push-desc">Pick up oat milk &amp; coffee beans ☕</div>
-                      </div>
-                    </div>
-
-                    <!-- Cursor on Phone B -->
-                    <div class="cursor-pointer" id="el-cursor-b"></div>
                   </div>
                 </div>
               </div>
@@ -581,77 +577,15 @@
         </div>
 
         <script>
-          const tl = gsap.timeline({ paused: true });
+          const tl = gsap.timeline({paused:true});
           window.__timelines["scene3"] = tl;
-
-          // 0.0s - 1.5s: Entrance of Phone A & Header
-          tl.from("#el-header", { y: -30, opacity: 0, duration: 0.8, ease: "power2.out" }, 0.2);
-          tl.from("#el-phone-a", { y: 60, opacity: 0, duration: 1.0, ease: "power3.out" }, 0.4);
-
-          // 1.5s - 3.5s: Jamie creates task on Phone A + Camera Focus Pull Zoom-In
-          tl.to("#el-phone-a", { scale: 1.05, duration: 0.8, ease: "power2.out" }, 1.5);
-          tl.fromTo("#el-add-modal", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(1.8)" }, 1.5);
-          tl.fromTo("#el-cursor-a", { x: 260, y: 620, opacity: 0 }, { x: 160, y: 650, opacity: 1, duration: 0.6, ease: "power2.out" }, 2.0);
-          // Tap Save
-          tl.to("#el-modal-btn", { scale: 0.95, duration: 0.15, yoyo: true, repeat: 1 }, 2.6);
-          tl.to("#el-add-modal", { y: 60, opacity: 0, duration: 0.4, ease: "power2.in" }, 2.9);
-          tl.to("#el-cursor-a", { opacity: 0, duration: 0.3 }, 2.9);
-
-          // Task appears on Phone A (at 3.0s, synced to saved.wav)
-          tl.to("#el-task-new-a", { opacity: 1, duration: 0.4, ease: "power2.out" }, 3.0);
-          tl.fromTo("#el-sync-bridge", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 3.2);
-
-          // Zero-gravity mercury droplets entrance
-          tl.fromTo(".mercury-droplet", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.8, stagger: 0.12, ease: "elastic.out(1, 0.4)" }, 3.2);
-          tl.to("#el-phone-a", { scale: 1.0, duration: 0.6, ease: "power2.inOut" }, 3.5);
-
-          // 3.5s - 5.5s: Phone B (Alex) glides in from right
-          tl.from("#el-phone-b", { x: 80, y: 60, opacity: 0, duration: 1.0, ease: "power3.out" }, 3.5);
-
-          // 5.5s - 7.5s: Push notification arrives on Phone B
-          tl.fromTo("#el-push-banner", { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(1.5)" }, 5.5);
-          // Task appears in Alex's list
-          tl.to("#el-task-new-b", { opacity: 1, duration: 0.4 }, 6.0);
-          tl.to("#el-push-banner", { y: -20, opacity: 0, duration: 0.4, ease: "power2.in" }, 7.5);
-
-          // 7.8s - 10.5s: Alex taps "Claim" + Camera Focus Pull Zoom-In on Phone B
-          tl.to("#el-phone-b", { scale: 1.05, duration: 0.8, ease: "power2.out" }, 7.8);
-          tl.fromTo("#el-cursor-b", { x: 200, y: 600, opacity: 0 }, { x: 260, y: 520, opacity: 1, duration: 0.6, ease: "power2.out" }, 7.8);
-          tl.to("#el-claim-btn", { scale: 0.9, duration: 0.15, yoyo: true, repeat: 1 }, 8.5);
-          tl.to("#el-cursor-b", { opacity: 0, duration: 0.3 }, 8.8);
-
-          // 9.0s - 11.5s: Synchronized Claim on Both Phones (synced to success.wav at 9.0s)
-          tl.to(["#el-task-new-a", "#el-task-new-b"], {
-            className: "+=claimed-state",
-            duration: 0.4
-          }, 9.0);
-          tl.to("#el-claim-btn", { display: "none", duration: 0.1 }, 9.0);
-          tl.to(["#el-check-a", "#el-check-b"], {
-            className: "+=checked",
-            innerText: "✓",
-            duration: 0.3
-          }, 9.1);
-          tl.to("#el-meta-a", { innerText: "Covered by Alex • Just now", duration: 0.2 }, 9.2);
-          tl.to("#el-meta-b", { innerText: "Covered by You • Just now", duration: 0.2 }, 9.2);
-          tl.to(["#el-metric-cov", "#el-metric-cov-b"], { innerText: "3", color: "#166534", duration: 0.3 }, 9.3);
-
-          // Camera reset to equilibrium
-          tl.to("#el-phone-b", { scale: 1.0, duration: 0.6, ease: "power2.inOut" }, 10.5);
-
-          // Mascot celebration pop
-          tl.fromTo("#el-mascot-celebrate", { scale: 0.6, opacity: 0, y: 20 }, { scale: 1, opacity: 1, y: 0, duration: 0.7, ease: "back.out(2)" }, 9.2);
-          tl.to("#el-mascot-celebrate", { y: -15, duration: 0.4, repeat: 14, yoyo: true, ease: "sine.inOut" }, 9.9);
-
-          // Slow-motion gravitational suspension sine oscillations
-          tl.to("#el-phone-a", { y: -10, duration: 3.2, repeat: 4, yoyo: true, ease: "sine.inOut" }, 1.45);
-          tl.to("#el-phone-b", { y: 10, duration: 3.5, repeat: 4, yoyo: true, ease: "sine.inOut" }, 4.55);
-          tl.to("#el-sync-md1", { y: -16, x: 6, duration: 2.8, repeat: 5, yoyo: true, ease: "sine.inOut" }, 3.2);
-          tl.to("#el-sync-md2", { y: 18, x: -8, duration: 3.6, repeat: 5, yoyo: true, ease: "sine.inOut" }, 3.2);
-          tl.to("#el-sync-md3", { y: -14, x: -6, duration: 3.0, repeat: 5, yoyo: true, ease: "sine.inOut" }, 3.2);
-
-          // 18.8s - 20.0s: Fade out
-          tl.to("#root", { opacity: 0, duration: 1.2, ease: "power2.in" }, 18.8);
-
+          tl.fromTo("#el-header",{y:16,opacity:0},{y:0,opacity:1,duration:.7,ease:"power2.out"},.1);
+          tl.fromTo("#el-phone-a",{y:26,opacity:0},{y:0,opacity:1,duration:.8,ease:"power2.out"},.3);
+          tl.fromTo("#el-phone-b",{y:26,opacity:0},{y:0,opacity:1,duration:.8,ease:"power2.out"},.7);
+          tl.fromTo("#el-sync-bridge",{opacity:0},{opacity:1,duration:.5},1.1);
+          tl.fromTo("#el-mascot-celebrate",{opacity:0,y:20},{opacity:1,y:0,duration:.7,ease:"power2.out"},1.2);
+          tl.to("#el-mascot-celebrate",{y:-8,duration:2.8,repeat:5,yoyo:true,ease:"sine.inOut"},2);
+          tl.to("#root",{opacity:0,duration:.5},19.5);
           tl.seek(0);
         </script>
       </div>

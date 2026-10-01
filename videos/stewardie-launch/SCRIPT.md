@@ -1,56 +1,31 @@
-# SCRIPT — Stewardie Product Launch & Hackathon Demo
+# Stewardie final demo script
 
-**Voice:** Warm, clear, friendly, and engaging narrator (e.g., ElevenLabs / Kokoro)
-**Voice settings:** stability 0.40 · similarity 0.75 · style 0.25
-**Voice direction:** Friendly, upbeat, conversational, empathetic, and clear.
+114 seconds. Qwen3-TTS CustomVoice, Aiden; location uses the same voice rather than Edge TTS.
 
----
+## 0-14s: 01-chaos
 
-## Line 1 — Hook: The Chaos of Shared Living (Frame 1)
+Living together should feel like a team, not a chore list. But between buried group chats, forgotten groceries, and passive-aggressive sticky notes, shared living easily gets messy.
 
-**Time:** 0.0 – 14.0s
-**Delivery:** Empathetic, relatable, acknowledging the everyday pain.
+## 14-26s: 02-intro
 
-    Living together should feel like a team, not a chore list. But between buried group chats, forgotten groceries, and passive-aggressive sticky notes, shared living easily gets messy.
+Meet Stewardie—the warm, tactile shared-life app that turns household chaos into joyful connection for families, housemates, and crews.
 
-## Line 2 — Meet Stewardie (Frame 2)
+## 26-46s: 03-today
 
-**Time:** 14.0 – 26.0s
-**Delivery:** Warm, enthusiastic, welcoming.
+On Today, add a task and choose who it's for. Here, a grocery request stays visible with its recipient and acceptance status. Members can accept, ask for help, and mark work done, so responsibilities are clear.
 
-    Meet Stewardie—the warm, tactile shared-life app that turns household chaos into joyful connection for families, housemates, and crews.
+## 46-62s: 04-moments
 
-## Line 3 — The Today View (Frame 3)
+Keep the good moments together. Take a photo, add a caption, and choose whether to include where it was captured. Share it privately with your space, then react with Stewardie's clay expressions.
 
-**Time:** 26.0 – 42.0s
-**Delivery:** Confident, clear, emphasizing simplicity and tactile satisfaction.
+## 62-81s: 05-location
 
-    At the center is the Today view—a clear, stress-free checklist of who's doing what right now. When you complete a task, you get instant tactile audio and celebration, keeping everyone accountable without nagging.
+Share your location when it helps, with the space you choose. Select fifteen minutes, thirty minutes, or one hour. You can stop sharing at any time. Opening the map never starts sharing for you.
 
-## Line 4 — Shared Moments (Frame 4)
+## 81-99s: 06-plans-moods
 
-**Time:** 42.0 – 56.0s
-**Delivery:** Gentle, affectionate, highlighting private intimacy.
+Coordinate household life with shared plans and quiet emotional check-ins. Add dinner dates and deep cleans directly to your shared calendar, and share your daily mood so housemates know when you need quiet focus or when you're ready to celebrate.
 
-    Shared living isn't just chores—it's shared memories. Moments gives your inner circle a private, algorithm-free space to share daily snapshots and react with custom Soft Pop clay emojis.
+## 99-114s: 07-outro
 
-## Line 5 — Daily Moods & Shared Calendar (Frame 5)
-
-**Time:** 56.0 – 72.0s
-**Delivery:** Thoughtful, empathetic, supportive.
-
-    Stay emotionally attuned with quick daily mood check-ins. Know instantly if someone needs quiet time or is ready to celebrate, preventing misunderstandings before they happen.
-
-## Line 6 — Spaces & QR Invites (Frame 6)
-
-**Time:** 72.0 – 82.0s
-**Delivery:** Dynamic, practical, showing ease of use.
-
-    Whether it's an apartment with roommates, a family home, or a dorm crew, create isolated spaces with instant QR invites and private data boundaries.
-
-## Line 7 — Outro & Call to Action (Frame 7)
-
-**Time:** 82.0 – 90.0s
-**Delivery:** Uplifting, inspiring, punchy finish.
-
-    Stewardie: Your people. Your plans. Your little moments. Built with Flutter, ready for your crew.
+Whether it's an apartment with roommates, a family home, or a dorm crew, Stewardie gives you a private haven built for your people. Stewardie: Your people. Your plans. Your little moments. Ready for your crew.

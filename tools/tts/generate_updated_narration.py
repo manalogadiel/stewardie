@@ -6,20 +6,20 @@ UPDATED_LINES = [
     {
         "id": "03-today",
         "frame": 3,
-        "text": "At the center is the Today view—a clear, stress-free checklist of who's doing what right now. When Jamie adds a task, Alex gets an instant live update and claims it with a single tap. Zero nagging, instant accountability, and celebration built right in.",
-        "instruct": "Confident, engaging, lively, positive"
+        "text": "On Today, add a task and choose who it's for. Here, a grocery request stays visible with its recipient and acceptance status. Members can accept, ask for help, and mark work done, so responsibilities are clear.",
+        "instruct": "Warm, clear, conversational English. Consistent natural speaking voice."
     },
     {
         "id": "04-moments",
         "frame": 4,
-        "text": "Shared living isn't just chores—it's shared memories. Moments gives your inner circle a private, algorithm-free space to share daily snapshots inside our retro Clay TV, and react with custom Soft Pop clay emojis.",
-        "instruct": "Warm, gentle, affectionate, playful"
+        "text": "Keep the good moments together. Take a photo, add a caption, and choose whether to include where it was captured. Share it privately with your space, then react with Stewardie's clay expressions.",
+        "instruct": "Warm, clear, conversational English. Consistent natural speaking voice."
     },
     {
         "id": "05-location",
         "frame": 5,
-        "text": "Wondering when everyone will be back for dinner? Stewardie includes private, temporary location sharing. See estimated arrival times during active 15-minute windows—keeping everyone in the loop without invasive 24/7 tracking.",
-        "instruct": "Reassuring, thoughtful, clear, friendly"
+        "text": "Share your location when it helps, with the space you choose. Select fifteen minutes, thirty minutes, or one hour. You can stop sharing at any time. Opening the map never starts sharing for you.",
+        "instruct": "Warm, clear, conversational English. Consistent natural speaking voice."
     },
     {
         "id": "06-plans-moods",
@@ -70,11 +70,9 @@ def main():
         if "instruct" in item and item["instruct"]:
             kwargs["instruct"] = item["instruct"]
 
-        try:
-            wavs, sr = model.generate_custom_voice(**kwargs)
-        except Exception as e:
-            print(f"Custom voice error: {e}, falling back to basic generate...")
-            wavs, sr = model.generate(item["text"], language="English")
+        # Never silently switch speaker/model when a segment fails.
+        torch.manual_seed(42)
+        wavs, sr = model.generate_custom_voice(**kwargs)
 
         sf.write(str(out_file), wavs[0], sr)
         print(f"Saved: {out_file} ({len(wavs[0]) / sr:.2f}s, {sr}Hz)")

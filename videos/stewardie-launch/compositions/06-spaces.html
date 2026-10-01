@@ -63,17 +63,19 @@
           z-index: 10;
         }
 
-        /* Iridescent Liquid Chrome Phone Chassis */
+        /* Realistic iPhone 11 Pro (Space Gray) with Soft Yellow Rim Light */
         .phone-mockup {
           width: 324px;
           height: 674px;
           border-radius: 46px;
           padding: 8px;
-          background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 18%, #e0e7ff 38%, #fbcfe8 55%, #94a3b8 75%, #ffffff 100%);
+          background: linear-gradient(145deg, #2b303c 0%, #171a21 35%, #2a313d 70%, #11141a 100%);
           box-shadow:
-            0 35px 80px -15px rgba(15, 23, 42, 0.32),
-            0 0 35px rgba(224, 231, 255, 0.45),
-            inset 0 2px 4px rgba(255, 255, 255, 0.95);
+            0 35px 85px -15px rgba(10, 15, 26, 0.45),
+            0 0 0 1.5px rgba(254, 240, 138, 0.45),
+            0 0 35px rgba(254, 240, 138, 0.2),
+            inset 0 1px 2px rgba(255, 255, 255, 0.3),
+            inset 0 -1px 2px rgba(0, 0, 0, 0.8);
           position: relative;
           transform: rotateY(0deg) rotateX(1deg);
         }
@@ -366,36 +368,74 @@
           font-size: 24px;
         }
 
-        /* Dynamic Island Top Concealment Patch */
-        .dynamic-island {
+        /* iPhone 11 Pro Top Notch */
+        .iphone-notch {
           position: absolute;
-          top: 10px;
+          top: 0;
           left: 50%;
           transform: translateX(-50%);
-          width: 114px;
-          height: 30px;
+          width: 168px;
+          height: 33px;
           background: #000000;
-          border-radius: 999px;
+          border-bottom-left-radius: 18px;
+          border-bottom-right-radius: 18px;
           z-index: 100;
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 0 12px;
-          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+          justify-content: center;
           pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
-        .di-camera {
+        .iphone-notch::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: -10px;
           width: 10px;
           height: 10px;
-          border-radius: 50%;
-          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #030712 60%, #000000 100%);
-          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.4);
+          background: transparent;
+          border-top-right-radius: 10px;
+          box-shadow: 4px -4px 0 0 #000000;
         }
-        .di-sensor {
-          width: 7px;
-          height: 7px;
+        .iphone-notch::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          right: -10px;
+          width: 10px;
+          height: 10px;
+          background: transparent;
+          border-top-left-radius: 10px;
+          box-shadow: -4px -4px 0 0 #000000;
+        }
+        .notch-speaker {
+          width: 50px;
+          height: 4.5px;
+          background: #1c1c1e;
+          border-radius: 3px;
+          border: 0.5px solid #2c2c2e;
+          box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+          position: absolute;
+          top: 6px;
+        }
+        .notch-camera {
+          width: 11px;
+          height: 11px;
           border-radius: 50%;
-          background: #070d18;
+          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #050b14 65%, #000000 100%);
+          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.5);
+          position: absolute;
+          right: 32px;
+          top: 10px;
+        }
+        .notch-sensor {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #090e17;
+          position: absolute;
+          left: 36px;
+          top: 13px;
         }
         .screen-video {
           width: 100%;
@@ -404,9 +444,9 @@
           display: block;
         }
         .mascot-mood {
-          width: 230px;
+          width: 350px;
           height: auto;
-          filter: drop-shadow(0 20px 40px rgba(32, 38, 51, 0.15));
+          filter: drop-shadow(0 25px 45px rgba(32, 38, 51, 0.22));
         }
       </style>
 
@@ -433,14 +473,15 @@
             <div class="phone-mockup" data-layout-allow-overflow>
               <div class="phone-inner-wrap">
                 <div class="screen-inner" data-layout-allow-overflow>
-                  <!-- Dynamic Island Top Concealment Patch -->
-                  <div class="dynamic-island" data-layout-allow-overlap>
-                    <div class="di-camera"></div>
-                    <div class="di-sensor"></div>
+                  <!-- iPhone 11 Pro Top Notch -->
+                  <div class="iphone-notch" data-layout-allow-overlap>
+                    <div class="notch-speaker"></div>
+                    <div class="notch-camera"></div>
+                    <div class="notch-sensor"></div>
                   </div>
 
-                  <!-- Authentic Flutter Shared Plans & Moods Screencast Video -->
-                  <video class="screen-video" src="assets/screencast/06_spaces_screencast.mp4" autoplay muted playsinline loop></video>
+                  <!-- Authentic Flutter Shared Plans & Moods Screencast Video (0 screen overlaps) -->
+                  <video id="vid-spaces-screencast" class="screen-video" src="assets/screencast/06_spaces_screencast.mp4" data-start="0" data-duration="18" autoplay muted playsinline loop></video>
                 </div>
               </div>
             </div>
@@ -505,25 +546,25 @@
             ease: "sine.inOut"
           }, 1.2);
 
-          // Dynamic camera focus pull on map location pin & mood check-in
+          // Dynamic snappy Z-axis zooms ("Phone getting bigger styles") on calendar & mood check-in
           tl.to("#el-phone", {
-            scale: 1.08,
-            duration: 1.5,
-            ease: "power2.out"
-          }, 3.0);
+            scale: 1.18,
+            duration: 1.2,
+            ease: "power3.out"
+          }, 2.8);
           tl.to("#el-phone", {
             scale: 1.0,
-            duration: 1.5,
+            duration: 1.0,
             ease: "power2.inOut"
           }, 8.5);
           tl.to("#el-phone", {
-            scale: 1.06,
+            scale: 1.18,
             duration: 1.2,
-            ease: "power2.out"
-          }, 10.5);
+            ease: "power3.out"
+          }, 10.2);
           tl.to("#el-phone", {
             scale: 1.0,
-            duration: 1.2,
+            duration: 1.0,
             ease: "power2.inOut"
           }, 14.5);
 
