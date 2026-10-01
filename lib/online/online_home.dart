@@ -65,20 +65,22 @@ class OnlineHome extends StatefulWidget {
       // Allow creation flow to proceed if check is unavailable (e.g. test fakes)
     }
     if (!context.mounted) return null;
-    final result =
-        await showDialog<({String name, String kind, String timeZone})>(
-          context: context,
-          builder: (_) => const _CreateSpaceDialog(),
-        );
-    if (result == null) return null;
-    await backend.auth.currentUser?.reload();
-    await backend.auth.currentUser?.getIdToken(true);
-    final created = await backend.call('createSpace', {
-      'name': result.name,
-      'kind': result.kind,
-      'timeZone': result.timeZone,
-    });
-    return created['spaceId'] as String;
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => CreateSpaceDialog(
+        onCreate: (values) async {
+          // This flow is already behind verified authentication. reload()
+          // emits userChanges and previously reset the app during this save.
+          final created = await backend.call('createSpace', values);
+          final id = created['spaceId'];
+          if (id is! String || id.isEmpty) {
+            throw StateError('Could not confirm the new space. Try again.');
+          }
+          return id;
+        },
+      ),
+    );
   }
 
   const OnlineHome({
@@ -2706,16 +2708,47 @@ class _OnlineTaskTabHeader extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(_OnlineTaskTabHeader oldDelegate) => true;
 }
 
-class _CreateSpaceDialog extends StatefulWidget {
-  const _CreateSpaceDialog();
+class CreateSpaceDialog extends StatefulWidget {
+  const CreateSpaceDialog({super.key, required this.onCreate});
+  final Future<String> Function(Map<String, dynamic>) onCreate;
   @override
-  State<_CreateSpaceDialog> createState() => _CreateSpaceDialogState();
+  State<CreateSpaceDialog> createState() => _CreateSpaceDialogState();
 }
 
-class _CreateSpaceDialogState extends State<_CreateSpaceDialog> {
+class _CreateSpaceDialogState extends State<CreateSpaceDialog> {
   final name = TextEditingController();
   String kind = 'family';
   String timeZone = 'Asia/Manila';
+  bool saving = false;
+  String? error;
+
+  Future<void> _submit() async {
+    if (saving || name.text.trim().isEmpty) return;
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    try {
+      final id = await widget.onCreate({
+        'name': name.text.trim(),
+        'kind': kind,
+        'timeZone': timeZone,
+      });
+      if (mounted) Navigator.pop(context, id);
+    } catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        saving = false;
+        error = failure is StateError
+            ? failure.message
+            : failure is FirebaseException &&
+                  failure.code == 'permission-denied'
+            ? 'Could not create this space. Check your verified account and space limit.'
+            : 'Could not create the space. Check your connection and try again.';
+      });
+    }
+  }
+
   @override
   void dispose() {
     name.dispose();
@@ -2731,6 +2764,7 @@ class _CreateSpaceDialogState extends State<_CreateSpaceDialog> {
         children: [
           TextField(
             controller: name,
+            enabled: !saving,
             maxLength: 80,
             textCapitalization: TextCapitalization.words,
             onChanged: (_) => setState(() {}),
@@ -2752,7 +2786,9 @@ class _CreateSpaceDialogState extends State<_CreateSpaceDialog> {
               DropdownMenuItem(value: 'crew', child: Text('Crew')),
               DropdownMenuItem(value: 'custom', child: Text('Other')),
             ],
-            onChanged: (value) => setState(() => kind = value ?? kind),
+            onChanged: saving
+                ? null
+                : (value) => setState(() => kind = value ?? kind),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -2776,25 +2812,34 @@ class _CreateSpaceDialogState extends State<_CreateSpaceDialog> {
               ),
               DropdownMenuItem(value: 'UTC', child: Text('UTC')),
             ],
-            onChanged: (value) => setState(() => timeZone = value ?? timeZone),
+            onChanged: saving
+                ? null
+                : (value) => setState(() => timeZone = value ?? timeZone),
           ),
+          if (error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
         ],
       ),
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.pop(context),
+        onPressed: saving ? null : () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
       FilledButton(
-        onPressed: name.text.trim().isEmpty
-            ? null
-            : () => Navigator.pop(context, (
-                name: name.text.trim(),
-                kind: kind,
-                timeZone: timeZone,
-              )),
-        child: const Text('Create'),
+        onPressed: saving || name.text.trim().isEmpty ? null : _submit,
+        child: saving
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Create'),
       ),
     ],
   );

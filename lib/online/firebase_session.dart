@@ -45,6 +45,21 @@ class FirebaseSessionApp extends StatefulWidget {
 class _FirebaseSessionAppState extends State<FirebaseSessionApp>
     with WidgetsBindingObserver {
   StreamSubscription<User?>? _soundAccount;
+  String? _completionUid;
+  Future<bool>? _completion;
+
+  Future<bool> _completionFor(String uid) {
+    if (_completionUid != uid || _completion == null) {
+      _completionUid = uid;
+      _completion = OnboardingStore(widget.database)
+          .isCompleted(uid, backend: widget.backend);
+    }
+    return _completion!;
+  }
+
+  void _onOnboardingCompleted() => setState(() {
+    _completion = null;
+  });
   @override
   void initState() {
     super.initState();
@@ -90,6 +105,8 @@ class _FirebaseSessionAppState extends State<FirebaseSessionApp>
         );
       }
       if (user == null) {
+        _completionUid = null;
+        _completion = null;
         return MaterialApp(
           title: 'Stewardie',
           debugShowCheckedModeBanner: false,
@@ -97,7 +114,7 @@ class _FirebaseSessionAppState extends State<FirebaseSessionApp>
           home: OnboardingFlow(
             backend: widget.backend,
             database: widget.database,
-            onCompleted: () => setState(() {}),
+            onCompleted: _onOnboardingCompleted,
           ),
         );
       }
@@ -111,13 +128,14 @@ class _FirebaseSessionAppState extends State<FirebaseSessionApp>
             database: widget.database,
             initialStep: OnboardingStep.verifyEmail,
             initialUser: user,
-            onCompleted: () => setState(() {}),
+            onCompleted: _onOnboardingCompleted,
           ),
         );
       }
       return FutureBuilder<bool>(
-        future: OnboardingStore(widget.database)
-            .isCompleted(user.uid, backend: widget.backend),
+        // A profile/token refresh must not unmount the signed-in app or its
+        // pending operations. Recheck only for another UID or completion.
+        future: _completionFor(user.uid),
         builder: (context, completedSnapshot) {
           if (completedSnapshot.connectionState == ConnectionState.waiting) {
             return MaterialApp(
@@ -140,7 +158,7 @@ class _FirebaseSessionAppState extends State<FirebaseSessionApp>
                 database: widget.database,
                 initialStep: OnboardingStep.permissions,
                 initialUser: user,
-                onCompleted: () => setState(() {}),
+                onCompleted: _onOnboardingCompleted,
               ),
             );
           }
