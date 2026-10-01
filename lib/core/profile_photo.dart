@@ -1,3 +1,5 @@
+import '../online/online_backend.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -77,7 +79,8 @@ class ProfilePhoto {
     if (user == null || !user.emailVerified) {
       throw StateError('Verify your email first.');
     }
-    if (photoUrl == null && (base64.length > 160000 || decode(base64) == null)) {
+    if (photoUrl == null &&
+        (base64.length > 160000 || decode(base64) == null)) {
       throw StateError('Choose a smaller photo.');
     }
     final data = <String, dynamic>{
@@ -87,14 +90,14 @@ class ProfilePhoto {
     if (photoUrl != null) {
       data['photoUrl'] = photoUrl;
     }
-    await FirebaseFirestore.instance.doc('profiles/${user.uid}').set(data);
+    await OnlineBackend.database.doc('profiles/${user.uid}').set(data);
     MemberAvatar.updateCache(user.uid, decode(base64));
   }
 
   static Future<void> remove() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      await FirebaseFirestore.instance.doc('profiles/$uid').delete();
+      await OnlineBackend.database.doc('profiles/$uid').delete();
       MemberAvatar.updateCache(uid, null);
     }
   }

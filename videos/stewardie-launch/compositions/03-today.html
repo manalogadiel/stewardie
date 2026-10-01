@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scene 3: Today & Live Task Sync</title>
+  </head>
+  <body>
+    <template id="hyperframes-root">
+      <style>
+        @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Nunito+Sans:wght@700;800;900&display=swap");
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+          user-select: none;
+        }
+        body {
+          margin: 0;
+          background: transparent;
+          font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          overflow: hidden;
+        }
+
+        #root {
+          width: 1920px;
+          height: 1080px;
+          position: relative;
+          overflow: hidden;
+          background: #faf8f5;
+        }
+
+        /* Ambient Mesh Backdrop */
+        .ambient-mesh {
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(circle at 18% 22%, rgba(219, 234, 254, 0.65) 0%, transparent 45%),
+            radial-gradient(circle at 82% 75%, rgba(220, 252, 231, 0.6) 0%, transparent 45%),
+            radial-gradient(circle at 50% 50%, rgba(254, 243, 199, 0.45) 0%, transparent 60%);
+          z-index: 1;
+        }
+
+        .stage-container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          padding-top: 50px;
+          z-index: 2;
+        }
+
+        /* Header Block */
+        .header-block {
+          text-align: center;
+          margin-bottom: 30px;
+          z-index: 10;
+        }
+        .section-tag {
+          display: inline-block;
+          font-size: 14px;
+          font-weight: 800;
+          color: #1e40af;
+          background: rgba(219, 234, 254, 0.8);
+          border: 1px solid rgba(191, 219, 254, 0.9);
+          padding: 6px 16px;
+          border-radius: 999px;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-bottom: 12px;
+          backdrop-filter: blur(8px);
+        }
+        .section-title {
+          font-size: 48px;
+          font-weight: 900;
+          color: #111827;
+          letter-spacing: -0.035em;
+          line-height: 1.15;
+        }
+        .gradient-sync {
+          background: linear-gradient(135deg, #2563eb 0%, #059669 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+
+        /* Dual Phone Rig */
+        .phones-rig {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 60px;
+          position: relative;
+          perspective: 1200px;
+          z-index: 5;
+        }
+
+        /* Live Sync Bridge connecting phones */
+        .sync-bridge {
+          position: absolute;
+          top: 40px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #ffffff;
+          border: 2px solid #3b82f6;
+          border-radius: 999px;
+          padding: 8px 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.35);
+          z-index: 30;
+          font-size: 13px;
+          font-weight: 800;
+          color: #1e40af;
+          white-space: nowrap;
+        }
+        .sync-pulse-dot {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: #10b981;
+          box-shadow: 0 0 10px #10b981;
+          animation: pulse 1.2s infinite ease-in-out;
+        }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.4); opacity: 0.7; }
+        }
+
+        /* Phone Device Shell */
+        .phone-container {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          transition: transform 0.3s ease;
+        }
+        .phone-label {
+          font-size: 15px;
+          font-weight: 800;
+          padding: 6px 18px;
+          border-radius: 999px;
+          margin-bottom: 14px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+          z-index: 10;
+        }
+        .label-phone-a {
+          background: #ffffff;
+          color: #1e40af;
+          border: 1.5px solid #dbeafe;
+        }
+        .label-phone-b {
+          background: #ffffff;
+          color: #166534;
+          border: 1.5px solid #dcfce7;
+        }
+
+        .phone-mockup {
+          width: 320px;
+          height: 690px;
+          background: #ffffff;
+          border-radius: 46px;
+          border: 9px solid #1f2937;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.05);
+          position: relative;
+          overflow: hidden;
+        }
+        .phone-mockup-left {
+          transform: rotateY(5deg) rotateX(2deg);
+        }
+        .phone-mockup-right {
+          transform: rotateY(-5deg) rotateX(2deg);
+        }
+
+        /* Screen Interior */
+        .screen-inner {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          overflow: hidden;
+          background: #faf8f5;
+        }
+        .screen-bg {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        /* Metric Pill Overlay over "Covered" pill */
+        .metric-overlay-cov {
+          position: absolute;
+          top: 410px;
+          left: 114px;
+          width: 82px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          pointer-events: none;
+          z-index: 15;
+        }
+        .metric-val {
+          font-size: 18px;
+          font-weight: 800;
+          color: #1e3a8a;
+        }
+
+        /* Interactive Task Card Overlay */
+        .task-card-overlay {
+          position: absolute;
+          top: 498px;
+          left: 14px;
+          right: 14px;
+          background: #ffffff;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 20px;
+          padding: 12px 14px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+          z-index: 25;
+        }
+        .task-card-overlay.active-target {
+          border-color: #2563eb;
+          box-shadow: 0 8px 24px rgba(37, 99, 235, 0.22);
+        }
+        .task-card-overlay.claimed-state {
+          border-color: #16a34a;
+          background: #f0fdf4;
+        }
+        .task-checkbox {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: 2px solid #9ca3af;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 800;
+          color: #ffffff;
+          flex-shrink: 0;
+        }
+        .task-checkbox.checked {
+          background: #16a34a;
+          border-color: #16a34a;
+        }
+        .task-body {
+          flex: 1;
+        }
+        .task-text {
+          font-size: 12px;
+          font-weight: 700;
+          color: #111827;
+          line-height: 1.3;
+        }
+        .task-meta {
+          font-size: 11px;
+          font-weight: 600;
+          color: #4b5563;
+          margin-top: 2px;
+        }
+        .claim-btn {
+          font-size: 11px;
+          font-weight: 800;
+          color: #ffffff;
+          background: #2563eb;
+          border: none;
+          padding: 6px 14px;
+          border-radius: 12px;
+          cursor: pointer;
+          flex-shrink: 0;
+          box-shadow: 0 3px 8px rgba(37, 99, 235, 0.3);
+        }
+
+        /* Quick Add Modal Sheet on Phone A */
+        .add-modal {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: #ffffff;
+          border-radius: 28px 28px 0 0;
+          padding: 16px 20px 24px 20px;
+          box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.18);
+          z-index: 40;
+          opacity: 0;
+          transform: translateY(100%);
+        }
+        .sheet-drag-pill {
+          width: 36px;
+          height: 4px;
+          background: #d1d5db;
+          border-radius: 2px;
+          margin: 0 auto 12px auto;
+        }
+        .modal-title {
+          font-size: 14px;
+          font-weight: 800;
+          color: #111827;
+          margin-bottom: 8px;
+        }
+        .modal-input {
+          width: 100%;
+          background: #f3f4f6;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          padding: 10px 12px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #111827;
+          margin-bottom: 12px;
+          box-sizing: border-box;
+        }
+        .modal-btn {
+          background: #2563eb;
+          color: #ffffff;
+          font-size: 13px;
+          font-weight: 800;
+          text-align: center;
+          padding: 10px 0;
+          border-radius: 14px;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+          cursor: pointer;
+        }
+
+        /* Push Notification Banner on Phone B */
+        .push-banner {
+          position: absolute;
+          top: 14px;
+          left: 12px;
+          right: 12px;
+          background: #111827;
+          border-radius: 18px;
+          padding: 10px 12px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+          z-index: 45;
+          opacity: 0;
+        }
+        .push-icon {
+          font-size: 18px;
+        }
+        .push-content {
+          flex: 1;
+        }
+        .push-title {
+          font-size: 11px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+        .push-desc {
+          font-size: 11px;
+          color: #e5e7eb;
+        }
+
+        /* Cursor Simulator */
+        .cursor-pointer {
+          position: absolute;
+          width: 28px;
+          height: 28px;
+          background: rgba(37, 99, 235, 0.85);
+          border: 2.5px solid #ffffff;
+          border-radius: 50%;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+          pointer-events: none;
+          z-index: 50;
+          opacity: 0;
+        }
+
+        /* Mascot Celebrator */
+        .mascot-celebrator {
+          position: absolute;
+          right: 90px;
+          bottom: 50px;
+          width: 170px;
+          height: auto;
+          filter: drop-shadow(0 20px 30px rgba(32, 38, 51, 0.2));
+          z-index: 15;
+          opacity: 0;
+        }
+      </style>
+
+      <div id="root" data-composition-id="scene3" data-width="1920" data-height="1080">
+        <div class="ambient-mesh"></div>
+
+        <div class="stage-container">
+          <!-- Top Header -->
+          <div class="header-block" id="el-header">
+            <div class="section-tag">Shared Responsibilities</div>
+            <h2 class="section-title">Instant Multi-User <span class="gradient-sync">Task Sync</span></h2>
+          </div>
+
+          <!-- Dual Phone Rig -->
+          <div class="phones-rig">
+            <!-- Sync Bridge -->
+            <div class="sync-bridge" id="el-sync-bridge">
+              <div class="sync-pulse-dot"></div>
+              <span>Live Cloud Sync</span>
+            </div>
+
+            <!-- Phone A: Jamie (Creator) -->
+            <div class="phone-container" id="el-phone-a">
+              <div class="phone-label label-phone-a">📱 Jamie (Creator)</div>
+              <div class="phone-mockup phone-mockup-left">
+                <div class="screen-inner" data-layout-allow-overflow>
+                  <!-- Authentic Flutter Today Screen -->
+                  <img src="assets/screens/today-jamie.png" alt="Stewardie Today Screen" class="screen-bg" />
+
+                  <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
+                  <div class="metric-overlay-cov" data-layout-allow-overlap>
+                    <div class="metric-val" id="el-metric-cov">2</div>
+                  </div>
+
+                  <!-- Interactive Task Card on Phone A -->
+                  <div class="task-card-overlay active-target" id="el-task-new-a" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
+                    <div class="task-checkbox" id="el-check-a"></div>
+                    <div class="task-body">
+                      <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
+                      <div class="task-meta" id="el-meta-a">Unclaimed • Added just now</div>
+                    </div>
+                  </div>
+
+                  <!-- Authentic Add Task Modal Sheet -->
+                  <div class="add-modal" id="el-add-modal" data-layout-allow-overlap data-layout-allow-overflow>
+                    <div class="sheet-drag-pill"></div>
+                    <div class="modal-title">Add to Today</div>
+                    <div class="modal-input">Pick up oat milk &amp; coffee beans ☕</div>
+                    <div class="modal-btn" id="el-modal-btn">Add Task</div>
+                  </div>
+
+                  <!-- Cursor on Phone A -->
+                  <div class="cursor-pointer" id="el-cursor-a"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phone B: Alex (Housemate) -->
+            <div class="phone-container" id="el-phone-b">
+              <div class="phone-label label-phone-b">⚡ Alex (Roommate)</div>
+              <div class="phone-mockup phone-mockup-right">
+                <div class="screen-inner" data-layout-allow-overflow>
+                  <!-- Authentic Flutter Today Screen -->
+                  <img src="assets/screens/today-alex.png" alt="Stewardie Today Screen" class="screen-bg" />
+
+                  <!-- Dynamic Metric Highlight Overlay (Covered Pill) -->
+                  <div class="metric-overlay-cov" data-layout-allow-overlap>
+                    <div class="metric-val" id="el-metric-cov-b">2</div>
+                  </div>
+
+                  <!-- Task arriving on Phone B -->
+                  <div class="task-card-overlay active-target" id="el-task-new-b" style="opacity: 0;" data-layout-allow-overlap data-layout-allow-overflow>
+                    <div class="task-checkbox" id="el-check-b"></div>
+                    <div class="task-body">
+                      <div class="task-text">Pick up oat milk &amp; coffee beans ☕</div>
+                      <div class="task-meta" id="el-meta-b">Added by Jamie • Just now</div>
+                    </div>
+                    <button class="claim-btn" id="el-claim-btn" data-layout-allow-overlap>Claim</button>
+                  </div>
+
+                  <!-- Push Notification Banner on Phone B -->
+                  <div class="push-banner" id="el-push-banner" data-layout-allow-overlap>
+                    <div class="push-icon">☕</div>
+                    <div class="push-content">
+                      <div class="push-title">Jamie added a new task</div>
+                      <div class="push-desc">Pick up oat milk &amp; coffee beans ☕</div>
+                    </div>
+                  </div>
+
+                  <!-- Cursor on Phone B -->
+                  <div class="cursor-pointer" id="el-cursor-b"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mascot Celebrator -->
+          <img src="assets/illustrations/tour-task-helper.png" alt="Task Mascot" class="mascot-celebrator" id="el-mascot-celebrate" />
+        </div>
+
+        <script>
+          const tl = gsap.timeline({ paused: true });
+          window.__timelines["scene3"] = tl;
+
+          // 0.0s - 1.5s: Entrance of Phone A & Header
+          tl.from("#el-header", { y: -30, opacity: 0, duration: 0.8, ease: "power2.out" }, 0.2);
+          tl.from("#el-phone-a", { y: 60, opacity: 0, duration: 1.0, ease: "power3.out" }, 0.4);
+
+          // 1.5s - 3.5s: Jamie creates task on Phone A
+          tl.fromTo("#el-add-modal", { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(1.8)" }, 1.5);
+          tl.fromTo("#el-cursor-a", { x: 260, y: 620, opacity: 0 }, { x: 160, y: 650, opacity: 1, duration: 0.6, ease: "power2.out" }, 2.0);
+          // Tap Save
+          tl.to("#el-modal-btn", { scale: 0.95, duration: 0.15, yoyo: true, repeat: 1 }, 2.6);
+          tl.to("#el-add-modal", { y: 60, opacity: 0, duration: 0.4, ease: "power2.in" }, 2.9);
+          tl.to("#el-cursor-a", { opacity: 0, duration: 0.3 }, 2.9);
+
+          // Task appears on Phone A (at 3.0s, synced to saved.wav)
+          tl.to("#el-task-new-a", { opacity: 1, duration: 0.4, ease: "power2.out" }, 3.0);
+          tl.fromTo("#el-sync-bridge", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2)" }, 3.2);
+
+          // 3.5s - 5.5s: Phone B (Alex) glides in from right
+          tl.from("#el-phone-b", { x: 80, y: 60, opacity: 0, duration: 1.0, ease: "power3.out" }, 3.5);
+
+          // 5.5s - 7.5s: Push notification arrives on Phone B
+          tl.fromTo("#el-push-banner", { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: "back.out(1.5)" }, 5.5);
+          // Task appears in Alex's list
+          tl.to("#el-task-new-b", { opacity: 1, duration: 0.4 }, 6.0);
+          tl.to("#el-push-banner", { y: -20, opacity: 0, duration: 0.4, ease: "power2.in" }, 7.5);
+
+          // 7.8s - 10.5s: Alex taps "Claim"
+          tl.fromTo("#el-cursor-b", { x: 200, y: 600, opacity: 0 }, { x: 260, y: 520, opacity: 1, duration: 0.6, ease: "power2.out" }, 7.8);
+          tl.to("#el-claim-btn", { scale: 0.9, duration: 0.15, yoyo: true, repeat: 1 }, 8.5);
+          tl.to("#el-cursor-b", { opacity: 0, duration: 0.3 }, 8.8);
+
+          // 9.0s - 11.5s: Synchronized Claim on Both Phones (synced to success.wav at 9.0s)
+          tl.to(["#el-task-new-a", "#el-task-new-b"], {
+            className: "+=claimed-state",
+            duration: 0.4
+          }, 9.0);
+          tl.to("#el-claim-btn", { display: "none", duration: 0.1 }, 9.0);
+          tl.to(["#el-check-a", "#el-check-b"], {
+            className: "+=checked",
+            innerText: "✓",
+            duration: 0.3
+          }, 9.1);
+          tl.to("#el-meta-a", { innerText: "Covered by Alex • Just now", duration: 0.2 }, 9.2);
+          tl.to("#el-meta-b", { innerText: "Covered by You • Just now", duration: 0.2 }, 9.2);
+          tl.to(["#el-metric-cov", "#el-metric-cov-b"], { innerText: "3", color: "#166534", duration: 0.3 }, 9.3);
+
+          // Mascot celebration pop
+          tl.fromTo("#el-mascot-celebrate", { scale: 0.6, opacity: 0, y: 20 }, { scale: 1, opacity: 1, y: 0, duration: 0.7, ease: "back.out(2)" }, 9.2);
+          tl.to("#el-mascot-celebrate", { y: -15, duration: 0.4, repeat: 14, yoyo: true, ease: "sine.inOut" }, 9.9);
+
+          // 18.8s - 20.0s: Fade out
+          tl.to("#root", { opacity: 0, duration: 1.2, ease: "power2.in" }, 18.8);
+
+          tl.seek(0);
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

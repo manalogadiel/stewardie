@@ -1,3 +1,5 @@
+import '../online/online_backend.dart';
+
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -111,26 +113,27 @@ class _MemberAvatarState extends State<MemberAvatar> {
     if (_pendingFetches.contains(targetUid)) return;
     _pendingFetches.add(targetUid);
 
-    FirebaseFirestore.instance
+    OnlineBackend.database
         .doc('profiles/$targetUid')
         .get(const GetOptions(source: Source.serverAndCache))
         .then((doc) {
-      _pendingFetches.remove(targetUid);
-      if (_cacheAccount != account) return;
-      final encoded = doc.data()?['imageBase64'] as String?;
-      final bytes = ProfilePhoto.decode(encoded);
-      if (_photos.length >= 100 && !_photos.containsKey(targetUid)) {
-        _photos.remove(_photos.keys.first);
-      }
-      _photos[targetUid] = bytes;
-      if (mounted && uid == targetUid) {
-        setState(() {
-          _bytes = bytes;
+          _pendingFetches.remove(targetUid);
+          if (_cacheAccount != account) return;
+          final encoded = doc.data()?['imageBase64'] as String?;
+          final bytes = ProfilePhoto.decode(encoded);
+          if (_photos.length >= 100 && !_photos.containsKey(targetUid)) {
+            _photos.remove(_photos.keys.first);
+          }
+          _photos[targetUid] = bytes;
+          if (mounted && uid == targetUid) {
+            setState(() {
+              _bytes = bytes;
+            });
+          }
+        })
+        .catchError((_) {
+          _pendingFetches.remove(targetUid);
         });
-      }
-    }).catchError((_) {
-      _pendingFetches.remove(targetUid);
-    });
   }
 
   @override

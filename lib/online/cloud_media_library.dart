@@ -11,6 +11,7 @@ import '../core/place_pin.dart';
 import '../core/sound_feedback.dart';
 import '../features/timeline/domain/models.dart';
 import 'firebase_repository.dart';
+import 'online_backend.dart';
 
 /// Only this endpoint is public configuration; no Supabase service key in Flutter.
 const mediaEndpoint = String.fromEnvironment(
@@ -51,7 +52,11 @@ class CloudMediaLibrary extends MediaLibrary {
   Timer? _retryTimer;
   bool _closed = false, _uploading = false;
   String? _error;
-  final _outbox = stringMapStoreFactory.store('shared-photo-outbox');
+  static String get outboxName =>
+      OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator
+      ? 'core-shared-photo-outbox'
+      : 'shared-photo-outbox';
+  final _outbox = stringMapStoreFactory.store(outboxName);
   @override
   bool get supportsSharing => true;
   @override

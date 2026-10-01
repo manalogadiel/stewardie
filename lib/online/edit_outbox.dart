@@ -5,13 +5,16 @@ import 'package:flutter/foundation.dart';
 import 'package:sembast/sembast.dart';
 
 import 'online_backend.dart';
+import 'core_data_client.dart';
 import '../core/sound_feedback.dart';
 
 /// Durable, account-scoped intent queue. Remote Firestore acknowledgement is
 /// the source of truth; queued items are never presented as confirmed writes.
 class EditOutbox extends ChangeNotifier {
   EditOutbox(this.database, this.backend, this.uid)
-    : _store = stringMapStoreFactory.store('edit-outbox-$uid');
+    : _store = stringMapStoreFactory.store(
+        '${OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator ? "core-" : ""}edit-outbox-$uid',
+      );
 
   final Database database;
   final OnlineBackend backend;
@@ -109,12 +112,13 @@ class EditOutbox extends ChangeNotifier {
             );
           }
           final unavailable =
-              error is FirebaseException &&
-              [
-                'unavailable',
-                'deadline-exceeded',
-                'network-request-failed',
-              ].contains(error.code);
+              (error is CoreDataException && error.statusCode >= 500) ||
+              (error is FirebaseException &&
+                  [
+                    'unavailable',
+                    'deadline-exceeded',
+                    'network-request-failed',
+                  ].contains(error.code));
           item['status'] = unavailable ? 'pending' : 'failed';
           item['error'] = unavailable
               ? 'Waiting for connection'

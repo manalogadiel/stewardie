@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          background: radial-gradient(circle at 50% 35%, rgba(254, 240, 138, 0.45) 0%, transparent 60%), radial-gradient(circle at 20% 70%, rgba(219, 234, 254, 0.45) 0%, transparent 55%), radial-gradient(circle at 80% 70%, rgba(254, 205, 211, 0.4) 0%, transparent 55%), #faf9f6;
+          font-family: Inter, system-ui, -apple-system, sans-serif;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .outro-container {
+          position: relative;
+          width: 1600px;
+          height: 900px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        }
+        .celebrate-image {
+          width: 460px;
+          height: auto;
+          filter: drop-shadow(0 24px 40px rgba(32, 38, 51, 0.16));
+          margin-bottom: 28px;
+        }
+        .outro-title {
+          font-size: 74px;
+          font-weight: 900;
+          color: #111827;
+          line-height: 1.1;
+          letter-spacing: -0.035em;
+          margin-bottom: 16px;
+        }
+        .brand-gradient {
+          background: linear-gradient(135deg, #1a3cd4 0%, #4338ca 50%, #7c3aed 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        .outro-tagline {
+          font-size: 28px;
+          font-weight: 600;
+          color: #4b5563;
+          margin-bottom: 36px;
+          letter-spacing: -0.015em;
+        }
+        .cta-button {
+          display: inline-flex;
+          align-items: center;
+          gap: 16px;
+          background: #1a3cd4;
+          color: #ffffff;
+          padding: 20px 52px;
+          border-radius: 9999px;
+          font-size: 26px;
+          font-weight: 800;
+          box-shadow: 0 16px 40px rgba(26, 60, 212, 0.35);
+          border: none;
+          letter-spacing: -0.01em;
+        }
+        .cta-platform-badges {
+          margin-top: 32px;
+          display: flex;
+          gap: 16px;
+          align-items: center;
+        }
+        .platform-badge {
+          background: #ffffff;
+          border: 1.5px solid #e5e7eb;
+          padding: 10px 22px;
+          border-radius: 9999px;
+          color: #1f2937;
+          font-size: 16px;
+          font-weight: 700;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+      </style>
+
+      <div id="root" data-composition-id="scene7" data-width="1920" data-height="1080">
+        <div class="outro-container">
+          <img id="c7-mascot" class="celebrate-image" src="assets/illustrations/celebrate.png" alt="Celebration Mascots">
+
+          <h1 id="c7-title" class="outro-title">
+            Bring harmony to your shared life with <span class="brand-gradient">Stewardie.</span>
+          </h1>
+
+          <p id="c7-tagline" class="outro-tagline">
+            Your people. Your plans. Your little moments.
+          </p>
+
+          <div id="c7-cta" class="cta-button">
+            <span>Get Started for Free</span>
+            <span>→</span>
+          </div>
+
+          <div id="c7-badges" class="cta-platform-badges">
+            <div class="platform-badge"><span>📱</span> iOS &amp; Android Ready</div>
+            <div class="platform-badge"><span>🔒</span> Private &amp; Cloud-Synced</div>
+            <div class="platform-badge"><span>⚡</span> Instant QR Space Setup</div>
+          </div>
+        </div>
+
+        <script>
+          const tl = gsap.timeline({ paused: true });
+          window.__timelines["scene7"] = tl;
+
+          tl.fromTo("#c7-mascot", { opacity: 0, scale: 0.7, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.9, ease: "back.out(1.8)" }, 0.2);
+          tl.fromTo("#c7-title", { opacity: 0, y: 25 }, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }, 0.6);
+          tl.fromTo("#c7-tagline", { opacity: 0, y: 15 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.0);
+          tl.fromTo("#c7-cta", { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.7, ease: "back.out(2)" }, 1.4);
+          tl.fromTo("#c7-badges", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, 1.8);
+
+          // Joyful mascot bounce
+          tl.to("#c7-mascot", { y: -16, duration: 0.8, repeat: 15, yoyo: true, ease: "sine.inOut" }, 1.6);
+
+          tl.seek(0);
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 import { decodeProtectedHeader, importPKCS8, importX509, jwtVerify, SignJWT } from "https://esm.sh/jose@5.9.6";
+import { coreEnabled, coreLookup, service } from '../_shared/core_store.ts';
 
 const project = Deno.env.get("FIREBASE_PROJECT_ID") || "stewardie";
 const cors = {
@@ -143,6 +144,7 @@ function pack(v: any): any {
 }
 
 async function getAccountDoc(uid: string, token: string): Promise<Record<string, any>> {
+  if(coreEnabled())return await coreLookup(`accounts/${uid}`)??{};
   const emulatorHost = Deno.env.get("FIRESTORE_EMULATOR_HOST");
   const baseUrl = emulatorHost
     ? `http://${emulatorHost}/v1/projects/${project}/databases/(default)/documents`
@@ -168,6 +170,7 @@ async function updateAccountSubscription(
     lastReconciledAt: string;
   }
 ): Promise<void> {
+  if(coreEnabled()){await service('reconcile',`accounts/${uid}`,fields);return;}
   const emulatorHost = Deno.env.get("FIRESTORE_EMULATOR_HOST");
   const baseUrl = emulatorHost
     ? `http://${emulatorHost}/v1/projects/${project}/databases/(default)/documents`
@@ -213,6 +216,13 @@ async function claimWebhookEvent(
   eventId: string,
   serverToken: string
 ): Promise<{ status: "new" | "pending_retry" | "completed" }> {
+  if(coreEnabled()) {
+    const path=`revenuecat_events/${eventId}`;
+    const previous=await coreLookup(path);
+    if(previous)return {status:previous.status==='completed'?'completed':'pending_retry'};
+    const created=await service('create',path,{status:'pending',claimedAt:new Date().toISOString()});
+    return {status:created.ok?'new':'pending_retry'};
+  }
   const emulatorHost = Deno.env.get("FIRESTORE_EMULATOR_HOST");
   const baseUrl = emulatorHost
     ? `http://${emulatorHost}/v1/projects/${project}/databases/(default)/documents`
@@ -276,6 +286,7 @@ async function markWebhookEventCompleted(
   serverToken: string,
   metadata?: { tier?: string; uid?: string }
 ): Promise<void> {
+  if(coreEnabled()){await service('merge',`revenuecat_events/${eventId}`,{status:'completed',processedAt:new Date().toISOString(),...metadata});return;}
   const emulatorHost = Deno.env.get("FIRESTORE_EMULATOR_HOST");
   const baseUrl = emulatorHost
     ? `http://${emulatorHost}/v1/projects/${project}/databases/(default)/documents`
@@ -427,7 +438,7 @@ Deno.serve(async (req) => {
         return json({ error: "Missing app_user_id in webhook payload." }, 400);
       }
 
-      const serverToken = await getServerAuthToken();
+      const serverToken = coreEnabled() ? '' : await getServerAuthToken();
       const eventId = body.event?.id;
       if (eventId && typeof eventId === "string") {
         const claim = await claimWebhookEvent(eventId, serverToken);
@@ -493,7 +504,7 @@ Deno.serve(async (req) => {
 
     // Direct user-authenticated reconciliation
     const auth = await identify(req);
-    const serverToken = await getServerAuthToken();
+    const serverToken = coreEnabled() ? '' : await getServerAuthToken();
     const account = await getAccountDoc(auth.uid, serverToken);
 
     const isFounder = account.founderGrant === true || account.entitlementSource === "founder";

@@ -2,8 +2,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { decodeProtectedHeader, importX509, jwtVerify } from "https://esm.sh/jose@5.9.6";
 import { AccessFailure, authorizedTask, authorizedSpace, adminToken, root, fields } from '../_shared/firebase.ts';
 import { reactionTypes, assertReactionAccess, ReactionFailure } from './reaction_policy.mjs';
+import { coreEnabled, coreLookup, coreGet, coreList, service } from '../_shared/core_store.ts';
 
 async function reactionRequest(path:string, init:RequestInit={}) {
+ if(coreEnabled()) {
+  const record=path.split('?')[0];
+  if(init.method==='DELETE'){await service('delete',record);return null;}
+  if(init.method==='PATCH'){await service('set',record,fields(JSON.parse(String(init.body))));return coreGet(record);}
+  return path.includes('?')?{documents:await coreList(record)}:coreGet(record);
+ }
  const response=await fetch(`${root}/${path}`, {...init,headers:{authorization:`Bearer ${await adminToken()}`,'content-type':'application/json'}});
  if(response.status===404)return null;
  if(!response.ok)throw new Failure('Could not save reactions. Try again.',503);
@@ -61,6 +68,7 @@ function unpack(v:any):any {
  return null;
 }
 async function firestore(path:string,token:string,optional=false) {
+ if(coreEnabled())return await coreLookup(path)??{};
  const res=await fetch(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/${path}`,{headers:{Authorization:`Bearer ${token}`}});
  if(res.status===404 && optional)return {};
  if(!res.ok) {
@@ -77,7 +85,7 @@ const spaceMemberCache = new Map<string, { memberUids: string[]; expiresAt: numb
 async function member(space:string,auth:{uid:string,token:string}) {
  if(!validId(space))throw new Failure("Invalid space.");
  const cached=spaceMemberCache.get(space);
- if(cached && cached.expiresAt > Date.now()) {
+ if(!coreEnabled() && cached && cached.expiresAt > Date.now()) {
   if(!cached.memberUids.includes(auth.uid))throw new Failure("You are no longer in this space.",403);
   return;
  }

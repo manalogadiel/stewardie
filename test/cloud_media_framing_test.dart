@@ -263,7 +263,7 @@ void main() {
       expect(photo.id, 'stable-network-id');
       expect(library.pendingIds, contains(photo.id));
       final saved = await stringMapStoreFactory
-          .store('shared-photo-outbox')
+          .store(CloudMediaLibrary.outboxName)
           .record('user-123/stable-network-id')
           .get(db);
       expect(saved?['uid'], 'user-123');

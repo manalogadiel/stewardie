@@ -22,3 +22,7 @@ verify_jwt = false
 [functions.task-access]
 # Firebase identity, current membership, and exact history limits are checked inside.
 verify_jwt = false
+
+[functions.core-data]
+# Firebase JWT verification is mandatory inside the gated migration endpoint.
+verify_jwt = false

@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 import { eventInboxId, eventRecipients } from './event_delivery.mjs';
 import { socialEligible, pushEnabled, notificationRollout } from './notification_policy.mjs';
 import { timestampBatch, pendingPushes } from './query_plan.mjs';
+import { coreEnabled, coreGet, coreList, coreAction, service } from '../_shared/core_store.ts';
 
 // Invoked by Supabase Cron with a private shared secret. Firebase Admin REST
 // bypasses client rules; never expose this endpoint to an app or browser.
@@ -92,6 +93,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
 }
 
 async function get(path: string): Promise<Doc | null> {
+  if(coreEnabled())return coreGet(path);
   const result = await request(path);
   if (result.status === 404) return null;
   if (!result.ok) throw new Error(`Firestore read ${path}: ${result.status}`);
@@ -99,6 +101,7 @@ async function get(path: string): Promise<Doc | null> {
 }
 
 async function list(path: string, showMissing = false): Promise<Doc[]> {
+  if(coreEnabled())return coreList(path);
   const docs: Doc[] = [];
   let page: string | undefined;
   do {
@@ -114,6 +117,25 @@ async function list(path: string, showMissing = false): Promise<Doc[]> {
 }
 
 async function queryDocs(parent: string, structuredQuery: unknown): Promise<Doc[]> {
+  if(coreEnabled()) {
+    const q=structuredQuery as any, source=q.from?.[0];
+    const docs=await coreList(source.allDescendants?parent:`${parent?parent+'/':''}${source.collectionId}`,source.allDescendants);
+    const scalar=(v:any)=>v?.referenceValue??decode(v);
+    const value=(doc:Doc,key:string)=>key==='__name__'?doc.name:fields(doc)[key];
+    const matches=(doc:Doc,filter:any):boolean=> {
+      if(!filter)return true;
+      if(filter.compositeFilter)return filter.compositeFilter.filters.every((f:any)=>matches(doc,f));
+      const f=filter.fieldFilter,a=value(doc,f.field.fieldPath),b=scalar(f.value);
+      if(a==null)return false;
+      switch(f.op){case 'EQUAL':return a===b;case 'IN':return Array.isArray(b)&&b.includes(a);case 'GREATER_THAN_OR_EQUAL':return a>=b;case 'LESS_THAN_OR_EQUAL':return a<=b;default:throw new Error('Unsupported worker filter');}
+    };
+    const order=q.orderBy??[{field:{fieldPath:'__name__'},direction:'ASCENDING'}];
+    const compare=(a:any,b:any)=>a===b?0:a<b?-1:1;
+    let rows=docs.filter((d:Doc)=>!source.allDescendants||docPath(d).split('/').at(-2)===source.collectionId).filter((d:Doc)=>matches(d,q.where));
+    rows.sort((a:Doc,b:Doc)=>{for(const o of order){const n=compare(value(a,o.field.fieldPath),value(b,o.field.fieldPath));if(n)return o.direction==='DESCENDING'?-n:n;}return 0;});
+    if(q.startAt)rows=rows.filter((d:Doc)=>{for(let i=0;i<q.startAt.values.length;i++){const n=compare(value(d,order[i].field.fieldPath),scalar(q.startAt.values[i]));if(n)return n>0;}return q.startAt.before;});
+    return rows.slice(0,q.limit??1000);
+  }
   const result = await fetch(`${root}${parent ? `/${parent}` : ''}:runQuery`, {
     method: 'POST', headers: { authorization: `Bearer ${await token()}`, 'content-type': 'application/json' },
     body: JSON.stringify({ structuredQuery }),
@@ -143,6 +165,7 @@ async function changedBatch(parent: string, collection: string, field: string,
 }
 
 async function create(path: string, data: Fields): Promise<boolean> {
+  if(coreEnabled())return (await service('create',path,JSON.parse(JSON.stringify(data)))).ok;
   const result = await request(`${path}?currentDocument.exists=false`, {
     method: 'PATCH', body: JSON.stringify({ fields: packed(data) }),
   });
@@ -152,6 +175,7 @@ async function create(path: string, data: Fields): Promise<boolean> {
 }
 
 async function update(path: string, data: Fields, updateTime: string): Promise<boolean> {
+  if(coreEnabled())return (await service('update',path,{...JSON.parse(JSON.stringify(data)),_expectedTime:updateTime})).ok;
   const qs = new URLSearchParams({ 'currentDocument.updateTime': updateTime });
   for (const key of Object.keys(data)) qs.append('updateMask.fieldPaths', key);
   const result = await request(`${path}?${qs}`, {
@@ -163,6 +187,7 @@ async function update(path: string, data: Fields, updateTime: string): Promise<b
 }
 
 async function remove(path: string, updateTime: string): Promise<void> {
+  if(coreEnabled()){await service('delete',path,{_expectedTime:updateTime});return;}
   const qs = new URLSearchParams({ 'currentDocument.updateTime': updateTime });
   const result = await request(`${path}?${qs}`, { method: 'DELETE' });
   if (![200, 204, 404, 409, 412].includes(result.status)) {
@@ -349,7 +374,7 @@ async function socialActivity(spaceId: string, space: Fields, now: Date): Promis
     const p = prefs.get(uid) ?? {};
     return socialEligible(p, category, time, joined.get(uid));
   };
-  if ([...prefs.values()].some((p) => p.moods !== false)) {
+  if (!coreEnabled() && [...prefs.values()].some((p) => p.moods !== false)) {
     await changedBatch(`spaces/${spaceId}`, 'checkIns', 'updatedAt', async (mood) => {
       const m = fields(mood), author = String(m.uid ?? '');
       const at = String(m.updatedAt ?? '');
@@ -419,7 +444,8 @@ async function generatedTask(space: Doc, routine: Doc, today: string, now: Date)
   const s = fields(space), r = fields(routine);
   const spaceId = space.name.split('/').pop()!;
   const routineId = routine.name.split('/').pop()!;
-  const id = `routine_${routineId}_${today}`;
+  const hash=coreEnabled()?Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(`${spaceId}/${routineId}/${today}`)))).map(b=>b.toString(16).padStart(2,'0')).join(''):null;
+  const id = `routine_${hash??`${routineId}_${today}`}`;
   const taskPath = `spaces/${spaceId}/tasks/${id}`;
   if (await get(taskPath)) return;
   const memberUids = s.memberUids as string[] ?? [];
@@ -428,6 +454,10 @@ async function generatedTask(space: Doc, routine: Doc, today: string, now: Date)
   const recipient = typeof r.assignedUid === 'string' &&
     memberUids.includes(r.assignedUid) ? r.assignedUid : null;
   const count = Number(s.activeTaskCount ?? 0);
+  if(coreEnabled()) {
+    await coreAction(creator,'createTask',{spaceId,title:String(r.title??'Routine'),requestedUid:recipient,scheduledLocalDate:today,operationId:id});
+    return;
+  }
   if (count >= 300) {
     await create(`accounts/${creator}/activity/blocked_${spaceId}_${id}`, {
       spaceId, kind: 'routineBlocked', title: 'Routine needs attention',
@@ -470,7 +500,7 @@ async function activityForTask(
   const version = Number(t.version ?? 1);
   const attentionUid = t.status === 'requested' ? t.requestedUid
     : t.offeredUid ? t.ownerUid : null;
-  if (typeof attentionUid === 'string' && members.includes(attentionUid)) {
+  if (!coreEnabled() && typeof attentionUid === 'string' && members.includes(attentionUid)) {
     await create(`accounts/${attentionUid}/activity/action_${spaceId}_${id}_${version}`, {
       spaceId, taskId: id, taskVersion: version, kind: 'action',
       title: 'A task needs your response', body: 'Open the task in your space.',
@@ -742,6 +772,7 @@ async function deliverPush(uid: string, item: Doc, now: Date): Promise<void> {
 }
 
 async function run(): Promise<{ spaces: number; errors: number }> {
+  if(coreEnabled())return runCore();
   const now = new Date();
   let errors = await cleanupRequestedSpaces(now);
   const spaces = await list('spaces');
@@ -897,3 +928,56 @@ Deno.serve(async (request) => {
     return Response.json({ error: 'Scheduled work failed' }, { status: 503 });
   }
 });
+
+// Supabase owns the new spaces. Reuse the established reminder, social activity,
+// quiet-hours and FCM delivery policies without any Firestore reads/writes.
+async function runCore():Promise<{spaces:number;errors:number}> {
+  const now=new Date();let errors=0;
+  const sb=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false}});
+  for(const deleted of (await service('deletedSpaces','')).rows) {
+    try {
+      for(;;) {
+        const {data,error}=await sb.from('media_items').select('id,uploader_uid').eq('space_id',deleted.id).limit(100);
+        if(error)throw error;if(!data?.length)break;
+        for(const row of data) {
+          const prefix=`${deleted.id}/${row.uploader_uid}/${row.id}`;
+          const removed=await sb.storage.from('moments').remove([`${prefix}/photo.jpg`,`${prefix}/thumb.jpg`]);if(removed.error)throw removed.error;
+          const result=await sb.from('media_items').delete().eq('id',row.id).eq('space_id',deleted.id);if(result.error)throw result.error;
+        }
+      }
+      await service('purgeSpace',deleted.id);
+    }catch(error){errors++;console.error('Core deleted space cleanup needs retry',error);}
+  }
+  await service('deliver','');
+  const spaces=await list('spaces');
+  for(const space of spaces) {
+    try {
+      const s=fields(space),id=docPath(space).split('/').pop()!,today=local(now,String(s.timeZone??'UTC'));
+      if(today.minute>=5)for(const routine of await list(`spaces/${id}/routines`)) {
+        const cadence=fields(routine).cadence;
+        if(cadence==='daily'||(cadence==='weekdays'&&!['Sat','Sun'].includes(today.weekday))||(cadence==='weekly'&&today.weekday==='Mon')) {
+          try{await generatedTask(space,routine,today.date,now);}catch(error){errors++;console.error('Core routine needs retry',error);}
+        }
+      }
+      for(const task of await queryDocs(`spaces/${id}`,{from:[{collectionId:'tasks'}],where:{fieldFilter:{field:{fieldPath:'status'},op:'IN',value:encode(['unclaimed','requested','accepted','needsHelp'])}},limit:300}))await activityForTask(id,s,task,today.date,now,today.minute>=540);
+      await socialActivity(id,s,now);
+      for(const plan of await queryDocs(`spaces/${id}`,{from:[{collectionId:'plans'}],where:{compositeFilter:{op:'AND',filters:[
+        {fieldFilter:{field:{fieldPath:'startMillis'},op:'GREATER_THAN_OR_EQUAL',value:encode(now.getTime()-2*86400000)}},
+        {fieldFilter:{field:{fieldPath:'startMillis'},op:'LESS_THAN_OR_EQUAL',value:encode(now.getTime()+2*86400000)}}]}}}))await activityForPlan(id,s,plan,now);
+    }catch(error){errors++;console.error('Core space worker failed',error);}
+  }
+  await service('deliver','');
+  for(const account of await list('accounts')) {
+    const uid=docPath(account).split('/').pop()!;
+    const progressPath=`workerProgress/push_${uid}`,progress=await get(progressPath);
+    const cursor=progress?fields(progress).name as string|undefined:undefined;
+    let pending=await queryDocs(`accounts/${uid}`,pendingPushes(cursor));
+    if(!pending.length&&cursor)pending=await queryDocs(`accounts/${uid}`,pendingPushes());
+    for(const item of pending) {
+      try {if(!await cancelStalePlanActivity(uid,item))await deliverPush(uid,item,now);}
+      catch(error){errors++;console.error('Core push remains pending',error);}
+    }
+    if(pending.length){const data={name:pending.at(-1)!.name};if(progress)await update(progressPath,data,progress.updateTime!);else await create(progressPath,data);}
+  }
+  return {spaces:spaces.length,errors};
+}

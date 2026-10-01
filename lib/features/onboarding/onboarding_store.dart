@@ -233,11 +233,7 @@ class OnboardingStore {
         }
 
         // Legacy safety: check if user already belongs to any spaces
-        final spacesSnap = await backend.firestore
-            .collection('spaces')
-            .where('members.$uid.role', isNull: false)
-            .limit(1)
-            .get();
+        final spacesSnap = await backend.spaces(uid).first;
         if (spacesSnap.docs.isNotEmpty) {
           if (db != null) {
             await markCompleted(uid);

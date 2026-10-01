@@ -8,6 +8,12 @@ import 'package:geolocator/geolocator.dart';
 
 import 'online_backend.dart';
 
+DateTime? sharingExpiry(Object? value) => value is Timestamp
+    ? value.toDate().toUtc()
+    : value is String
+    ? DateTime.tryParse(value)?.toUtc()
+    : null;
+
 /// A sharing session starts only after a real fix and an acknowledged write.
 /// The server rules, not this timer, are the remote access boundary.
 class LiveLocationService {
@@ -242,7 +248,7 @@ class LiveLocationService {
     }
     _activeSpaceId = spaceId;
     _expiresAt =
-        DateTime.tryParse(result['expiresAt'] as String? ?? '') ??
+        sharingExpiry(result['expiresAt']) ??
         DateTime.now().toUtc().add(Duration(minutes: durationMinutes));
     _lastSent = DateTime.now().toUtc();
     updatesUnavailable.value = false;

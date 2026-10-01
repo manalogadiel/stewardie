@@ -1,3 +1,6 @@
+import 'online_backend.dart';
+import 'core_firestore.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -9,7 +12,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// FCM is optional delivery; Firestore activity remains authoritative.
+/// FCM is optional delivery; the authenticated activity inbox is authoritative.
 class PushService {
   static const _native = MethodChannel('stewardie/notifications');
   PushService._();
@@ -113,17 +116,15 @@ class PushService {
     final settings = await FirebaseMessaging.instance.getNotificationSettings();
     if (settings.authorizationStatus != AuthorizationStatus.authorized) return;
     final docs = await Future.wait([
-      FirebaseFirestore.instance
+      OnlineBackend.database
           .doc('accounts/$uid/notificationPrefs/global')
           .get(),
-      FirebaseFirestore.instance
+      OnlineBackend.database
           .doc(
             'accounts/$uid/notificationPrefs/${spaceId.isEmpty ? 'global' : spaceId}',
           )
           .get(),
-      FirebaseFirestore.instance
-          .doc('accounts/$uid/activity/$activityId')
-          .get(),
+      OnlineBackend.database.doc('accounts/$uid/activity/$activityId').get(),
     ]);
     if (_uid != uid ||
         FirebaseAuth.instance.currentUser?.uid != uid ||
@@ -140,7 +141,7 @@ class PushService {
     }[item['kind']];
     if (category != null && docs[1].data()?[category] == false) return;
     if (item['accountNotice'] != true) {
-      final space = await FirebaseFirestore.instance
+      final space = await OnlineBackend.database
           .doc('spaces/$spaceId')
           .get(const GetOptions(source: Source.server));
       if (!(space.data()?['memberUids'] as List? ?? []).contains(uid)) return;
@@ -187,7 +188,7 @@ class PushService {
       return;
     }
     final id = _id(token);
-    final collection = FirebaseFirestore.instance.collection(
+    final collection = OnlineBackend.database.collection(
       'accounts/$uid/pushDevices',
     );
     if (_documentId != null && _documentId != id) {
@@ -212,20 +213,30 @@ class PushService {
     if (granted) {
       final uid = _uid ?? FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
-        final pref = FirebaseFirestore.instance.doc(
+        final pref = OnlineBackend.database.doc(
           'accounts/$uid/notificationPrefs/global',
         );
-        await FirebaseFirestore.instance.runTransaction((tx) async {
-          if (!(await tx.get(pref)).exists) {
-            tx.set(pref, {
-              'enabled': true,
-              'quietStart': 1320,
-              'quietEnd': 420,
-              'timeZone': 'Asia/Manila',
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-          }
-        });
+        final defaults = {
+          'enabled': true,
+          'quietStart': 1320,
+          'quietEnd': 420,
+          'timeZone': 'Asia/Manila',
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        final database = OnlineBackend.database;
+        if (database is CoreFirestore) {
+          await database.write({
+            'path': pref.path,
+            'mode': 'createIfAbsent',
+            'data': coreEncode(defaults),
+          });
+        } else {
+          await database.runTransaction((tx) async {
+            if (!(await tx.get(pref)).exists) {
+              tx.set(pref, defaults);
+            }
+          });
+        }
       }
       await _syncIfPermitted();
     }
@@ -255,7 +266,7 @@ class PushService {
         id != null &&
         FirebaseAuth.instance.currentUser?.uid == uid) {
       try {
-        await FirebaseFirestore.instance
+        await OnlineBackend.database
             .doc('accounts/$uid/pushDevices/$id')
             .delete();
       } catch (_) {

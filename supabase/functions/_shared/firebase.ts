@@ -1,5 +1,6 @@
 import { decodeProtectedHeader, importPKCS8, importX509, jwtVerify, SignJWT } from 'https://esm.sh/jose@5.9.6';
 import { taskVisible } from './history_policy.mjs';
+import { coreEnabled, coreGet } from './core_store.ts';
 
 export const project = Deno.env.get('FIREBASE_PROJECT_ID') || 'stewardie';
 export const database = `projects/${project}/databases/(default)`;
@@ -73,6 +74,7 @@ export function fields(document: any): Record<string, any> {
   return Object.fromEntries(Object.entries(document?.fields ?? {}).map(([key, value]) => [key, unpack(value)]));
 }
 export async function getDocument(path: string): Promise<any | null> {
+  if(coreEnabled())return coreGet(path);
   const response = await fetch(`${root}/${path}`, { headers: { authorization: `Bearer ${await adminToken()}` } });
   if (response.status === 404) return null;
   if (!response.ok) throw new AccessFailure('Service unavailable.', 503);

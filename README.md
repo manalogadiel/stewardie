@@ -2,9 +2,11 @@
 
 A Flutter shared-life app for families, friends, housemates, dormmates, and crews.
 
-Status: The normal Flutter app connects to the live `stewardie` Firebase project using verified email/password accounts and rule-enforced Firestore transactions on Spark. The approved Today / Moments / Space layouts remain in place. Private cloud photo sharing is connected through Supabase; paid purchases remain disabled. See [shared Moments deployment and verification](docs/shared-moments-verification.md). See [earlier Spark implementation](docs/spark-polish-verification.md).
+Status: The normal Flutter app uses Firebase verified email/password identity with Supabase shared data and private photo storage. New cloud spaces are enabled by default; old Firebase data is preserved for a later reviewed import. Today / Moments / Space remains unchanged. See [live migration and verification](docs/supabase-core-migration.md); older Spark verification describes the previous backend.
 
 ## Start here
+
+The Supabase cloud is deployed and enabled for new spaces. Run `flutter run` normally; see [migration progress and preserved data](docs/supabase-core-migration.md).
 
 Repository handoff: [final review and verification](docs/repository-handoff.md). This is a source-code submission; device and store-release requirements are tracked separately.
 
@@ -35,9 +37,9 @@ The default `lib/main.dart` is the signed-in cloud app. `lib/main_online.dart` i
 
 Debug `flutter run` enables RevenueCat's simulated Test Store (no real charge). Disable it with `--dart-define=ENABLE_TEST_PURCHASES=false`. Production purchases remain guarded and unconfigured. New onboarding shows a skippable full-page paywall; see [verification](docs/onboarding-plus-and-logo-verification.md).
 
-Tasks, memberships, moods, and calendar plans synchronize through Firestore. Personal Plus is protected server-side and reserved for the verified founder account; it never upgrades other members. Today and Moments retain the approved clay assets and interactions. New shared photos use private Supabase storage and member-checked access. Existing local photos require an explicit Share this photo to space action. Moments refreshes on entry, foreground resume, successful upload, and every 20 seconds while open. Remembered accounts store an email/name only; signing back in still requires secure authentication, with platform autofill where available.
+Tasks, memberships, moods, and calendar plans synchronize through the protected Supabase gateway. Personal Plus is protected server-side and never upgrades other members. Today and Moments retain the approved clay assets and interactions. New shared photos use private Supabase storage and member-checked access. Existing local photos require an explicit Share this photo to space action. Moments refreshes on entry, foreground resume, successful upload, and every 20 seconds while open. Remembered accounts store an email/name only; signing back in still requires secure authentication, with platform autofill where available.
 
-Daily moods expire at midnight in each space's configured time zone through an authenticated server write. Completed-task history now uses the authenticated `task-access` gateway: Basic covers today and the previous three space-local calendar dates, including daylight-saving boundaries; Plus can page through all retained authorized history. Unfinished tasks remain accessible through Firestore. Public purchases remain disabled. Camera orientation, gallery export, and real two-device behavior still need native-device checks by the owner.
+Daily moods expire at midnight in each space's configured time zone through an authenticated server write. Completed-task history uses the authenticated core gateway: Basic covers today and the previous three space-local calendar dates, including daylight-saving boundaries; Plus can page through all retained authorized history. Unfinished tasks remain accessible through Supabase. Public purchases remain disabled. Camera orientation, gallery export, and real two-device behavior still need native-device checks by the owner.
 
 See [cloud setup](docs/live-firebase-setup.md), [implementation record](docs/spark-polish-verification.md), and [backend instructions](backend/firebase/README.md). Earlier verification documents describe historical slices, not the current runtime. Store release still requires the launch gates in the product, subscription, and technical plans.
 

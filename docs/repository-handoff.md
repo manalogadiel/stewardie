@@ -4,6 +4,8 @@ October 1, 2026. Scope: source-code submission, as confirmed by the owner. This 
 
 ## Run and review
 
+Supabase now provides new cloud spaces, tasks and media access, with Firebase Authentication retained. The owner verified space creation and automatic selection on the phone. Historical Firebase data remains preserved for a later reviewed import; see [Supabase cutover and verification](supabase-core-migration.md).
+
 Use the Flutter/Dart SDK matching `pubspec.yaml` (Dart 3.13 or later within the declared SDK range).
 
 ```sh

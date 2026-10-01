@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scene 5: Private Location Sharing</title>
+  </head>
+  <body>
+    <template id="hyperframes-root">
+      <style>
+        @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Nunito+Sans:wght@700;800;900&display=swap");
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+          user-select: none;
+        }
+        body {
+          margin: 0;
+          background: transparent;
+          font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          overflow: hidden;
+        }
+
+        #root {
+          width: 1920px;
+          height: 1080px;
+          position: relative;
+          overflow: hidden;
+          background: #faf8f5;
+        }
+
+        /* Ambient Mesh Backdrop */
+        .ambient-mesh {
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(circle at 75% 30%, rgba(204, 251, 241, 0.55) 0%, transparent 45%),
+            radial-gradient(circle at 20% 70%, rgba(220, 252, 231, 0.5) 0%, transparent 50%),
+            radial-gradient(circle at 50% 50%, rgba(254, 243, 199, 0.35) 0%, transparent 60%);
+          z-index: 1;
+        }
+
+        .stage-container {
+          position: relative;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2;
+        }
+
+        /* Centered Phone Shell */
+        .phone-wrapper {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          perspective: 1200px;
+          z-index: 10;
+        }
+
+        .phone-mockup {
+          width: 320px;
+          height: 670px;
+          background: #ffffff;
+          border-radius: 46px;
+          border: 9px solid #1f2937;
+          box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
+          position: relative;
+          overflow: hidden;
+          transform: rotateY(0deg) rotateX(1deg);
+        }
+
+        /* Screen Interior */
+        .screen-inner {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          overflow: hidden;
+          background: #faf8f5;
+        }
+        .screen-bg {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        /* Authentic SpaceMapSheet Slide-Up Sheet */
+        .map-sheet {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 86%;
+          background: #faf9f6;
+          border-radius: 36px 36px 0 0;
+          box-shadow: 0 -16px 50px rgba(32, 38, 51, 0.22);
+          display: flex;
+          flex-direction: column;
+          z-index: 30;
+          transform: translateY(100%);
+        }
+        .sheet-drag-handle {
+          width: 44px;
+          height: 5px;
+          background: #d4dae5;
+          border-radius: 3px;
+          margin: 12px auto 6px auto;
+        }
+        .sheet-header {
+          padding: 8px 20px 12px 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .sheet-title {
+          font-family: "Nunito Sans", sans-serif;
+          font-size: 22px;
+          font-weight: 800;
+          color: #111827;
+        }
+        .sheet-privacy {
+          font-size: 12px;
+          font-weight: 700;
+          color: #065f46;
+          background: #d1fae5;
+          padding: 4px 10px;
+          border-radius: 12px;
+        }
+
+        /* Map Viewport */
+        .map-viewport {
+          flex: 1;
+          background: #e5ece5;
+          position: relative;
+          overflow: hidden;
+          border-top: 1.5px solid #d4dae5;
+          border-bottom: 1.5px solid #d4dae5;
+        }
+        .map-grid-bg {
+          position: absolute;
+          inset: 0;
+          background-size: 32px 32px;
+          background-image:
+            linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+        }
+        .map-park {
+          position: absolute;
+          top: 30px;
+          right: 20px;
+          width: 140px;
+          height: 100px;
+          background: #c8e6c9;
+          border-radius: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 700;
+          color: #2e7d32;
+        }
+        .map-road-1 {
+          position: absolute;
+          top: 150px;
+          left: 0;
+          right: 0;
+          height: 24px;
+          background: #ffffff;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .map-road-2 {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 120px;
+          width: 24px;
+          background: #ffffff;
+          box-shadow: 1px 0 3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Member Location Pins */
+        .member-pin {
+          position: absolute;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          z-index: 10;
+        }
+        .pin-callout {
+          background: #ffffff;
+          border-radius: 16px;
+          padding: 6px 10px;
+          box-shadow: 0 6px 16px rgba(32, 38, 51, 0.18);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          white-space: nowrap;
+          border: 1px solid #eef1f6;
+        }
+        .pin-avatar {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: #1a3cd4;
+          color: #ffffff;
+          font-size: 12px;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .pin-avatar.alex {
+          background: #059669;
+        }
+        .pin-text {
+          display: flex;
+          flex-direction: column;
+        }
+        .pin-name {
+          font-size: 12px;
+          font-weight: 800;
+          color: #111827;
+        }
+        .pin-status {
+          font-size: 10px;
+          font-weight: 600;
+          color: #4b5563;
+        }
+        .pin-point {
+          width: 14px;
+          height: 14px;
+          background: #1a3cd4;
+          border: 3px solid #ffffff;
+          border-radius: 50%;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+          margin-top: 4px;
+          position: relative;
+        }
+        .pin-point.alex {
+          background: #059669;
+        }
+        /* Radar pulse animation */
+        .pin-point::after {
+          content: "";
+          position: absolute;
+          top: -12px;
+          left: -12px;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: rgba(37, 99, 235, 0.35);
+          animation: radar-pulse 2s infinite ease-out;
+        }
+        .pin-point.alex::after {
+          background: rgba(16, 185, 129, 0.35);
+        }
+        @keyframes radar-pulse {
+          0% { transform: scale(0.5); opacity: 1; }
+          100% { transform: scale(2.2); opacity: 0; }
+        }
+
+        #pin-jamie {
+          top: 130px;
+          left: 45px;
+        }
+        #pin-alex {
+          top: 250px;
+          left: 60px;
+        }
+
+        /* Live Location Pill Card at Bottom of Sheet */
+        .live-pill-card {
+          padding: 16px 20px 24px 20px;
+          background: #ffffff;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .live-pill-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .live-indicator {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 800;
+          color: #166534;
+          background: #dcfce7;
+          padding: 6px 12px;
+          border-radius: 12px;
+        }
+        .live-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #16a34a;
+          box-shadow: 0 0 8px #16a34a;
+          animation: pulse 1.2s infinite ease-in-out;
+        }
+        .live-timer {
+          font-size: 13px;
+          font-weight: 700;
+          color: #4b5563;
+        }
+        .duration-options {
+          display: flex;
+          gap: 8px;
+        }
+        .duration-btn {
+          flex: 1;
+          text-align: center;
+          font-size: 12px;
+          font-weight: 700;
+          padding: 8px 0;
+          border-radius: 12px;
+          background: #f1f5f9;
+          color: #334155;
+          border: 1px solid #e2e8f0;
+        }
+        .duration-btn.active {
+          background: #1e3a8a;
+          color: #ffffff;
+          border-color: #1e3a8a;
+        }
+
+        /* Floating Left Card */
+        .floating-left {
+          position: absolute;
+          left: 120px;
+          top: 360px;
+          max-width: 480px;
+          z-index: 5;
+        }
+        .section-tag {
+          font-size: 16px;
+          font-weight: 800;
+          color: #0d9488;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-bottom: 12px;
+        }
+        .section-title {
+          font-size: 56px;
+          font-weight: 900;
+          color: #111827;
+          line-height: 1.15;
+          letter-spacing: -0.035em;
+          margin-bottom: 20px;
+        }
+        .gradient-emerald {
+          background: linear-gradient(135deg, #059669 0%, #0d9488 50%, #2563eb 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        .section-body {
+          font-size: 22px;
+          color: #4b5563;
+          line-height: 1.55;
+        }
+
+        /* Floating Right Badges & Mascot */
+        .floating-right {
+          position: absolute;
+          right: 140px;
+          top: 300px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 24px;
+          z-index: 5;
+        }
+        .feature-badge {
+          background: #ffffff;
+          padding: 16px 26px;
+          border-radius: 24px;
+          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.08);
+          font-size: 18px;
+          font-weight: 700;
+          color: #1f2937;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border: 1px solid #eef1f6;
+        }
+        .badge-icon {
+          font-size: 24px;
+        }
+        .mascot-explorer {
+          width: 240px;
+          height: auto;
+          filter: drop-shadow(0 20px 40px rgba(32, 38, 51, 0.15));
+        }
+      </style>
+
+      <div id="root" data-composition-id="scene5" data-width="1920" data-height="1080">
+        <div class="ambient-mesh"></div>
+
+        <div class="stage-container">
+          <!-- Floating Left Content -->
+          <div class="floating-left">
+            <div class="section-tag" id="el-tag">Private Location Sharing</div>
+            <h2 class="section-title" id="el-title">Peace of Mind <br><span class="gradient-emerald">Without 24/7 Tracking</span></h2>
+            <p class="section-body" id="el-body">
+              Wondering when everyone will be back for dinner? See estimated arrival times and battery levels during active 15-minute windows—keeping everyone in the loop without invasive tracking.
+            </p>
+          </div>
+
+          <!-- Centered Phone Mockup with Space Screen & SpaceMapSheet -->
+          <div class="phone-wrapper" id="el-phone" data-layout-allow-overflow>
+            <div class="phone-mockup" data-layout-allow-overflow>
+              <div class="screen-inner" data-layout-allow-overflow>
+                <!-- Authentic Flutter Space Screen Base -->
+                <img src="assets/screens/space.png" alt="Stewardie Space Screen" class="screen-bg" />
+
+                <!-- Authentic SpaceMapSheet Slide-Up -->
+                <div class="map-sheet" id="el-map-sheet" data-layout-allow-overflow data-layout-allow-overlap>
+                  <div class="sheet-drag-handle"></div>
+                  <div class="sheet-header">
+                    <div class="sheet-title">Space map</div>
+                    <div class="sheet-privacy">🔒 Private Session</div>
+                  </div>
+
+                  <div class="map-viewport">
+                    <div class="map-grid-bg"></div>
+                    <div class="map-park">🌲 Riverside Commons</div>
+                    <div class="map-road-1"></div>
+                    <div class="map-road-2"></div>
+
+                    <!-- Jamie Pin (Home) -->
+                    <div class="member-pin" id="pin-jamie">
+                      <div class="pin-callout">
+                        <div class="pin-avatar">J</div>
+                        <div class="pin-text">
+                          <div class="pin-name">Jamie</div>
+                          <div class="pin-status">Home (Wi-Fi) • 92%</div>
+                        </div>
+                      </div>
+                      <div class="pin-point"></div>
+                    </div>
+
+                    <!-- Alex Pin (On the way) -->
+                    <div class="member-pin" id="pin-alex">
+                      <div class="pin-callout">
+                        <div class="pin-avatar alex">A</div>
+                        <div class="pin-text">
+                          <div class="pin-name">Alex</div>
+                          <div class="pin-status">On the way • 10m away • 🔋 78%</div>
+                        </div>
+                      </div>
+                      <div class="pin-point alex"></div>
+                    </div>
+                  </div>
+
+                  <!-- Live Location Pill Card -->
+                  <div class="live-pill-card">
+                    <div class="live-pill-top">
+                      <div class="live-indicator">
+                        <div class="live-dot"></div>
+                        <span>Live Sharing Active</span>
+                      </div>
+                      <div class="live-timer">14:52 remaining</div>
+                    </div>
+                    <div class="duration-options">
+                      <div class="duration-btn active">15 min</div>
+                      <div class="duration-btn">30 min</div>
+                      <div class="duration-btn">60 min</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Floating Right Badges & Mascot -->
+          <div class="floating-right">
+            <div class="feature-badge" id="el-badge1">
+              <div class="badge-icon">⏱️</div>
+              <span>Temporary 15m Windows</span>
+            </div>
+            <div class="feature-badge" id="el-badge2">
+              <div class="badge-icon">🔋</div>
+              <span>Battery &amp; Arrival Signals</span>
+            </div>
+            <img src="assets/illustrations/mascot-map-explorer.png" alt="Explorer Mascot" class="mascot-explorer" id="el-mascot" />
+          </div>
+        </div>
+
+        <script>
+          const tl = gsap.timeline({ paused: true });
+          window.__timelines["scene5"] = tl;
+
+          // Frame entrance (0s - 1.2s)
+          tl.from("#el-phone", {
+            scale: 0.9,
+            y: 50,
+            opacity: 0,
+            duration: 1.2,
+            ease: "power3.out"
+          }, 0);
+
+          tl.from("#el-tag, #el-title, #el-body", {
+            x: -40,
+            opacity: 0,
+            stagger: 0.15,
+            duration: 0.8,
+            ease: "power2.out"
+          }, 0.2);
+
+          tl.from("#el-badge1, #el-badge2, #el-mascot", {
+            x: 40,
+            opacity: 0,
+            stagger: 0.15,
+            duration: 0.8,
+            ease: "power2.out"
+          }, 0.4);
+
+          // Subtle mascot float
+          tl.to("#el-mascot", {
+            y: -10,
+            duration: 2.0,
+            repeat: 7,
+            yoyo: true,
+            ease: "sine.inOut"
+          }, 1.2);
+
+          // Map Sheet slides up at 1.5s (synced with location_start.wav)
+          tl.to("#el-map-sheet", {
+            y: "0%",
+            duration: 1.0,
+            ease: "power3.out"
+          }, 1.5);
+
+          // Member Pins drop in with spring bounce
+          tl.from("#pin-jamie", {
+            y: -30,
+            opacity: 0,
+            duration: 0.7,
+            ease: "back.out(2)"
+          }, 2.4);
+
+          tl.from("#pin-alex", {
+            y: -30,
+            opacity: 0,
+            duration: 0.7,
+            ease: "back.out(2)"
+          }, 2.8);
+
+          // Alex moves along the road
+          tl.to("#pin-alex", {
+            x: 25,
+            y: -20,
+            duration: 4.5,
+            ease: "power1.inOut"
+          }, 3.8);
+
+          // Hold and exit transition at 16.0s
+          tl.to("#root", {
+            opacity: 0,
+            duration: 1.0,
+            ease: "power2.in"
+          }, 16.0);
+
+          tl.seek(0);
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

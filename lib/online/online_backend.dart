@@ -16,6 +16,11 @@ import 'package:http/http.dart' as http;
 
 import '../core/invite_links.dart';
 import 'location_session_poll.dart';
+import 'core_data_client.dart';
+import 'core_space_repository.dart';
+import 'core_task_repository.dart';
+import 'core_firestore.dart';
+import 'core_backend.dart';
 import '../firebase_options.dart';
 part 'spark_backend.dart';
 
@@ -27,6 +32,17 @@ class SpaceActionException extends StateError {
 
 class OnlineBackend {
   OnlineBackend._();
+  static OnlineBackend? _current;
+  static FirebaseFirestore get database => _current!.firestore;
+  static const useSupabaseCore = bool.fromEnvironment(
+    'USE_SUPABASE_CORE',
+    defaultValue: true,
+  );
+  late final CoreFirestore coreStore = CoreFirestore(coreData);
+  late final CoreBackend _coreBackend = CoreBackend(this);
+
+  late final CoreSpaceRepository coreSpaces = CoreSpaceRepository(coreData);
+  late final CoreTaskRepository coreTasks = CoreTaskRepository(coreData);
 
   static const bool useEmulator = bool.fromEnvironment(
     'USE_FIREBASE_EMULATOR',
@@ -107,11 +123,16 @@ class OnlineBackend {
           .useFunctionsEmulator(host, 5001);
     }
 
-    return OnlineBackend._();
+    return _current = OnlineBackend._();
   }
 
   FirebaseAuth get auth => FirebaseAuth.instance;
-  FirebaseFirestore get firestore => FirebaseFirestore.instance;
+  // Staged migration transport; existing production callers remain unchanged.
+  late final CoreDataClient coreData = CoreDataClient(
+    idToken: () => auth.currentUser?.getIdToken() ?? Future.value(null),
+  );
+  FirebaseFirestore get firestore =>
+      useSupabaseCore && !useEmulator ? coreStore : FirebaseFirestore.instance;
   String newOperationId() => firestore.collection('operationIds').doc().id;
   FirebaseFunctions get functions =>
       FirebaseFunctions.instanceFor(region: functionsRegion);
@@ -131,7 +152,12 @@ class OnlineBackend {
     const callable = bool.fromEnvironment('USE_CALLABLE_BACKEND');
     late final Map<String, dynamic> response;
     try {
-      if (callable) {
+      if (useSupabaseCore && !useEmulator) {
+        response = await _coreBackend.call(name, {
+          ...values,
+          'operationId': operation,
+        });
+      } else if (callable) {
         final result = await functions
             .httpsCallable(name)
             .call<Map<String, dynamic>>(values);
@@ -181,6 +207,21 @@ class OnlineBackend {
     String? token,
     Map<String, dynamic>? location,
   }) async {
+    if (useSupabaseCore && !useEmulator) {
+      final nameMap = {
+        'rename': 'renameSpace',
+        'readLocations': 'readLocations',
+        'startLocation': 'startLocationSession',
+        'stopLocation': 'stopLocationSession',
+        'join': 'joinSpace',
+      };
+      return _coreBackend.call(nameMap[action] ?? action, {
+        'spaceId': spaceId,
+        'name': ?name,
+        'token': ?token,
+        ...?location,
+      });
+    }
     const endpoint = String.fromEnvironment(
       'SPACE_ACTIONS_URL',
       defaultValue:
@@ -259,6 +300,17 @@ class OnlineBackend {
     String action,
     Map<String, dynamic> values,
   ) async {
+    if (useSupabaseCore && !useEmulator) {
+      return _coreBackend.call(
+        {
+              'get': 'getTask',
+              'delete': 'deleteTask',
+              'list': 'listCompletedTasks',
+            }[action] ??
+            action,
+        values,
+      );
+    }
     const endpoint = String.fromEnvironment(
       'TASK_ACCESS_URL',
       defaultValue:
@@ -392,8 +444,10 @@ class OnlineBackend {
           ];
         },
         stopOnError: (error) =>
-            error is SpaceActionException &&
-            (error.statusCode == 401 || error.statusCode == 403),
+            (error is SpaceActionException &&
+                (error.statusCode == 401 || error.statusCode == 403)) ||
+            (error is CoreDataException &&
+                (error.statusCode == 401 || error.statusCode == 403)),
       );
     }
     return _emulatorLocationSessions(spaceId);
@@ -537,7 +591,7 @@ class OnlineBackend {
         (data?['founderGrant'] == true ||
             data?['entitlementSource'] == 'founder' ||
             (expiry is Timestamp && expiry.toDate().isAfter(DateTime.now())));
-    return (data?['spaceIds'] as List? ?? []).length < (plus ? 50 : 1);
+    return (data?['spaceIds'] as List? ?? []).length < (plus ? 50 : 3);
   }
 
   Future<void> updateProfileName(String newName) async {
@@ -545,6 +599,12 @@ class OnlineBackend {
     final intent = SoundFeedback.captureIntent();
     final name = newName.trim();
     if (user == null || name.isEmpty || name.length > 60) return;
+    if (useSupabaseCore && !useEmulator) {
+      await coreData.call('profileName', {'name': name});
+      await user.updateDisplayName(name);
+      coreStore.notify();
+      return;
+    }
     final account = await firestore.doc('accounts/${user.uid}').get();
     final ids = List<String>.from(
       account.data()?['spaceIds'] as List? ?? const [],

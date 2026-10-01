@@ -309,7 +309,7 @@ class _SignedInAppState extends State<_SignedInApp>
 
   Future<MediaLibrary> _loadLibrary() async {
     final records = stringMapStoreFactory.store(
-      'signed-in-photos-${widget.user.uid}',
+      '${OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator ? "core-" : ""}signed-in-photos-${widget.user.uid}',
     );
     final photos = await records.find(widget.database);
     try {
@@ -321,7 +321,7 @@ class _SignedInAppState extends State<_SignedInApp>
       /* Picker recovery must not prevent access to saved work. */
     }
     final queue = await stringMapStoreFactory
-        .store('shared-photo-outbox')
+        .store(CloudMediaLibrary.outboxName)
         .find(widget.database);
     final result = CloudMediaLibrary(
       timeline,
