@@ -214,22 +214,10 @@ To make local development, QA, and feature testing seamless without real credit 
 
 Stewardie is lovingly designed and engineered by:
 
-<p align="center">
-  <a href="https://github.com/manalogadiel">
-    <img src="https://github.com/manalogadiel.png?size=100" width="100" height="100" style="border-radius: 50%;" alt="Gadiel Manalo" />
-  </a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/kuroi17">
-    <img src="https://github.com/kuroi17.png?size=100" width="100" height="100" style="border-radius: 50%;" alt="georgie" />
-  </a>
-</p>
-
-<p align="center">
-  <strong><a href="https://github.com/manalogadiel">Gadiel Manalo</a></strong> &nbsp;|&nbsp; <strong><a href="https://github.com/kuroi17">georgie</a></strong>
-</p>
-
-* **[Gadiel Manalo (@manalogadiel)](https://github.com/manalogadiel)** — Project Architect, Core Flutter & Backend Engineering, Supabase/Firebase Integration, Database Migration, and Subscription Infrastructure.
-* **[georgie (@kuroi17)](https://github.com/kuroi17)** — Core Contributor, Feature Implementation, UI/UX Polish, and Design Engineering.
+| Collaborator | Role & Scope | GitHub |
+| :---: | :--- | :---: |
+| <a href="https://github.com/manalogadiel"><img src="https://github.com/manalogadiel.png?size=80" width="80" height="80" style="border-radius: 50%;" alt="Gadiel Manalo" /><br><strong>Gadiel Manalo</strong></a> | **Project Creator, Lead Architect & Full-Stack Engineer**<br>UI/UX & Sound Design, Backend & Subscription Systems. | <a href="https://github.com/manalogadiel"><img src="https://img.shields.io/badge/GitHub-@manalogadiel-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub: @manalogadiel" /></a> |
+| <a href="https://github.com/kuroi17"><img src="https://github.com/kuroi17.png?size=80" width="80" height="80" style="border-radius: 50%;" alt="georgie" /><br><strong>georgie</strong></a> | **Reliability & Performance Engineer**<br>Systems Optimization, and Code Quality. | <a href="https://github.com/kuroi17"><img src="https://img.shields.io/badge/GitHub-@kuroi17-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub: @kuroi17" /></a> |
 
 ---
 
