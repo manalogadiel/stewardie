@@ -2,6 +2,7 @@ import { decodeProtectedHeader, importPKCS8, importX509, jwtVerify, SignJWT } fr
 import { fields } from '../_shared/firebase.ts';
 import { joinPlan, JoinFailure } from './join_space.mjs';
 import { locationSession } from './location_session.mjs';
+import { visibleLocations } from './visible_locations.mjs';
 
 const project = Deno.env.get('FIREBASE_PROJECT_ID') || 'stewardie';
 const database = `projects/${project}/databases/(default)`;
@@ -68,7 +69,14 @@ async function get(path: string): Promise<any | null> {
     headers: { authorization: `Bearer ${await accessToken()}` },
   });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Firestore read failed: ${response.status}`);
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    const code = detail.error?.status ?? `HTTP_${response.status}`;
+    console.error('Space action Firestore read failed', response.status, code);
+    throw new JoinFailure(code === 'RESOURCE_EXHAUSTED'
+      ? 'Firestore quota reached. Please retry after the quota resets.'
+      : `Space server unavailable (${code}). Please retry.`, 503);
+  }
   return response.json();
 }
 
@@ -255,8 +263,39 @@ async function stopLocation(spaceId:string,uid:string):Promise<Response> {
   const result=await fetch(`https://firestore.googleapis.com/v1/${database}/documents:commit`,{
     method:'POST',headers:{authorization:`Bearer ${await accessToken()}`,'content-type':'application/json'},body:JSON.stringify({writes}),
   });
-  if(!result.ok)return json(409,{error:'Sharing changed. Please retry stopping.'});
+  if(!result.ok) {
+    const detail = await result.json().catch(() => ({}));
+    const code = detail.error?.status ?? `HTTP_${result.status}`;
+    console.error('Location stop commit failed', result.status, code);
+    if (code === 'RESOURCE_EXHAUSTED') return json(503, { error: 'Firestore quota reached. Location stopped on this device; server confirmation will retry.' });
+    if (code === 'ABORTED' || code === 'FAILED_PRECONDITION') return json(409,{error:'Sharing changed. Please retry stopping.'});
+    return json(503, { error: `Location server unavailable (${code}). Stop confirmation will retry.` });
+  }
   return json(200,{ok:true});
+}
+
+async function readLocations(spaceId: string, uid: string): Promise<Response> {
+  const space = fields(await get(`spaces/${spaceId}`));
+  // Validate membership before reading any location records.
+  visibleLocations(uid, space, []);
+  const now = new Date();
+  const response = await fetch(`${root}/spaces/${spaceId}:runQuery`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${await accessToken()}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ structuredQuery: {
+      from: [{ collectionId: 'locationSessions' }],
+      where: { fieldFilter: {
+        field: { fieldPath: 'expiresAt' }, op: 'GREATER_THAN',
+        value: { timestampValue: now.toISOString() },
+      } },
+    } }),
+  });
+  if (!response.ok) return json(503, { error: 'Shared locations are unavailable. Please retry.' });
+  const rows = await response.json();
+  // Recheck membership after the query; never expand the recipient snapshot.
+  const currentSpace = fields(await get(`spaces/${spaceId}`));
+  return json(200, { sessions: visibleLocations(uid, currentSpace,
+    rows.filter((row: any) => row.document).map((row: any) => fields(row.document)), new Date()) });
 }
 
 Deno.serve(async (req) => {
@@ -276,6 +315,7 @@ Deno.serve(async (req) => {
     if (typeof body.spaceId !== 'string' || !idPattern.test(body.spaceId)) {
       return json(400, { error: 'Invalid space.' });
     }
+    if (body.action === 'readLocations') return await readLocations(body.spaceId, uid);
     if (body.action === 'startLocation') return await startLocation(body.spaceId, uid, body);
     if (body.action === 'stopLocation') return await stopLocation(body.spaceId, uid);
     if (body.action === 'rename') {

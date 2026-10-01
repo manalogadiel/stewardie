@@ -15,10 +15,16 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/invite_links.dart';
+import 'location_session_poll.dart';
 import '../firebase_options.dart';
 part 'spark_backend.dart';
 
 /// Production and local-emulator entry point for Firebase services.
+class SpaceActionException extends StateError {
+  SpaceActionException(super.message, this.statusCode);
+  final int statusCode;
+}
+
 class OnlineBackend {
   OnlineBackend._();
 
@@ -182,20 +188,22 @@ class OnlineBackend {
     );
     final identityToken = await auth.currentUser?.getIdToken();
     if (identityToken == null) throw StateError('Sign in again.');
-    final response = await http.post(
-      Uri.parse(endpoint),
-      headers: {
-        'Authorization': 'Bearer $identityToken',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'action': action,
-        'spaceId': spaceId,
-        'name': ?name,
-        'token': ?token,
-        ...?location,
-      }),
-    );
+    final response = await http
+        .post(
+          Uri.parse(endpoint),
+          headers: {
+            'Authorization': 'Bearer $identityToken',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'action': action,
+            'spaceId': spaceId,
+            'name': ?name,
+            'token': ?token,
+            ...?location,
+          }),
+        )
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       String? message;
       try {
@@ -203,7 +211,15 @@ class OnlineBackend {
             (jsonDecode(response.body) as Map<String, dynamic>)['error']
                 as String?;
       } catch (_) {}
-      throw StateError(message ?? 'Could not update the space. Please retry.');
+      if (kDebugMode) {
+        debugPrint(
+          'Stewardie space action $action failed (${response.statusCode}): ${message ?? 'No error detail'}',
+        );
+      }
+      throw SpaceActionException(
+        message ?? 'Could not update the space. Please retry.',
+        response.statusCode,
+      );
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
@@ -359,9 +375,33 @@ class OnlineBackend {
           .collection('routines')
           .snapshots();
 
-  /// Fetch individual sessions so Firestore can enforce each recipient and
-  /// expiry. A collection listener cannot satisfy those per-document rules.
-  Stream<List<Map<String, dynamic>>> locationSessions(String spaceId) async* {
+  /// The gateway enforces current membership, recipient snapshot and expiry.
+  Stream<List<Map<String, dynamic>>> locationSessions(String spaceId) {
+    if (!useEmulator) {
+      return pollLocationSessions(
+        () async {
+          final result = await callSpaceAction('readLocations', spaceId);
+          return [
+            for (final row in result['sessions'] as List? ?? const [])
+              {
+                ...Map<String, dynamic>.from(row as Map),
+                for (final key in ['startedAt', 'updatedAt', 'expiresAt'])
+                  if (row[key] is String && DateTime.tryParse(row[key]) != null)
+                    key: Timestamp.fromDate(DateTime.parse(row[key])),
+              },
+          ];
+        },
+        stopOnError: (error) =>
+            error is SpaceActionException &&
+            (error.statusCode == 401 || error.statusCode == 403),
+      );
+    }
+    return _emulatorLocationSessions(spaceId);
+  }
+
+  Stream<List<Map<String, dynamic>>> _emulatorLocationSessions(
+    String spaceId,
+  ) async* {
     while (true) {
       try {
         final space = await firestore

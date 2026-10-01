@@ -63,7 +63,14 @@ function unpack(v:any):any {
 async function firestore(path:string,token:string,optional=false) {
  const res=await fetch(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/${path}`,{headers:{Authorization:`Bearer ${token}`}});
  if(res.status===404 && optional)return {};
- if(!res.ok)throw new Failure(res.status===403?"You no longer have access to this space or task.":"Could not verify space access. Try again.",res.status===403?403:503);
+ if(!res.ok) {
+  const detail=await res.json().catch(()=>({}));
+  const code=detail.error?.status ?? `HTTP_${res.status}`;
+  console.error('Media Firestore access failed',res.status,code);
+  if(code==='RESOURCE_EXHAUSTED')throw new Failure('Firestore quota reached. Shared photos will be available when the quota resets.',503);
+  if(code==='UNAUTHENTICATED')throw new Failure('Sign in again to load shared photos.',401);
+  throw new Failure(code==='PERMISSION_DENIED'?"You no longer have access to this space or task.":`Could not verify space access (${code}). Try again.`,code==='PERMISSION_DENIED'?403:503);
+ }
  const body=await res.json();return Object.fromEntries(Object.entries(body.fields??{}).map(([k,v])=>[k,unpack(v)]));
 }
 async function member(space:string,auth:{uid:string,token:string}) {

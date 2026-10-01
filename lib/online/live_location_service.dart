@@ -27,6 +27,7 @@ class LiveLocationService {
   bool _sending = false;
   int _sharingRevision = 0;
   bool _startPending = false;
+  bool _retryingStops = false;
 
   final ValueNotifier<bool> isSharing = ValueNotifier(false);
   final ValueNotifier<bool> stopPending = ValueNotifier(false);
@@ -401,24 +402,29 @@ class LiveLocationService {
 
   Future<void> _retryStops() async {
     final backend = _backend;
-    if (backend == null) return;
-    for (final entry in _pendingStops.entries.toList()) {
-      if (entry.value.isBefore(DateTime.now().toUtc())) {
-        _pendingStops.remove(entry.key);
-        continue;
+    if (backend == null || _retryingStops) return;
+    _retryingStops = true;
+    try {
+      for (final entry in _pendingStops.entries.toList()) {
+        if (entry.value.isBefore(DateTime.now().toUtc())) {
+          _pendingStops.remove(entry.key);
+          continue;
+        }
+        if (backend.auth.currentUser?.uid != entry.key.$1) continue;
+        try {
+          await backend.call('stopLocationSession', {'spaceId': entry.key.$2});
+          _pendingStops.remove(entry.key);
+        } catch (_) {
+          // Retry while signed in; server rules deny reads once expiry is reached.
+        }
       }
-      if (backend.auth.currentUser?.uid != entry.key.$1) continue;
-      try {
-        await backend.call('stopLocationSession', {'spaceId': entry.key.$2});
-        _pendingStops.remove(entry.key);
-      } catch (_) {
-        // Retry while signed in; server rules deny reads once expiry is reached.
+      stopPending.value = _hasCurrentAccountStops;
+      if (_pendingStops.isEmpty) {
+        _retryTimer?.cancel();
+        _retryTimer = null;
       }
-    }
-    stopPending.value = _hasCurrentAccountStops;
-    if (_pendingStops.isEmpty) {
-      _retryTimer?.cancel();
-      _retryTimer = null;
+    } finally {
+      _retryingStops = false;
     }
   }
 }
