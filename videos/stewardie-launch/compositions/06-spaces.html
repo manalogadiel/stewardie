@@ -350,21 +350,58 @@
           z-index: 5;
         }
         .feature-badge {
-          background: rgba(255, 255, 255, 0.75);
-          backdrop-filter: blur(24px) saturate(180%);
+          background: #ffffff;
           padding: 16px 26px;
           border-radius: 24px;
-          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 1px 1px rgba(199, 210, 254, 0.4);
+          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.1), 0 4px 12px rgba(32, 38, 51, 0.05);
           font-size: 18px;
           font-weight: 700;
           color: #1f2937;
           display: flex;
           align-items: center;
           gap: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.9);
+          border: none;
         }
         .badge-icon {
           font-size: 24px;
+        }
+
+        /* Dynamic Island Top Concealment Patch */
+        .dynamic-island {
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 114px;
+          height: 30px;
+          background: #000000;
+          border-radius: 999px;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 12px;
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+          pointer-events: none;
+        }
+        .di-camera {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #030712 60%, #000000 100%);
+          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.4);
+        }
+        .di-sensor {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #070d18;
+        }
+        .screen-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
         .mascot-mood {
           width: 230px;
@@ -396,69 +433,16 @@
             <div class="phone-mockup" data-layout-allow-overflow>
               <div class="phone-inner-wrap">
                 <div class="screen-inner" data-layout-allow-overflow>
-                  <!-- Authentic Flutter Shared Calendar Base Screen -->
-                  <img src="assets/screens/calendar.png" alt="Stewardie Shared Calendar" class="screen-bg" />
+                  <!-- Dynamic Island Top Concealment Patch -->
+                  <div class="dynamic-island" data-layout-allow-overlap>
+                    <div class="di-camera"></div>
+                    <div class="di-sensor"></div>
+                  </div>
 
-                  <!-- Shared Plan Card Overlay -->
-                  <div class="plan-card-overlay" id="el-plan-card" data-layout-allow-overlap data-layout-allow-occlusion>
-                    <div class="plan-top" data-layout-allow-overlap data-layout-allow-occlusion>
-                    <span class="plan-tag" data-layout-allow-overlap data-layout-allow-occlusion>Crew Event</span>
-                    <span style="font-size: 12px; font-weight: 700; color: #1e40af;" data-layout-allow-overlap data-layout-allow-occlusion>Saturday</span>
-                  </div>
-                  <div class="plan-name" data-layout-allow-overlap data-layout-allow-occlusion>Saturday Deep Clean &amp; Pizza 🍕</div>
-                  <div class="plan-meta" data-layout-allow-overlap data-layout-allow-occlusion>🕒 6:00 PM • Apartment 4B Lounge</div>
-                  <div class="plan-crew" data-layout-allow-overlap data-layout-allow-occlusion>
-                    <div class="crew-avatar">J</div>
-                    <div class="crew-avatar alex">A</div>
-                    <div class="crew-avatar sam">S</div>
-                    <span style="font-size: 11px; font-weight: 700; color: #474f5e; margin-left: 6px;" data-layout-allow-overlap data-layout-allow-occlusion>All 4 attending</span>
-                  </div>
+                  <!-- Authentic Flutter Shared Plans & Moods Screencast Video -->
+                  <video class="screen-video" src="assets/screencast/06_spaces_screencast.mp4" autoplay muted playsinline loop></video>
                 </div>
-
-                <!-- Authentic MoodSheet -->
-                <div class="mood-sheet" id="el-mood-sheet" data-layout-allow-overflow data-layout-allow-overlap>
-                  <div class="sheet-drag"></div>
-                  <div class="sheet-caption">A moment for you</div>
-                  <div class="sheet-headline">How are you feeling today?</div>
-
-                  <div class="moods-grid">
-                    <div class="mood-option selected" id="opt-happy">
-                      <img src="assets/illustrations/mood-butter-happy.png" alt="Happy" class="mood-face-img" />
-                      <span class="mood-face-name">Happy</span>
-                    </div>
-                    <div class="mood-option">
-                      <img src="assets/illustrations/mood-butter-calm.png" alt="Calm" class="mood-face-img" />
-                      <span class="mood-face-name">Calm</span>
-                    </div>
-                    <div class="mood-option">
-                      <img src="assets/illustrations/mood-butter-tired.png" alt="Tired" class="mood-face-img" />
-                      <span class="mood-face-name">Tired</span>
-                    </div>
-                    <div class="mood-option">
-                      <img src="assets/illustrations/mood-butter-excited.png" alt="Excited" class="mood-face-img" />
-                      <span class="mood-face-name">Excited</span>
-                    </div>
-                    <div class="mood-option">
-                      <img src="assets/illustrations/mood-butter-overwhelmed.png" alt="Overwhelmed" class="mood-face-img" />
-                      <span class="mood-face-name">Overwhelmed</span>
-                    </div>
-                    <div class="mood-option">
-                      <img src="assets/illustrations/mood-butter-sad.png" alt="Sad" class="mood-face-img" />
-                      <span class="mood-face-name">Sad</span>
-                    </div>
-                  </div>
-
-                  <div class="mood-note-box" id="el-note-box">
-                    Crushed my exam, ready to celebrate! 🎉
-                  </div>
-
-                  <button class="mood-share-btn" id="el-share-btn">Share Check-In</button>
-                </div>
-
-                <!-- Cursor -->
-                <div class="cursor-pointer" id="el-cursor"></div>
               </div>
-            </div>
             </div>
           </div>
 
@@ -521,72 +505,27 @@
             ease: "sine.inOut"
           }, 1.2);
 
-          // Calendar Plan card pops up at 1.8s
-          tl.fromTo("#el-plan-card", {
-            scale: 0.85,
-            opacity: 0,
-            y: 20
-          }, {
-            scale: 1,
-            opacity: 1,
-            y: 0,
-            duration: 0.8,
-            ease: "back.out(1.8)"
-          }, 1.8);
-
-          // Mood Sheet slides up at 5.5s (synced with narration shift to moods)
-          tl.to("#el-plan-card", { opacity: 0, duration: 0.4 }, 5.5);
-          tl.to("#el-mood-sheet", {
-            y: "0%",
-            duration: 1.0,
-            ease: "power3.out"
-          }, 5.5);
-
-          // Cursor selects Happy Butter at 7.0s
-          tl.fromTo("#el-cursor", {
-            x: 240,
-            y: 580,
-            opacity: 0
-          }, {
-            x: 75,
-            y: 285,
-            opacity: 1,
-            duration: 0.7,
+          // Dynamic camera focus pull on map location pin & mood check-in
+          tl.to("#el-phone", {
+            scale: 1.08,
+            duration: 1.5,
             ease: "power2.out"
-          }, 6.8);
-
-          // Tap Happy
-          tl.to("#opt-happy", {
-            scale: 0.92,
-            duration: 0.15,
-            yoyo: true,
-            repeat: 1
-          }, 7.5);
-
-          // Cursor moves to Share Check-In button at 8.0s
-          tl.to("#el-cursor", {
-            x: 160,
-            y: 475,
-            duration: 0.6,
+          }, 3.0);
+          tl.to("#el-phone", {
+            scale: 1.0,
+            duration: 1.5,
             ease: "power2.inOut"
-          }, 8.0);
-
-          // Tap Share (synced with mood_checked_in.wav at 8.8s)
-          tl.to("#el-share-btn", {
-            scale: 0.95,
-            duration: 0.15,
-            yoyo: true,
-            repeat: 1
-          }, 8.7);
-          tl.to("#el-cursor", { opacity: 0, duration: 0.3 }, 8.9);
-
-          // Celebration glow on selected mood
-          tl.to("#opt-happy", {
-            boxShadow: "0 0 25px rgba(250, 204, 21, 0.8)",
-            duration: 0.5,
-            yoyo: true,
-            repeat: 3
-          }, 8.9);
+          }, 8.5);
+          tl.to("#el-phone", {
+            scale: 1.06,
+            duration: 1.2,
+            ease: "power2.out"
+          }, 10.5);
+          tl.to("#el-phone", {
+            scale: 1.0,
+            duration: 1.2,
+            ease: "power2.inOut"
+          }, 14.5);
 
           // Hold and exit transition at 17.0s
           tl.to("#root", {

@@ -420,54 +420,14 @@
             <div class="phone-mockup" data-layout-allow-overflow>
               <div class="phone-inner-wrap">
                 <div class="screen-inner" data-layout-allow-overflow>
-                  <!-- Authentic Flutter Moments Screen Background -->
-                  <img src="assets/screens/moments.png" alt="Stewardie Moments Screen" class="screen-bg" />
-
-                  <!-- Authentic ClayTelevision Frame Overlay -->
-                  <div class="clay-tv" id="el-clay-tv" data-layout-allow-overlap>
-                    <div class="tv-antenna-left"></div>
-                    <div class="tv-antenna-right"></div>
-                    <div class="tv-screen-bezel">
-                      <div class="tv-screen">
-                        <img src="assets/illustrations/moments-selfie-group.png" alt="Crew Selfie" class="tv-photo" />
-                        <div class="tv-meta-bar">
-                          <div class="tv-caption">Taco Tuesday with the crew! 🌮</div>
-                          <div class="tv-author">Shared by Jamie • Just now</div>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="tv-controls">
-                      <div class="tv-dial-group">
-                        <div class="tv-dial"></div>
-                        <div class="tv-dial"></div>
-                      </div>
-                      <div class="tv-speaker-slits">
-                        <div class="tv-slit"></div>
-                        <div class="tv-slit"></div>
-                        <div class="tv-slit"></div>
-                      </div>
-                    </div>
+                  <!-- Dynamic Island Top Concealment Patch -->
+                  <div class="dynamic-island" data-layout-allow-overlap>
+                    <div class="di-camera"></div>
+                    <div class="di-sensor"></div>
                   </div>
 
-                  <!-- Reaction Bar -->
-                  <div class="reaction-bar" id="el-reaction-bar" data-layout-allow-overlap>
-                    <button class="reaction-btn">
-                      <span style="font-size: 18px;">💖</span>
-                      <span id="el-count-heart">4</span>
-                    </button>
-                    <button class="reaction-btn">
-                      <span style="font-size: 18px;">🎉</span>
-                      <span id="el-count-cheer">2</span>
-                    </button>
-                    <button class="reaction-btn">
-                      <span style="font-size: 18px;">😂</span>
-                      <span>3</span>
-                    </button>
-                    <button class="reaction-btn">
-                      <span style="font-size: 18px;">👍</span>
-                      <span>5</span>
-                    </button>
-                  </div>
+                  <!-- Authentic Flutter Moments Screencast Video -->
+                  <video class="screen-video" src="assets/screencast/04_moments_screencast.mp4" autoplay muted playsinline loop></video>
 
                   <!-- Animated Flying Clay Reactions -->
                   <img src="assets/illustrations/reaction-heart.png" alt="Clay Heart" class="flying-reaction" id="el-heart" data-layout-allow-overlap />
@@ -486,8 +446,8 @@
               <span>Encrypted Intimate Circle</span>
             </div>
             <div class="feature-badge" id="el-badge2">
-              <div class="badge-icon">📺</div>
-              <span>Retro Clay TV Frame</span>
+              <div class="badge-icon">📍</div>
+              <span>Location Tags &amp; Clay Reactions</span>
             </div>
             <img src="assets/illustrations/tour-moment-camera.png" alt="Camera Mascot" class="mascot-camera" id="el-mascot" />
           </div>
@@ -539,9 +499,9 @@
           }, 1.2);
 
           // Camera shutter click at 2.0s (synced with capture.wav)
-          tl.to("#el-clay-tv", {
-            scale: 1.03,
-            filter: "brightness(1.2)",
+          tl.to("#el-phone", {
+            scale: 1.02,
+            filter: "brightness(1.15)",
             duration: 0.1,
             yoyo: true,
             repeat: 1
@@ -563,7 +523,6 @@
             duration: 0.9,
             ease: "power2.out"
           }, 3.5);
-          tl.to("#el-count-heart", { innerText: "5", color: "#e11d48", duration: 0.2 }, 3.6);
           tl.to("#el-heart", { opacity: 0, y: -230, duration: 0.7, ease: "power2.in", overwrite: "auto" }, 4.4);
 
           // Cheer: launches high center
@@ -581,7 +540,6 @@
             duration: 0.9,
             ease: "power2.out"
           }, 3.7);
-          tl.to("#el-count-cheer", { innerText: "3", color: "#e11d48", duration: 0.2 }, 3.8);
           tl.to("#el-cheer", { opacity: 0, y: -270, duration: 0.7, ease: "power2.in", overwrite: "auto" }, 4.6);
 
           // Haha: launches right with tilt

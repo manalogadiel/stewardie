@@ -422,21 +422,58 @@
           z-index: 5;
         }
         .feature-badge {
-          background: rgba(255, 255, 255, 0.75);
-          backdrop-filter: blur(24px) saturate(180%);
+          background: #ffffff;
           padding: 16px 26px;
           border-radius: 24px;
-          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.95), 0 0 1px 1px rgba(199, 210, 254, 0.4);
+          box-shadow: 0 16px 40px rgba(32, 38, 51, 0.1), 0 4px 12px rgba(32, 38, 51, 0.05);
           font-size: 18px;
           font-weight: 700;
           color: #1f2937;
           display: flex;
           align-items: center;
           gap: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.9);
+          border: none;
         }
         .badge-icon {
           font-size: 24px;
+        }
+
+        /* Dynamic Island Top Concealment Patch */
+        .dynamic-island {
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 114px;
+          height: 30px;
+          background: #000000;
+          border-radius: 999px;
+          z-index: 100;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 12px;
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+          pointer-events: none;
+        }
+        .di-camera {
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: radial-gradient(circle at 35% 35%, #1e293b 0%, #030712 60%, #000000 100%);
+          box-shadow: inset 0 0 2px rgba(56, 189, 248, 0.4);
+        }
+        .di-sensor {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #070d18;
+        }
+        .screen-video {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
         .mascot-explorer {
           width: 240px;
@@ -454,7 +491,7 @@
             <div class="section-tag" id="el-tag">Private Location Sharing</div>
             <h2 class="section-title" id="el-title">Peace of Mind <br><span class="gradient-emerald">Without 24/7 Tracking</span></h2>
             <p class="section-body" id="el-body">
-              Wondering when everyone will be back for dinner? See estimated arrival times and battery levels during active 15-minute windows—keeping everyone in the loop without invasive tracking.
+              Wondering when everyone will be back for dinner? See estimated arrival times during active 15-minute windows—keeping everyone in the loop without invasive 24/7 tracking.
             </p>
           </div>
 
@@ -468,67 +505,17 @@
             <div class="phone-mockup" data-layout-allow-overflow>
               <div class="phone-inner-wrap">
                 <div class="screen-inner" data-layout-allow-overflow>
-                  <!-- Authentic Flutter Space Screen Base -->
-                  <img src="assets/screens/space.png" alt="Stewardie Space Screen" class="screen-bg" />
-
-                <!-- Authentic SpaceMapSheet Slide-Up -->
-                <div class="map-sheet" id="el-map-sheet" data-layout-allow-overflow data-layout-allow-overlap>
-                  <div class="sheet-drag-handle"></div>
-                  <div class="sheet-header">
-                    <div class="sheet-title">Space map</div>
-                    <div class="sheet-privacy">🔒 Private Session</div>
+                  <!-- Dynamic Island Top Concealment Patch -->
+                  <div class="dynamic-island" data-layout-allow-overlap>
+                    <div class="di-camera"></div>
+                    <div class="di-sensor"></div>
                   </div>
 
-                  <div class="map-viewport">
-                    <div class="map-grid-bg"></div>
-                    <div class="map-park">🌲 Riverside Commons</div>
-                    <div class="map-road-1"></div>
-                    <div class="map-road-2"></div>
-
-                    <!-- Jamie Pin (Home) -->
-                    <div class="member-pin" id="pin-jamie">
-                      <div class="pin-callout">
-                        <div class="pin-avatar">J</div>
-                        <div class="pin-text">
-                          <div class="pin-name">Jamie</div>
-                          <div class="pin-status">Home (Wi-Fi) • 92%</div>
-                        </div>
-                      </div>
-                      <div class="pin-point"></div>
-                    </div>
-
-                    <!-- Alex Pin (On the way) -->
-                    <div class="member-pin" id="pin-alex">
-                      <div class="pin-callout">
-                        <div class="pin-avatar alex">A</div>
-                        <div class="pin-text">
-                          <div class="pin-name">Alex</div>
-                          <div class="pin-status">On the way • 10m away • 🔋 78%</div>
-                        </div>
-                      </div>
-                      <div class="pin-point alex"></div>
-                    </div>
-                  </div>
-
-                  <!-- Live Location Pill Card -->
-                  <div class="live-pill-card">
-                    <div class="live-pill-top">
-                      <div class="live-indicator">
-                        <div class="live-dot"></div>
-                        <span>Live Sharing Active</span>
-                      </div>
-                      <div class="live-timer">14:52 remaining</div>
-                    </div>
-                    <div class="duration-options">
-                      <div class="duration-btn active">15 min</div>
-                      <div class="duration-btn">30 min</div>
-                      <div class="duration-btn">60 min</div>
-                    </div>
-                  </div>
+                  <!-- Authentic Flutter Space Map Screencast Video -->
+                  <video class="screen-video" src="assets/screencast/05_location_screencast.mp4" autoplay muted playsinline loop></video>
                 </div>
               </div>
             </div>
-          </div>
           </div>
 
           <!-- Floating Right Badges & Mascot -->
@@ -538,8 +525,8 @@
               <span>Temporary 15m Windows</span>
             </div>
             <div class="feature-badge" id="el-badge2">
-              <div class="badge-icon">🔋</div>
-              <span>Battery &amp; Arrival Signals</span>
+              <div class="badge-icon">⚡</div>
+              <span>Instant Arrival Signals</span>
             </div>
             <img src="assets/illustrations/mascot-map-explorer.png" alt="Explorer Mascot" class="mascot-explorer" id="el-mascot" />
           </div>
@@ -590,35 +577,17 @@
             ease: "sine.inOut"
           }, 1.2);
 
-          // Map Sheet slides up at 1.5s (synced with location_start.wav)
-          tl.to("#el-map-sheet", {
-            y: "0%",
-            duration: 1.0,
-            ease: "power3.out"
-          }, 1.5);
-
-          // Member Pins drop in with spring bounce
-          tl.from("#pin-jamie", {
-            y: -30,
-            opacity: 0,
-            duration: 0.7,
-            ease: "back.out(2)"
-          }, 2.4);
-
-          tl.from("#pin-alex", {
-            y: -30,
-            opacity: 0,
-            duration: 0.7,
-            ease: "back.out(2)"
-          }, 2.8);
-
-          // Alex moves along the road
-          tl.to("#pin-alex", {
-            x: 25,
-            y: -20,
-            duration: 4.5,
-            ease: "power1.inOut"
-          }, 3.8);
+          // Dynamic camera focus pull during radar scan at 2.5s
+          tl.to("#el-phone", {
+            scale: 1.08,
+            duration: 1.5,
+            ease: "power2.out"
+          }, 2.5);
+          tl.to("#el-phone", {
+            scale: 1.0,
+            duration: 1.5,
+            ease: "power2.inOut"
+          }, 8.0);
 
           // Hold and exit transition at 16.0s
           tl.to("#root", {
