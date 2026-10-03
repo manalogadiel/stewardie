@@ -93,4 +93,51 @@ void main() {
     );
     client.close();
   });
+  test('expired token retries once with the same mutation receipt', () async {
+    var requests = 0, refreshes = 0;
+    final client = CoreDataClient(
+      idToken: () async => 'old',
+      refreshIdToken: () async {
+        refreshes++;
+        return 'new';
+      },
+      accountId: () => 'same-user',
+      client: MockClient((request) async {
+        requests++;
+        expect(jsonDecode(request.body)['payload']['operationId'], 'stable');
+        expect(
+          request.headers['Authorization'],
+          requests == 1 ? 'Bearer old' : 'Bearer new',
+        );
+        return requests == 1
+            ? http.Response('{"error":"Expired"}', 401)
+            : http.Response('{"ok":true}', 200);
+      }),
+    );
+    expect(
+      (await client.call('createSpace', {'operationId': 'stable'}))['ok'],
+      true,
+    );
+    expect(requests, 2);
+    expect(refreshes, 1);
+    client.close();
+  });
+  test('account switch drops the previous account response', () async {
+    var account = 'first';
+    final client = CoreDataClient(
+      idToken: () async => 'token',
+      accountId: () => account,
+      client: MockClient((_) async {
+        account = 'second';
+        return http.Response('{"spaces":[]}', 200);
+      }),
+    );
+    await expectLater(
+      client.call('listSpaces'),
+      throwsA(
+        isA<CoreDataException>().having((e) => e.statusCode, 'status', 401),
+      ),
+    );
+    client.close();
+  });
 }

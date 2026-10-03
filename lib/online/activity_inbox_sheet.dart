@@ -5,6 +5,7 @@ import 'online_backend.dart';
 import '../core/member_avatar.dart';
 import '../core/theme.dart';
 import 'operator_review_sheet.dart';
+import 'space_map_sheet.dart';
 
 /// Task requests remain visible even if scheduled notifications are unavailable.
 class ActivityInboxSheet extends StatelessWidget {
@@ -13,6 +14,7 @@ class ActivityInboxSheet extends StatelessWidget {
     required this.backend,
     required this.spaceNames,
     this.onOpenSpace,
+    this.onSelectSpace,
     this.onOpenTask,
     this.onOpenOwnership,
     this.onOpenMoments,
@@ -22,6 +24,7 @@ class ActivityInboxSheet extends StatelessWidget {
   final OnlineBackend backend;
   final Map<String, String> spaceNames;
   final Future<void> Function(String spaceId)? onOpenSpace;
+  final Future<void> Function(String spaceId)? onSelectSpace;
   final Future<void> Function(String spaceId, String taskId)? onOpenTask;
   final Future<void> Function(String spaceId)? onOpenOwnership;
   final Future<void> Function(String spaceId)? onOpenMoments;
@@ -49,13 +52,14 @@ class ActivityInboxSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = backend.auth.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();
+    String? selectedSpace;
     final collection = backend.firestore.collection('accounts/$uid/activity');
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * .65,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: collection
             .orderBy('createdAt', descending: true)
-            .limit(60)
+            .limit(200)
             .snapshots(),
         builder: (context, snapshot) {
           final items = (snapshot.data?.docs ?? [])
@@ -66,28 +70,77 @@ class ActivityInboxSheet extends StatelessWidget {
                         spaceNames.containsKey(doc.data()['spaceId'])),
               )
               .toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            children: [
-              Text(
-                'Notifications',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              if (snapshot.hasError)
-                const ListTile(
-                  title: Text('Could not load activity. Try again later.'),
-                ),
-              if (!snapshot.hasError &&
-                  snapshot.connectionState == ConnectionState.waiting)
-                const LinearProgressIndicator(),
-              ...requests,
-              if (items.isEmpty &&
-                  requests.isEmpty &&
-                  !snapshot.hasError &&
-                  snapshot.hasData)
-                const ListTile(title: Text('You’re all caught up.')),
-              for (final doc in items) _historyItem(context, doc, uid),
-            ],
+          return StatefulBuilder(
+            builder: (context, setFilter) {
+              final visible = selectedSpace == null
+                  ? items
+                  : items
+                        .where((doc) => doc.data()['spaceId'] == selectedSpace)
+                        .toList();
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                children: [
+                  Text(
+                    'Notifications',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  if (snapshot.hasError)
+                    const ListTile(
+                      title: Text('Could not load activity. Try again later.'),
+                    ),
+                  if (!snapshot.hasError &&
+                      snapshot.connectionState == ConnectionState.waiting)
+                    const LinearProgressIndicator(),
+                  if (selectedSpace != null)
+                    TextButton.icon(
+                      onPressed: () => setFilter(() => selectedSpace = null),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      label: const Text('All spaces'),
+                    ),
+                  for (final entry in spaceNames.entries)
+                    if (selectedSpace == null)
+                      Card(
+                        elevation: 2,
+                        color: SoftPop.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: ListTile(
+                          leading: const Icon(Icons.notifications_rounded),
+                          title: Text(entry.value),
+                          subtitle: Text(
+                            '${items.where((doc) => doc.data()['spaceId'] == entry.key && doc.data()['readAt'] == null).length} unread notifications',
+                          ),
+                          onTap: () async {
+                            try {
+                              await onSelectSpace?.call(entry.key);
+                              if (context.mounted) {
+                                setFilter(() => selectedSpace = entry.key);
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'This space is no longer available.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                  if (selectedSpace == null) ...requests,
+                  if (visible.isEmpty &&
+                      requests.isEmpty &&
+                      !snapshot.hasError &&
+                      snapshot.hasData)
+                    const ListTile(title: Text('Youâ€™re all caught up.')),
+                  for (final doc in visible) _historyItem(context, doc, uid),
+                ],
+              );
+            },
           );
         },
       ),
@@ -161,7 +214,7 @@ class ActivityInboxSheet extends StatelessWidget {
           if (doc.data()['createdAt'] is Timestamp)
             '${MaterialLocalizations.of(context).formatMediumDate((doc.data()['createdAt'] as Timestamp).toDate().toLocal())} '
                 '${TimeOfDay.fromDateTime((doc.data()['createdAt'] as Timestamp).toDate().toLocal()).format(context)}',
-        ].where((text) => text.isNotEmpty).join(' · '),
+        ].where((text) => text.isNotEmpty).join(' Â· '),
       ),
       onTap: () async {
         if ((doc.data()['reportId'] is String ||
@@ -206,6 +259,64 @@ class ActivityInboxSheet extends StatelessWidget {
         final kind = doc.data()['kind'] as String?;
         final taskId =
             (doc.data()['taskId'] ?? doc.data()['entityId']) as String?;
+        if (kind == 'locationRequested' && taskId != null) {
+          try {
+            final request = await backend.call('getLocationRequest', {
+              'spaceId': spaceId,
+              'requestId': taskId,
+            });
+            if (!context.mounted) return;
+            if (request['active'] != true) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('This location request has ended.'),
+                ),
+              );
+              return;
+            }
+            final decision = await showDialog<String>(
+              context: context,
+              builder: (dialog) => AlertDialog(
+                title: const Text('Share your location?'),
+                content: Text(
+                  'A member of ${spaceNames[spaceId]} asked for your location. You choose the duration and can stop anytime.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialog, 'declined'),
+                    child: const Text('Not now'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(dialog, 'reviewed'),
+                    child: const Text('Choose duration'),
+                  ),
+                ],
+              ),
+            );
+            if (decision == null) return;
+            await backend.call('resolveLocationRequest', {
+              'spaceId': spaceId,
+              'requestId': taskId,
+              'decision': decision,
+            });
+            if (context.mounted && decision == 'reviewed') {
+              await onSelectSpace?.call(spaceId);
+              if (context.mounted) {
+                await SpaceMapSheet.show(
+                  context,
+                  backend: backend,
+                  spaceId: spaceId,
+                );
+              }
+            }
+          } catch (error) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context)
+                  .showSnackBar(SnackBar(content: Text(error.toString())));
+            }
+          }
+          return;
+        }
         if (taskId != null &&
             [
               'taskAssigned',

@@ -13,7 +13,7 @@ String? liveRequestKey(
 }
 
 String? unreadActivityKey(String id, Map<String, dynamic> item) {
-  if (item['pushState'] == 'cancelled') return null;
+  if (item['pushState'] == 'cancelled' || item['readAt'] != null) return null;
   final spaceId = item['spaceId'] as String?;
   if (spaceId == null) {
     return item['accountNotice'] == true ? 'activity:$id' : null;

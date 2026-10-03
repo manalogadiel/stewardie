@@ -104,19 +104,39 @@ class PhotoViewer extends ConsumerStatefulWidget {
 
 class _PhotoViewerState extends ConsumerState<PhotoViewer> {
   late final _full = ref.read(mediaLibraryProvider).fullPhoto(widget.photo);
+  static final _paletteCache = <String, Future<List<int>>>{};
   bool saving = false;
+  bool _zoomed = false;
+  void _zoomChanged() {
+    final next = _transform.value.getMaxScaleOnAxis() > 1.001;
+    if (mounted && next != _zoomed) setState(() => _zoomed = next);
+  }
+
   final _transform = TransformationController();
   List<Color> _palette = [SoftPop.canvas, SoftPop.surface];
   @override
   void initState() {
     super.initState();
-    compute(photoPalette, widget.photo.photo.thumbnail).then((colors) {
-      if (mounted) setState(() => _palette = colors.map(Color.new).toList());
-    });
+    _transform.addListener(_zoomChanged);
+    final key =
+        '${widget.photo.spaceId}/${widget.photo.id}/${widget.photo.createdAt.millisecondsSinceEpoch}';
+    if (_paletteCache.length >= 64 && !_paletteCache.containsKey(key)) {
+      _paletteCache.remove(_paletteCache.keys.first);
+    }
+    (_paletteCache[key] ??= compute(photoPalette, widget.photo.photo.thumbnail))
+        .then((colors) {
+          if (mounted) {
+            setState(() => _palette = colors.map(Color.new).toList());
+          }
+        })
+        .catchError((Object _) {
+          // A corrupt/offline thumbnail retains the cream fallback.
+        });
   }
 
   @override
   void dispose() {
+    _transform.removeListener(_zoomChanged);
     _transform.dispose();
     super.dispose();
   }
@@ -147,138 +167,146 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
         .firstWhere((s) => s.id == widget.photo.spaceId);
     final author = space.member(widget.photo.uploaderId).name;
     final caption = widget.photo.taskTitle ?? widget.photo.caption;
-    return Scaffold(
-      backgroundColor: SoftPop.canvas,
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: _palette,
+    return PopScope<void>(
+      canPop: !_zoomed,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _transform.value = Matrix4.identity();
+      },
+      child: Scaffold(
+        backgroundColor: SoftPop.canvas,
+        body: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: _palette,
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Close photo',
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                    Expanded(
-                      child: Text(
-                        author,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+          child: SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Close photo',
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Save photo',
-                      icon: const Icon(Icons.download_rounded),
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              setState(() => saving = true);
-                              try {
-                                showMessage(
-                                  await exportPhoto(
-                                    await _full,
-                                    widget.photo.id,
-                                  ),
-                                );
-                              } catch (_) {
-                                showMessage(
-                                  'Could not save this photo. Check permissions and try again.',
-                                );
-                              } finally {
-                                if (mounted) setState(() => saving = false);
-                              }
-                            },
-                    ),
-                  ],
+                      Expanded(
+                        child: Text(
+                          author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Save photo',
+                        icon: const Icon(Icons.download_rounded),
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                setState(() => saving = true);
+                                try {
+                                  showMessage(
+                                    await exportPhoto(
+                                      await _full,
+                                      widget.photo.id,
+                                    ),
+                                  );
+                                } catch (_) {
+                                  showMessage(
+                                    'Could not save this photo. Check permissions and try again.',
+                                  );
+                                } finally {
+                                  if (mounted) setState(() => saving = false);
+                                }
+                              },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: InteractiveViewer(
-                  transformationController: _transform,
-                  minScale: 1,
-                  maxScale: 5,
-                  child: GestureDetector(
-                    onDoubleTap: () => _transform.value = Matrix4.identity(),
-                    child: SizedBox.expand(
-                      child: FutureBuilder(
-                        future: _full,
-                        builder: (context, snapshot) => snapshot.hasError
-                            ? const Center(
-                                child: Text(
-                                  'Could not load this photo. Close and try again.',
+                Expanded(
+                  child: InteractiveViewer(
+                    transformationController: _transform,
+                    minScale: 1,
+                    maxScale: 5,
+                    child: GestureDetector(
+                      onDoubleTap: () => _transform.value = Matrix4.identity(),
+                      child: SizedBox.expand(
+                        child: FutureBuilder(
+                          future: _full,
+                          builder: (context, snapshot) => snapshot.hasError
+                              ? const Center(
+                                  child: Text(
+                                    'Could not load this photo. Close and try again.',
+                                  ),
+                                )
+                              : FramedPhoto(
+                                  bytes:
+                                      snapshot.data ??
+                                      widget.photo.photo.thumbnail,
+                                  framing: widget.photo.framing,
+                                  fit: BoxFit.contain,
                                 ),
-                              )
-                            : Image.memory(
-                                snapshot.data ?? widget.photo.photo.thumbnail,
-                                fit: BoxFit.contain,
-                                gaplessPlayback: true,
-                              ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: caption.isEmpty
-                          ? const SizedBox.shrink()
-                          : InkWell(
-                              onTap: () => showModalBottomSheet<void>(
-                                context: context,
-                                useSafeArea: true,
-                                showDragHandle: true,
-                                builder: (_) => SingleChildScrollView(
-                                  padding: const EdgeInsets.all(20),
-                                  child: Text(caption),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: caption.isEmpty
+                            ? const SizedBox.shrink()
+                            : InkWell(
+                                onTap: () => showModalBottomSheet<void>(
+                                  context: context,
+                                  useSafeArea: true,
+                                  showDragHandle: true,
+                                  builder: (_) => SingleChildScrollView(
+                                    padding: const EdgeInsets.all(20),
+                                    child: Text(caption),
+                                  ),
+                                ),
+                                child: Text(
+                                  caption,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              child: Text(
-                                caption,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                    ),
-                    Material(
-                      color: SoftPop.surface,
-                      elevation: 2,
-                      shadowColor: SoftPop.ink.withValues(alpha: .12),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: widget.photo.pin == null
-                            ? 'No location attached'
-                            : 'Taken here',
-                        onPressed: () => widget.photo.pin == null
-                            ? showMessage('No location attached.')
-                            : showPhotoLocation(context, widget.photo),
-                        icon: Icon(
-                          widget.photo.pin == null
-                              ? Icons.location_off_rounded
-                              : Icons.place_rounded,
+                      ),
+                      Material(
+                        color: SoftPop.surface,
+                        elevation: 2,
+                        shadowColor: SoftPop.ink.withValues(alpha: .12),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: widget.photo.pin == null
+                              ? 'No location attached'
+                              : 'Taken here',
+                          onPressed: () => widget.photo.pin == null
+                              ? showMessage('No location attached.')
+                              : showPhotoLocation(context, widget.photo),
+                          icon: Icon(
+                            widget.photo.pin == null
+                                ? Icons.location_off_rounded
+                                : Icons.place_rounded,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              PhotoReactions(photo: widget.photo, compact: true),
-              if (saving)
-                const SizedBox(height: 2, child: LinearProgressIndicator()),
-            ],
+                PhotoReactions(photo: widget.photo, compact: true),
+                if (saving)
+                  const SizedBox(height: 2, child: LinearProgressIndicator()),
+              ],
+            ),
           ),
         ),
       ),

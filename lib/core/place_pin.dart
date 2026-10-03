@@ -7,6 +7,13 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'theme.dart';
+import 'place_search.dart';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../online/member_location_pin.dart';
 import 'stewardie_map.dart';
 import 'place_names.dart';
 import '../online/live_location_service.dart';
@@ -90,6 +97,62 @@ class _PlacePickerState extends State<_PlacePicker> {
   late final note = TextEditingController(text: widget.initial?.note);
   LatLng? point;
   LatLng? _center;
+  LatLng? _selfPoint;
+  Timer? _searchTimer;
+  int _searchRevision = 0;
+  bool _searching = false;
+  List<PlaceSearchResult> _results = [];
+  final _search = TextEditingController();
+  void _searchChanged(String text) {
+    final revision = ++_searchRevision;
+    _searchTimer?.cancel();
+    setState(() {
+      _results = [];
+      _searching = text.trim().length >= 3;
+    });
+    if (!_searching) return;
+    _searchTimer = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final results = await searchPlaces(
+          text,
+          lat: _center?.latitude,
+          lng: _center?.longitude,
+        );
+        if (mounted && revision == _searchRevision) {
+          setState(() {
+            _results = results;
+            _searching = false;
+          });
+        }
+      } catch (_) {
+        if (mounted && revision == _searchRevision) {
+          setState(() {
+            _searching = false;
+            error = 'Search unavailable. Tap the map instead.';
+          });
+        }
+      }
+    });
+  }
+
+  void _chooseSearch(PlaceSearchResult result) {
+    _nameTimer?.cancel();
+    ++_nameRevision;
+    ++_searchRevision;
+    _searchTimer?.cancel();
+    setState(() {
+      point = LatLng(result.lat, result.lng);
+      label.text = result.name;
+      _naming = false;
+      _results = [];
+      _searching = false;
+      error = null;
+      _userMoved = true;
+    });
+    FocusScope.of(context).unfocus();
+    if (_mapReady) controller.move(point!, 17);
+  }
+
   bool _userMoved = false;
   bool _naming = false;
   int _nameRevision = 0;
@@ -110,6 +173,8 @@ class _PlacePickerState extends State<_PlacePicker> {
 
   @override
   void dispose() {
+    _searchTimer?.cancel();
+    _search.dispose();
     label.dispose();
     _nameTimer?.cancel();
     note.dispose();
@@ -118,6 +183,9 @@ class _PlacePickerState extends State<_PlacePicker> {
 
   void selectPoint(LatLng value) {
     final revision = ++_nameRevision;
+    ++_searchRevision;
+    _searchTimer?.cancel();
+    _results = [];
     _nameTimer?.cancel();
     setState(() {
       point = value;
@@ -127,9 +195,14 @@ class _PlacePickerState extends State<_PlacePicker> {
     });
     _nameTimer = Timer(const Duration(milliseconds: 350), () async {
       final name = await nameForPlace(value.latitude, value.longitude);
+      List<PlaceSearchResult> nearby = [];
+      try {
+        nearby = await nearbyPlaces(value.latitude, value.longitude);
+      } catch (_) {}
       if (!mounted || revision != _nameRevision) return;
       setState(() {
         label.text = name;
+        _results = nearby;
         _naming = false;
       });
     });
@@ -148,6 +221,7 @@ class _PlacePickerState extends State<_PlacePicker> {
       final fix = await LiveLocationService.instance.determinePosition();
       if (fix == null) throw StateError('Location unavailable.');
       if (!mounted) return;
+      setState(() => _selfPoint = LatLng(fix.latitude, fix.longitude));
       if (!select && _userMoved) return;
       setState(() {
         _center = LatLng(fix.latitude, fix.longitude);
@@ -193,6 +267,40 @@ class _PlacePickerState extends State<_PlacePicker> {
               'Tap the map to place a fixed pin. This will be visible to your space.',
             ),
             const SizedBox(height: 12),
+            if (geoapifyKey.isNotEmpty) ...[
+              TextField(
+                controller: _search,
+                onChanged: _searchChanged,
+                decoration: InputDecoration(
+                  hintText: 'Search a place',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: 'Clear search',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () {
+                      _search.clear();
+                      _searchChanged('');
+                    },
+                  ),
+                ),
+              ),
+              if (_searching) const LinearProgressIndicator(),
+              for (final result in _results)
+                ListTile(
+                  title: Text(result.name),
+                  subtitle: Text(
+                    result.address,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => _chooseSearch(result),
+                ),
+              TextButton(
+                onPressed: () =>
+                    launchUrl(Uri.parse('https://www.geoapify.com/')),
+                child: const Text('Powered by Geoapify · OpenStreetMap'),
+              ),
+            ],
             SizedBox(
               height: keyboardOpen
                   ? 160
@@ -219,6 +327,24 @@ class _PlacePickerState extends State<_PlacePicker> {
                     selectPoint(position);
                   },
                   markers: [
+                    if (_selfPoint != null &&
+                        Firebase.apps.isNotEmpty &&
+                        FirebaseAuth.instance.currentUser != null)
+                      Marker(
+                        point: _selfPoint!,
+                        width: 96,
+                        height: MemberLocationPin.sizeFor(context).height,
+                        alignment: Alignment.topCenter,
+                        child: MemberLocationPin(
+                          uid: FirebaseAuth.instance.currentUser!.uid,
+                          name:
+                              FirebaseAuth.instance.currentUser!.displayName ??
+                              'You',
+                          label: 'You',
+                          selected: false,
+                          isMe: true,
+                        ),
+                      ),
                     if (p != null)
                       Marker(
                         point: p,

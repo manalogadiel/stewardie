@@ -14,9 +14,15 @@ class CoreDataException implements Exception {
 /// Firebase identity with Supabase persistence. Never silently falls back to
 /// Firestore: one feature must have one authoritative writer during cutover.
 class CoreDataClient {
-  CoreDataClient({required this.idToken, http.Client? client})
-    : _client = client ?? http.Client();
+  CoreDataClient({
+    required this.idToken,
+    this.refreshIdToken,
+    this.accountId,
+    http.Client? client,
+  }) : _client = client ?? http.Client();
   final Future<String?> Function() idToken;
+  final Future<String?> Function()? refreshIdToken;
+  final String? Function()? accountId;
   final http.Client _client;
   final _reads =
       <
@@ -89,13 +95,21 @@ class CoreDataClient {
     String action, [
     Map<String, dynamic> payload = const {},
   ]) async {
-    final token = await idToken();
+    final identity = accountId?.call();
+    var token = await idToken();
+    void checkIdentity() {
+      if (accountId != null && accountId!() != identity) {
+        throw const CoreDataException('Sign in again.', 401);
+      }
+    }
+
+    checkIdentity();
     if (token == null || token.isEmpty) {
       throw const CoreDataException('Sign in again.', 401);
     }
     late final http.Response response;
     try {
-      response = await _client
+      Future<http.Response> send() => _client
           .post(
             Uri.parse(endpoint),
             headers: {
@@ -105,6 +119,19 @@ class CoreDataClient {
             body: jsonEncode({'action': action, 'payload': payload}),
           )
           .timeout(const Duration(seconds: 30));
+      var received = await send();
+      checkIdentity();
+      if (received.statusCode == 401 && refreshIdToken != null) {
+        token = await refreshIdToken!();
+        checkIdentity();
+        if (token == null || token.isEmpty) {
+          throw const CoreDataException('Sign in again.', 401);
+        }
+        received =
+            await send(); // One auth retry, with the same mutation receipt.
+        checkIdentity();
+      }
+      response = received;
     } on TimeoutException {
       throw const CoreDataException(
         'Waiting for connection. Retry shortly.',

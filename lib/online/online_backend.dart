@@ -130,6 +130,9 @@ class OnlineBackend {
   // Staged migration transport; existing production callers remain unchanged.
   late final CoreDataClient coreData = CoreDataClient(
     idToken: () => auth.currentUser?.getIdToken() ?? Future.value(null),
+    refreshIdToken: () =>
+        auth.currentUser?.getIdToken(true) ?? Future.value(null),
+    accountId: () => auth.currentUser?.uid,
   );
   FirebaseFirestore get firestore =>
       useSupabaseCore && !useEmulator ? coreStore : FirebaseFirestore.instance;

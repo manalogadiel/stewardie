@@ -190,6 +190,9 @@ class CoreBackend {
       case 'deleteRoutine':
       case 'requestHelp':
       case 'takeOverTask':
+      case 'requestLocation':
+      case 'getLocationRequest':
+      case 'resolveLocationRequest':
       case 'startLocationSession':
       case 'updateLocation':
       case 'stopLocationSession':

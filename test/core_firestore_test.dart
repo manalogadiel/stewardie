@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:fake_async/fake_async.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:stewardie/online/core_data_client.dart';
@@ -76,4 +79,40 @@ void main() {
     client.close();
     await store.changes.close();
   });
+  test(
+    'fallback watches pause in background, resume, and stop on cancellation',
+    () {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      fakeAsync((clock) {
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        final client = CoreDataClient(
+          idToken: () async => 'token',
+          client: MockClient((_) async => http.Response('{}', 200)),
+        );
+        final store = CoreFirestore(client);
+        var calls = 0;
+        final subscription = store.watch(() async => ++calls).listen((_) {});
+        clock.flushMicrotasks();
+        expect(calls, 1);
+        clock.elapse(const Duration(seconds: 45));
+        clock.flushMicrotasks();
+        expect(calls, 2);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        clock.elapse(const Duration(seconds: 90));
+        clock.flushMicrotasks();
+        expect(calls, 2);
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        clock.flushMicrotasks();
+        expect(calls, 3);
+        subscription.cancel();
+        clock.flushMicrotasks();
+        clock.elapse(const Duration(seconds: 90));
+        clock.flushMicrotasks();
+        expect(calls, 3);
+        client.close();
+        store.changes.close();
+        clock.flushMicrotasks();
+      });
+    },
+  );
 }

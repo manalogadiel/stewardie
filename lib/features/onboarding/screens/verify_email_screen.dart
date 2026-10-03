@@ -316,7 +316,36 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/branding/stewardie-icon2.png',
+                    width: 44,
+                    height: 44,
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Stewardie',
+                    style: TextStyle(
+                      fontFamily: 'Fredoka',
+                      fontSize: 24,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               const MascotStage(pose: MascotPose.emailVerification),
+              const Text(
+                'Verify your email to confirm it belongs to you and protect your account.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Check Spam or Junk if it has not arrived.',
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 16),
               const StaggeredEntrance(
                 order: 1,

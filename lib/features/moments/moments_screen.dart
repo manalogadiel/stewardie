@@ -8,6 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'moments_loader.dart';
+import 'moment_archive.dart';
+import '../../core/space_time.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -36,7 +38,8 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
   PageController pages = PageController();
   int index = 0;
   String scope = '';
-  Timer? _refreshTimer;
+  Timer? _refreshTimer, _midnightTimer;
+  String? _midnightKey;
   String? _cloudSpace;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _hiddenSub;
   Set<String> _hidden = {};
@@ -57,10 +60,13 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
             }
           });
     }
-    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 45), (_) {
       if (mounted &&
-          WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused &&
+          (WidgetsBinding.instance.lifecycleState == null ||
+              WidgetsBinding.instance.lifecycleState ==
+                  AppLifecycleState.resumed) &&
           _cloudSpace != null) {
+        setState(() {});
         unawaited(ref.read(mediaLibraryProvider).refresh(_cloudSpace!));
       }
     });
@@ -69,6 +75,8 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _cloudSpace != null) {
+      _midnightKey = null;
+      setState(() {});
       unawaited(ref.read(mediaLibraryProvider).refresh(_cloudSpace!));
     }
   }
@@ -91,6 +99,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
+    _midnightTimer?.cancel();
     _hiddenSub?.cancel();
     pages.dispose();
     super.dispose();
@@ -102,7 +111,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
     final repo = ref.read(repositoryProvider);
     final space = repo.spaces.firstWhere((s) => s.id == state.spaceId);
     final recovered = ref.watch(recoveredPhotoProvider);
-    final posts =
+    final allPosts =
         ref
             .watch(mediaProvider)
             .where(
@@ -114,6 +123,34 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
             )
             .toList()
           ..sort((a, b) => b.publishedAt!.compareTo(a.publishedAt!));
+    final today = SpaceTime.localDate(space.timeZone, DateTime.now().toUtc());
+    final midnightKey = '${space.id}/${space.timeZone}/$today';
+    if (_midnightKey != midnightKey) {
+      _midnightKey = midnightKey;
+      _midnightTimer?.cancel();
+      final now = DateTime.now();
+      _midnightTimer = Timer(
+        SpaceTime.nextMidnight(space.timeZone, now).difference(now),
+        () {
+          if (mounted) setState(() => _midnightKey = null);
+        },
+      );
+    }
+    final posts = allPosts
+        .where(
+          (p) => SpaceTime.localDate(space.timeZone, p.publishedAt!) == today,
+        )
+        .toList();
+    final archived = allPosts
+        .where(
+          (p) =>
+              SpaceTime.localDate(
+                space.timeZone,
+                p.publishedAt!,
+              ).compareTo(today) <
+              0,
+        )
+        .toList();
     final library = ref.read(mediaLibraryProvider);
     if (_cloudSpace != space.id) {
       _cloudSpace = space.id;
@@ -180,6 +217,24 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
                 const SizedBox(width: 12),
                 const ClayArt('moments-selfie-group', height: 88, width: 100),
               ],
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ClayAction(
+                icon: const Icon(Icons.inventory_2_rounded),
+                label: const Text('Archive'),
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).push(
+                      MaterialPageRoute(
+                        builder: (_) => MomentArchive(
+                          photos: archived,
+                          spaceId: space.id,
+                          spaceName: space.name,
+                          timeZone: space.timeZone,
+                        ),
+                      ),
+                    ),
+              ),
             ),
             if (repo.isShared && !library.supportsSharing)
               const Text('Photos stay on this device.'),

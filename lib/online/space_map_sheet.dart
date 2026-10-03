@@ -249,6 +249,73 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
     }
   }
 
+  bool _requestingLocation = false;
+  Future<void> _requestLocation() async {
+    final sid = widget.spaceId;
+    if (sid == null || _requestingLocation) return;
+    setState(() => _requestingLocation = true);
+    try {
+      final members = await widget.backend.firestore
+          .collection('spaces/$sid/members')
+          .get();
+      if (!mounted) return;
+      final others = members.docs
+          .where((m) => m.id != widget.backend.auth.currentUser?.uid)
+          .toList();
+      final target = await showDialog<String>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Request a location'),
+          content: SizedBox(
+            width: 320,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'They decide whether to share. Requests expire after 15 minutes.',
+                  ),
+                  const SizedBox(height: 12),
+                  if (others.isEmpty)
+                    const Text('Invite someone to this space first.'),
+                  for (final member in others)
+                    ListTile(
+                      leading: const Icon(Icons.location_on_rounded),
+                      title: Text(member.data()['name'] as String? ?? 'Member'),
+                      onTap: () => Navigator.pop(dialog, member.id),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+      if (target == null) return;
+      await widget.backend.call('requestLocation', {
+        'spaceId': sid,
+        'targetUid': target,
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Location request sent.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _requestingLocation = false);
+    }
+  }
+
   Future<void> _startSharing() async {
     if (_starting) return;
     setState(() {
@@ -442,72 +509,64 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                       }
                     }
 
-                    // Build markers for all active sessions
                     final markers = <Marker>[];
-                    bool userHasSessionMarker = false;
-
-                    for (final s in sessions) {
-                      final lat = (s['lat'] as num?)?.toDouble();
-                      final lng = (s['lng'] as num?)?.toDouble();
-                      if (lat == null || lng == null) continue;
-
-                      final isMe = s['uid'] == myUid;
-                      if (isMe) userHasSessionMarker = true;
-
-                      final name = isMe
-                          ? 'You'
-                          : (s['name'] as String? ?? 'Member');
-                      final isSelected = _selectedMember?['uid'] == s['uid'];
-
-                      markers.add(
-                        Marker(
-                          point: LatLng(lat, lng),
-                          width: 96,
-                          height: MemberLocationPin.sizeFor(context).height,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() => _selectedMember = s);
-                            },
-                            child: _buildPin(
-                              uid: s['uid'] as String? ?? '',
-                              name: isMe ? myRawName : name,
-                              label: isMe ? 'You' : name,
-                              isSelected: isSelected,
-                              isMe: isMe,
-                            ),
-                          ),
-                        ),
+                    final allLocations = List<Map<String, dynamic>>.of(
+                      sessions,
+                    );
+                    final userPoint = _currentUserLatLng;
+                    if (userPoint != null &&
+                        !sessions.any((s) => s['uid'] == myUid)) {
+                      allLocations.add(
+                        _personalLocation(myUid, myRawName, userPoint),
                       );
                     }
-
-                    // Only show a personal pin after a real GPS fix. The map's
-                    // neutral (0, 0) center is never a reported location.
-                    final userPoint = _currentUserLatLng;
-                    if (!userHasSessionMarker && userPoint != null) {
-                      final isSelected = _selectedMember?['uid'] == myUid;
+                    for (final group in groupMemberLocations(allLocations)) {
+                      final first = group.first;
+                      final grouped = group.length > 1;
+                      final columns = group.length.clamp(1, 3);
+                      final rows = (group.length / 3).ceil();
                       markers.add(
                         Marker(
-                          point: userPoint,
-                          width: 96,
-                          height: MemberLocationPin.sizeFor(context).height,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedMember = _personalLocation(
-                                  myUid,
-                                  myRawName,
-                                  userPoint,
-                                );
-                              });
-                            },
-                            child: _buildPin(
-                              uid: myUid ?? '',
-                              name: myRawName,
-                              label: 'You',
-                              isSelected: isSelected,
-                              isMe: true,
-                            ),
+                          point: LatLng(
+                            (first['lat'] as num).toDouble(),
+                            (first['lng'] as num).toDouble(),
                           ),
+                          // The pointer, rather than the avatar center, marks the fix.
+                          alignment: Alignment.topCenter,
+                          width: grouped ? columns * 70.0 + 16 : 96,
+                          height: grouped
+                              ? rows *
+                                        (48 +
+                                            MediaQuery.textScalerOf(context)
+                                                    .scale(11) *
+                                                1.2) +
+                                    15
+                              : MemberLocationPin.sizeFor(context).height,
+                          child: grouped
+                              ? GroupMemberLocationPin(
+                                  members: group,
+                                  currentUid: myUid,
+                                  selectedUid:
+                                      _selectedMember?['uid'] as String?,
+                                  onSelected: (s) =>
+                                      setState(() => _selectedMember = s),
+                                )
+                              : GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _selectedMember = first),
+                                  child: _buildPin(
+                                    uid: first['uid'] as String? ?? '',
+                                    name: first['uid'] == myUid
+                                        ? myRawName
+                                        : first['name'] as String? ?? 'Member',
+                                    label: first['uid'] == myUid
+                                        ? 'You'
+                                        : first['name'] as String? ?? 'Member',
+                                    isSelected:
+                                        _selectedMember?['uid'] == first['uid'],
+                                    isMe: first['uid'] == myUid,
+                                  ),
+                                ),
                         ),
                       );
                     }
@@ -638,6 +697,27 @@ class _SpaceMapSheetState extends State<SpaceMapSheet>
                     ),
                   ),
                 ],
+                if (widget.spaceId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: ElevatedButton.icon(
+                      onPressed: _requestingLocation ? null : _requestLocation,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFF1C7),
+                        foregroundColor: const Color(0xFF202633),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                      icon: const Icon(Icons.person_pin_circle_rounded),
+                      label: Text(
+                        _requestingLocation
+                            ? 'Sending request…'
+                            : 'Request a location',
+                      ),
+                    ),
+                  ),
                 // -- Sharing controls --------------------------------------
                 if (widget.spaceId == null) ...[
                   const SizedBox(height: 20),

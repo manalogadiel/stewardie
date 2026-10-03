@@ -107,6 +107,7 @@ class FirebaseTimelineRepository extends TimelineRepository {
           entry.value['kind'] as String? ?? 'Space',
           _members[entry.key]!,
           currentUserId: currentUserId,
+          timeZone: entry.value['timeZone'] as String? ?? 'UTC',
         ),
   ];
   @override
@@ -378,7 +379,8 @@ class FirebaseTimelineRepository extends TimelineRepository {
         _notify();
         final last = _lastHistoryRefresh[id];
         final now = DateTime.now();
-        if (last == null || now.difference(last) >= const Duration(seconds: 10)) {
+        if (last == null ||
+            now.difference(last) >= const Duration(seconds: 10)) {
           _lastHistoryRefresh[id] = now;
           unawaited(refreshHistory(id));
         }

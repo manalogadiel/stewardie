@@ -334,7 +334,8 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('Taken here'), findsOneWidget);
+      expect(find.byTooltip('Taken here'), findsOneWidget);
+      expect(find.textContaining('Taken here'), findsNothing);
       expect(tester.takeException(), isNull);
       await screenshot(tester, 'moment-page-short-${scale.toInt()}x');
       await tester.pumpWidget(const SizedBox.shrink());

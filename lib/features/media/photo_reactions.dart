@@ -191,7 +191,7 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
                           height: 28,
                           excludeFromSemantics: true,
                         ),
-                        if (count > 0)
+                        if (count > 0 || !widget.compact)
                           Text(
                             '$count',
                             maxLines: 1,

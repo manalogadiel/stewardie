@@ -136,7 +136,9 @@ class _OnlineHomeState extends State<OnlineHome> {
   String? _cachedSpaceDocId;
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedSpaceDocStream;
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _getMembersStream(String spaceId) {
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getMembersStream(
+    String spaceId,
+  ) {
     if (_cachedMembersSpaceId != spaceId || _cachedMembersStream == null) {
       _cachedMembersSpaceId = spaceId;
       _cachedMembersStream = widget.backend.members(spaceId);
@@ -165,8 +167,9 @@ class _OnlineHomeState extends State<OnlineHome> {
   ) {
     if (_cachedSpaceDocId != spaceId || _cachedSpaceDocStream == null) {
       _cachedSpaceDocId = spaceId;
-      _cachedSpaceDocStream =
-          widget.backend.firestore.doc('spaces/$spaceId').snapshots();
+      _cachedSpaceDocStream = widget.backend.firestore
+          .doc('spaces/$spaceId')
+          .snapshots();
     }
     return _cachedSpaceDocStream!;
   }
@@ -429,7 +432,10 @@ class _OnlineHomeState extends State<OnlineHome> {
   ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
     stream: _spacesStream,
     builder: (context, snapshot) {
-      if (_summaryAccount != widget.user.uid) { _summaryAccount = widget.user.uid; _spaceSummaries = []; }
+      if (_summaryAccount != widget.user.uid) {
+        _summaryAccount = widget.user.uid;
+        _spaceSummaries = [];
+      }
       if (snapshot.hasData) _spaceSummaries = snapshot.data!.docs;
       final refs = snapshot.data?.docs ?? _spaceSummaries;
       if (snapshot.hasData) {
@@ -797,7 +803,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                         _countCard('${covered.length}', 'Covered', SoftPop.sky),
                         const SizedBox(width: 8),
                         _countCard(
-                          count == null ? '–' : '$count',
+                          count == null ? 'â€“' : '$count',
                           'Done',
                           SoftPop.rose,
                         ),
@@ -869,7 +875,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                               ? null
                               : () => _loadMore(spaceId, nextCursor),
                           child: Text(
-                            _loadingMore ? 'Loading…' : 'Load older tasks',
+                            _loadingMore ? 'Loadingâ€¦' : 'Load older tasks',
                           ),
                         ),
                     ],
@@ -1270,7 +1276,7 @@ class _OnlineHomeState extends State<OnlineHome> {
                                 }
                               },
                         child: Text(
-                          _busyTasks.contains(taskId) ? 'Saving…' : action.$2,
+                          _busyTasks.contains(taskId) ? 'Savingâ€¦' : action.$2,
                         ),
                       ),
                     if (status == 'requested' && requested == widget.user.uid)
@@ -1806,14 +1812,14 @@ class _OnlineHomeState extends State<OnlineHome> {
                                   person.data()['familyRole'] as String?;
                               final subtitleText = isDependent
                                   ? (familyRole != null
-                                        ? '$familyRole • Dependent'
+                                        ? '$familyRole â€¢ Dependent'
                                         : 'Dependent')
                                   : (person.id == owner
                                         ? (familyRole != null
-                                              ? '$familyRole • Owner'
+                                              ? '$familyRole â€¢ Owner'
                                               : 'Owner')
                                         : (familyRole != null
-                                              ? '$familyRole • Member'
+                                              ? '$familyRole â€¢ Member'
                                               : 'Member'));
                               return ListTile(
                                 contentPadding: EdgeInsets.zero,
@@ -2218,7 +2224,7 @@ class _OnlineHomeState extends State<OnlineHome> {
               enabled: allowed,
               subtitle: allowed
                   ? null
-                  : const Text('3 of 3 spaces · Basic limit'),
+                  : const Text('3 of 3 spaces Â· Basic limit'),
               onTap: () {
                 Navigator.pop(sheet);
                 _createSpace();
@@ -2354,45 +2360,45 @@ class _OnlineHomeState extends State<OnlineHome> {
     }
   }
 
-  void _showInbox(
-    List<QueryDocumentSnapshot<Map<String, dynamic>>> refs,
-  ) => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    builder: (sheet) => SafeArea(
-      child: ActivityInboxSheet(
-        backend: widget.backend,
-        spaceNames: {
-          for (final ref in refs)
-            ref.id: ref.data()['name'] as String? ?? 'Space',
-        },
-        onOpenSpace: (spaceId) =>
-            _openInboxSpace(sheet, spaceId, destination: 0),
-        onOpenTask: (spaceId, taskId) => _openInboxTask(sheet, spaceId, taskId),
-        onOpenOwnership: (spaceId) => _openInboxSpace(sheet, spaceId),
-        onOpenMoments: (spaceId) =>
-            _openInboxSpace(sheet, spaceId, destination: 1),
-        requests: [
-          for (final ref in refs) ...[
-            _SpaceTaskRequestsTile(
-              backend: widget.backend,
-              spaceId: ref.id,
-              spaceName: ref.data()['name'] as String? ?? 'Space',
-              userUid: widget.user.uid,
-              onOpenTask: (taskId) => _openInboxTask(sheet, ref.id, taskId),
-            ),
-            _SpaceOwnershipOfferTile(
-              backend: widget.backend,
-              spaceId: ref.id,
-              spaceName: ref.data()['name'] as String? ?? 'Space',
-              userUid: widget.user.uid,
-              onTap: () => _openInboxSpace(sheet, ref.id),
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
+  void _showInbox(List<QueryDocumentSnapshot<Map<String, dynamic>>> refs) =>
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(
+          child: ActivityInboxSheet(
+            backend: widget.backend,
+            spaceNames: {
+              for (final ref in refs)
+                ref.id: ref.data()['name'] as String? ?? 'Space',
+            },
+            onOpenSpace: (spaceId) =>
+                _openInboxSpace(sheet, spaceId, destination: 0),
+            onOpenTask: (spaceId, taskId) =>
+                _openInboxTask(sheet, spaceId, taskId),
+            onOpenOwnership: (spaceId) => _openInboxSpace(sheet, spaceId),
+            onOpenMoments: (spaceId) =>
+                _openInboxSpace(sheet, spaceId, destination: 1),
+            requests: [
+              for (final ref in refs) ...[
+                _SpaceTaskRequestsTile(
+                  backend: widget.backend,
+                  spaceId: ref.id,
+                  spaceName: ref.data()['name'] as String? ?? 'Space',
+                  userUid: widget.user.uid,
+                  onOpenTask: (taskId) => _openInboxTask(sheet, ref.id, taskId),
+                ),
+                _SpaceOwnershipOfferTile(
+                  backend: widget.backend,
+                  spaceId: ref.id,
+                  spaceName: ref.data()['name'] as String? ?? 'Space',
+                  userUid: widget.user.uid,
+                  onTap: () => _openInboxSpace(sheet, ref.id),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
 
   Future<void> _createSpace() async {
     try {
@@ -2783,8 +2789,7 @@ class _CreateSpaceDialogState extends State<CreateSpaceDialog> {
             ? switch (failure.code) {
                 'permission-denied' => 'Space creation was denied. Check your verified account and space limit.',
                 'unavailable' || 'deadline-exceeded' => 'Cannot reach the space service. Retry or try another network.',
-                'resource-exhausted' =>
-                  'The app’s database quota has been reached. Try again after it resets.',
+                'resource-exhausted' => 'The appâ€™s database quota has been reached. Try again after it resets.',
                 _ =>
                   'Could not create the space (${failure.code}). Please retry.',
               }
@@ -2933,7 +2938,7 @@ class _JoinSpaceDialogState extends State<_JoinSpaceDialog> {
         if (preview != null)
           Padding(
             padding: const EdgeInsets.only(top: 14),
-            child: Text('You’re joining $preview.'),
+            child: Text('Youâ€™re joining $preview.'),
           ),
         if (error != null)
           Padding(
@@ -3072,8 +3077,9 @@ class _SpaceTaskRequestsTile extends StatefulWidget {
 }
 
 class _SpaceTaskRequestsTileState extends State<_SpaceTaskRequestsTile> {
-  late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream =
-      widget.backend.activeTasks(widget.spaceId);
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream = widget
+      .backend
+      .activeTasks(widget.spaceId);
 
   @override
   Widget build(BuildContext context) {
@@ -3089,12 +3095,8 @@ class _SpaceTaskRequestsTileState extends State<_SpaceTaskRequestsTile> {
                 (doc.data()['offeredUid'] != null &&
                     doc.data()['ownerUid'] == widget.userUid))
               ListTile(
-                title: Text(
-                  doc.data()['title'] as String? ?? 'Task request',
-                ),
-                subtitle: Text(
-                  '${widget.spaceName} · Awaiting your answer',
-                ),
+                title: Text(doc.data()['title'] as String? ?? 'Task request'),
+                subtitle: Text('${widget.spaceName} Â· Awaiting your answer'),
                 trailing: const Icon(Icons.chevron_right_rounded),
                 onTap: () => widget.onOpenTask(doc.id),
               ),
@@ -3125,8 +3127,11 @@ class _SpaceOwnershipOfferTile extends StatefulWidget {
 }
 
 class _SpaceOwnershipOfferTileState extends State<_SpaceOwnershipOfferTile> {
-  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _stream =
-      widget.backend.firestore.doc('spaces/${widget.spaceId}').snapshots();
+  late final Stream<DocumentSnapshot<Map<String, dynamic>>> _stream = widget
+      .backend
+      .firestore
+      .doc('spaces/${widget.spaceId}')
+      .snapshots();
 
   @override
   Widget build(BuildContext context) {
@@ -3134,14 +3139,13 @@ class _SpaceOwnershipOfferTileState extends State<_SpaceOwnershipOfferTile> {
       stream: _stream,
       builder: (context, snapshot) =>
           snapshot.data?.data()?['pendingOwnerUid'] == widget.userUid
-              ? ListTile(
-                  title: const Text('Ownership offer'),
-                  subtitle: Text(widget.spaceName),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: widget.onTap,
-                )
-              : const SizedBox.shrink(),
+          ? ListTile(
+              title: const Text('Ownership offer'),
+              subtitle: Text(widget.spaceName),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: widget.onTap,
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
-

@@ -4,7 +4,12 @@ import 'package:image/image.dart' as img;
 
 /// Only the existing thumbnail is sampled; no extra cloud request or upload.
 List<int> photoPalette(Uint8List bytes) {
-  final image = img.decodeImage(bytes);
+  img.Image? image;
+  try {
+    image = img.decodeImage(bytes);
+  } catch (_) {
+    return [0xfffaf8f2, 0xfff8e7d9];
+  }
   if (image == null) return [0xfffaf8f2, 0xfff8e7d9];
   final colors = <int>[];
   for (final top in [true, false]) {

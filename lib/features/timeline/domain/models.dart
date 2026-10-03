@@ -34,9 +34,11 @@ class Space {
     this.kind,
     this.members, {
     this.currentUserId = 'me',
+    this.timeZone = 'UTC',
   });
   final String id, name, kind;
   final String currentUserId;
+  final String timeZone;
   final List<Member> members;
   Member member(String id) => members.firstWhere(
     (member) => member.id == id,

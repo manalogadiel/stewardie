@@ -3,6 +3,7 @@ import 'dart:async';
 // These SDK annotations are advisory; no private delegates are accessed.
 // ignore_for_file: subtype_of_sealed_class
 import 'dart:math';
+
 import 'package:flutter/widgets.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -394,14 +395,30 @@ class _VisibleWatch with WidgetsBindingObserver {
   final VoidCallback refresh;
   Timer? timer;
   void start() {
-    WidgetsBinding.instance.addObserver(this);
-    if (WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) _arm();
+    WidgetsFlutterBinding.ensureInitialized().addObserver(this);
+    if (WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      _arm();
+    }
   }
-  void _arm() { timer ??= Timer.periodic(const Duration(seconds: 45), (_) => refresh()); }
+
+  void _arm() {
+    timer ??= Timer.periodic(const Duration(seconds: 45), (_) => refresh());
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) { refresh(); _arm(); }
-    else { timer?.cancel(); timer = null; }
+    if (state == AppLifecycleState.resumed) {
+      refresh();
+      _arm();
+    } else {
+      timer?.cancel();
+      timer = null;
+    }
   }
-  void dispose() { timer?.cancel(); WidgetsBinding.instance.removeObserver(this); }
+
+  void dispose() {
+    timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+  }
 }
