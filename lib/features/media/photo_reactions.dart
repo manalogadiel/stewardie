@@ -19,8 +19,9 @@ const photoReactionLabels = {
 
 /// Immediate local feedback; serialized canonical mutations reconcile or roll back.
 class PhotoReactions extends ConsumerStatefulWidget {
-  const PhotoReactions({super.key, required this.photo});
+  const PhotoReactions({super.key, required this.photo, this.compact = false});
   final MediaAttachment photo;
+  final bool compact;
   @override
   ConsumerState<PhotoReactions> createState() => _PhotoReactionsState();
 }
@@ -155,76 +156,76 @@ class _PhotoReactionsState extends ConsumerState<PhotoReactions>
   @override
   Widget build(BuildContext context) {
     if (library == null || !widget.photo.cloud) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              for (final entry in photoReactionLabels.entries)
-                Builder(
-                  builder: (context) {
-                    final selected = rows.any(
-                      (r) =>
-                          r['uid'] == library!.user.uid &&
-                          r['type'] == entry.key,
-                    );
-                    final count = rows
-                        .where((r) => r['type'] == entry.key)
-                        .length;
-                    return Semantics(
-                      selected: selected,
-                      button: true,
-                      label: '${entry.value}, $count reactions',
-                      child: Material(
-                        color: selected ? SoftPop.lightButter : SoftPop.surface,
-                        elevation: 2,
-                        shadowColor: SoftPop.ink.withValues(alpha: .12),
-                        borderRadius: BorderRadius.circular(26),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(26),
-                          onTap: () => react(entry.key),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minHeight: 48),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    'assets/illustrations/reaction-${entry.key}.png',
-                                    width: 30,
-                                    height: 30,
-                                    excludeFromSemantics: true,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text('$count'),
-                                ],
-                              ),
-                            ),
-                          ),
+    final buttons = [
+      for (final entry in photoReactionLabels.entries)
+        Builder(
+          builder: (context) {
+            final selected = rows.any(
+              (r) => r['uid'] == library!.user.uid && r['type'] == entry.key,
+            );
+            final count = rows.where((r) => r['type'] == entry.key).length;
+            return Semantics(
+              selected: selected,
+              button: true,
+              label: '${entry.value}, $count reactions',
+              child: Material(
+                color: selected ? SoftPop.lightButter : SoftPop.surface,
+                elevation: 2,
+                shadowColor: SoftPop.ink.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(24),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => react(entry.key),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: 48,
+                      minWidth: 48,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.asset(
+                          'assets/illustrations/reaction-${entry.key}.png',
+                          width: 28,
+                          height: 28,
+                          excludeFromSemantics: true,
                         ),
-                      ),
-                    );
-                  },
-                ),
-            ],
-          ),
-          if (saving)
-            Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Semantics(
-                label: 'Syncing reactions',
-                child: SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                        if (count > 0)
+                          Text(
+                            '$count',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+            );
+          },
+        ),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.compact)
+            Row(
+              children: [
+                for (final button in buttons)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: button,
+                    ),
+                  ),
+              ],
+            )
+          else
+            Wrap(spacing: 8, runSpacing: 8, children: buttons),
           if (error != null)
             TextButton(
               onPressed: () {

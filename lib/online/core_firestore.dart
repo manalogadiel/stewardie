@@ -3,6 +3,7 @@ import 'dart:async';
 // These SDK annotations are advisory; no private delegates are accessed.
 // ignore_for_file: subtype_of_sealed_class
 import 'dart:math';
+import 'package:flutter/widgets.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -55,14 +56,12 @@ class CoreFirestore implements FirebaseFirestore {
     }
 
     final subscription = changes.stream.listen((_) => unawaited(refresh()));
-    final timer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => unawaited(refresh()),
-    );
+    final lifecycle = _VisibleWatch(() => unawaited(refresh()));
+    lifecycle.start();
     unawaited(refresh());
     sink.onCancel = () {
       closed = true;
-      timer.cancel();
+      lifecycle.dispose();
       subscription.cancel();
     };
   });
@@ -387,4 +386,22 @@ class CoreBatch implements WriteBatch {
     await store.client.call('docBatch', {'writes': writes});
     store.notify();
   }
+}
+
+/// Foreground fallback polling; mutations still invalidate immediately.
+class _VisibleWatch with WidgetsBindingObserver {
+  _VisibleWatch(this.refresh);
+  final VoidCallback refresh;
+  Timer? timer;
+  void start() {
+    WidgetsBinding.instance.addObserver(this);
+    if (WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) _arm();
+  }
+  void _arm() { timer ??= Timer.periodic(const Duration(seconds: 45), (_) => refresh()); }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) { refresh(); _arm(); }
+    else { timer?.cancel(); timer = null; }
+  }
+  void dispose() { timer?.cancel(); WidgetsBinding.instance.removeObserver(this); }
 }

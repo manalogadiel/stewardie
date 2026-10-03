@@ -6,7 +6,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/clay.dart';
-import '../../core/soft_pop_backdrop.dart';
+
+import 'package:flutter/foundation.dart';
+
+import 'photo_palette.dart';
 import '../../core/demo_state.dart';
 import '../../core/theme.dart';
 import '../../core/stewardie_map.dart';
@@ -102,6 +105,22 @@ class PhotoViewer extends ConsumerStatefulWidget {
 class _PhotoViewerState extends ConsumerState<PhotoViewer> {
   late final _full = ref.read(mediaLibraryProvider).fullPhoto(widget.photo);
   bool saving = false;
+  final _transform = TransformationController();
+  List<Color> _palette = [SoftPop.canvas, SoftPop.surface];
+  @override
+  void initState() {
+    super.initState();
+    compute(photoPalette, widget.photo.photo.thumbnail).then((colors) {
+      if (mounted) setState(() => _palette = colors.map(Color.new).toList());
+    });
+  }
+
+  @override
+  void dispose() {
+    _transform.dispose();
+    super.dispose();
+  }
+
   void showMessage(String text) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -127,242 +146,141 @@ class _PhotoViewerState extends ConsumerState<PhotoViewer> {
         .spaces
         .firstWhere((s) => s.id == widget.photo.spaceId);
     final author = space.member(widget.photo.uploaderId).name;
+    final caption = widget.photo.taskTitle ?? widget.photo.caption;
     return Scaffold(
       backgroundColor: SoftPop.canvas,
-      appBar: AppBar(
-        foregroundColor: SoftPop.ink,
-        title: const Text(
-          'Your moment',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: SoftPop.ink),
-        ),
-        actions: [
-          if (widget.photo.pin != null)
-            IconButton(
-              tooltip: 'Photo location',
-              onPressed: () => showPhotoLocation(context, widget.photo),
-              icon: const Icon(Icons.place_rounded),
-            ),
-          IconButton(
-            tooltip: 'Save photo',
-            onPressed: saving
-                ? null
-                : () async {
-                    setState(() => saving = true);
-                    try {
-                      final result = await exportPhoto(
-                        await ref
-                            .read(mediaLibraryProvider)
-                            .fullPhoto(widget.photo),
-                        widget.photo.id,
-                      );
-                      showMessage(result);
-                    } catch (_) {
-                      if (mounted) {
-                        showMessage(
-                          'Could not save. Check photo permissions and available storage, then try again.',
-                        );
-                      }
-                    } finally {
-                      if (mounted) setState(() => saving = false);
-                    }
-                  },
-            icon: const Icon(Icons.download_rounded),
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: _palette,
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const Positioned.fill(child: SoftPopBackdrop()),
-            if (MediaQuery.sizeOf(context).width >= 380 &&
-                MediaQuery.textScalerOf(context).scale(16) < 24) ...[
-              Positioned(
-                right: -8,
-                bottom: 20,
-                child: IgnorePointer(
-                  child: ExcludeSemantics(
-                    child: Opacity(
-                      opacity: .08,
-                      child: Image.asset(
-                        'assets/illustrations/viewer-mascot-hello.png',
-                        width: 120,
-                      ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Close photo',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
                     ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: -12,
-                bottom: 220,
-                child: IgnorePointer(
-                  child: ExcludeSemantics(
-                    child: Opacity(
-                      opacity: .08,
-                      child: Image.asset(
-                        'assets/illustrations/viewer-mascot-crawl.png',
-                        width: 140,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final largeText =
-                    MediaQuery.textScalerOf(context).scale(16) >= 24;
-                final compact = constraints.maxHeight < 560 || largeText;
-                final caption = widget.photo.taskTitle ?? widget.photo.caption;
-                final mapHeight = (constraints.maxHeight * .22).clamp(
-                  72.0,
-                  130.0,
-                );
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: SoftPop.surface,
-                            borderRadius: BorderRadius.circular(28),
-                            boxShadow: [
-                              BoxShadow(
-                                color: SoftPop.ink.withValues(alpha: .08),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: InteractiveViewer(
-                            minScale: 1,
-                            maxScale: 5,
-                            child: Center(
-                              child: FutureBuilder(
-                                future: _full,
-                                builder: (context, snapshot) =>
-                                    snapshot.hasError
-                                    ? const Padding(
-                                        padding: EdgeInsets.all(16),
-                                        child: Text(
-                                          'Could not load this photo. Close and try again.',
-                                        ),
-                                      )
-                                    : Image.memory(
-                                        snapshot.data ??
-                                            widget.photo.photo.thumbnail,
-                                        fit: BoxFit.contain,
-                                      ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
+                    Expanded(
+                      child: Text(
                         author,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                      if (caption.isNotEmpty)
-                        InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => showModalBottomSheet<void>(
-                            context: context,
-                            useSafeArea: true,
-                            showDragHandle: true,
-                            builder: (_) => SingleChildScrollView(
-                              padding: const EdgeInsets.all(20),
-                              child: Text(caption),
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
-                              caption,
-                              maxLines: compact ? 1 : 2,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                      PhotoReactions(photo: widget.photo),
-                      if (widget.photo.pin != null)
-                        _photoLocation(context, mapHeight),
-                      if (saving)
-                        const SizedBox(
-                          height: 2,
-                          child: LinearProgressIndicator(),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _photoLocation(BuildContext context, double mapHeight) {
-    final pin = widget.photo.pin!;
-    final point = LatLng(pin.lat, pin.lng);
-    final subtitle = pin.source == 'capture' ? 'Taken here' : 'Place tag';
-    final details = [
-      subtitle,
-      pin.label,
-      if (pin.source == 'capture' && pin.locatedAt != null)
-        '${MaterialLocalizations.of(context).formatMediumDate(pin.locatedAt!.toLocal())} '
-            '${MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(pin.locatedAt!.toLocal()))}',
-      if (pin.accuracy != null) '±${pin.accuracy!.round()} m',
-    ].join(' · ');
-    Widget map(double height) => SizedBox(
-      height: height,
-      child: StewardieMap(
-        center: point,
-        zoom: 15,
-        markers: [
-          Marker(
-            point: point,
-            width: 56,
-            height: 56,
-            child: ClipOval(
-              child: Image.memory(
-                widget.photo.photo.thumbnail,
-                fit: BoxFit.cover,
+                    ),
+                    IconButton(
+                      tooltip: 'Save photo',
+                      icon: const Icon(Icons.download_rounded),
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              setState(() => saving = true);
+                              try {
+                                showMessage(
+                                  await exportPhoto(
+                                    await _full,
+                                    widget.photo.id,
+                                  ),
+                                );
+                              } catch (_) {
+                                showMessage(
+                                  'Could not save this photo. Check permissions and try again.',
+                                );
+                              } finally {
+                                if (mounted) setState(() => saving = false);
+                              }
+                            },
+                    ),
+                  ],
+                ),
               ),
-            ),
+              Expanded(
+                child: InteractiveViewer(
+                  transformationController: _transform,
+                  minScale: 1,
+                  maxScale: 5,
+                  child: GestureDetector(
+                    onDoubleTap: () => _transform.value = Matrix4.identity(),
+                    child: SizedBox.expand(
+                      child: FutureBuilder(
+                        future: _full,
+                        builder: (context, snapshot) => snapshot.hasError
+                            ? const Center(
+                                child: Text(
+                                  'Could not load this photo. Close and try again.',
+                                ),
+                              )
+                            : Image.memory(
+                                snapshot.data ?? widget.photo.photo.thumbnail,
+                                fit: BoxFit.contain,
+                                gaplessPlayback: true,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: caption.isEmpty
+                          ? const SizedBox.shrink()
+                          : InkWell(
+                              onTap: () => showModalBottomSheet<void>(
+                                context: context,
+                                useSafeArea: true,
+                                showDragHandle: true,
+                                builder: (_) => SingleChildScrollView(
+                                  padding: const EdgeInsets.all(20),
+                                  child: Text(caption),
+                                ),
+                              ),
+                              child: Text(
+                                caption,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                    ),
+                    Material(
+                      color: SoftPop.surface,
+                      elevation: 2,
+                      shadowColor: SoftPop.ink.withValues(alpha: .12),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        tooltip: widget.photo.pin == null
+                            ? 'No location attached'
+                            : 'Taken here',
+                        onPressed: () => widget.photo.pin == null
+                            ? showMessage('No location attached.')
+                            : showPhotoLocation(context, widget.photo),
+                        icon: Icon(
+                          widget.photo.pin == null
+                              ? Icons.location_off_rounded
+                              : Icons.place_rounded,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PhotoReactions(photo: widget.photo, compact: true),
+              if (saving)
+                const SizedBox(height: 2, child: LinearProgressIndicator()),
+            ],
           ),
-        ],
-      ),
-    );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            details,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: SoftPop.ink),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              onTap: () {
-                showPhotoLocation(context, widget.photo);
-              },
-              child: map(mapHeight),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

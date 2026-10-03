@@ -125,6 +125,9 @@ class _OnlineHomeState extends State<OnlineHome> {
   StreamSubscription<void>? _pushOpens;
   StreamSubscription<void>? _foregroundPush;
   late Stream<QuerySnapshot<Map<String, dynamic>>> _spacesStream;
+  static String? _summaryAccount;
+  static List<QueryDocumentSnapshot<Map<String, dynamic>>> _spaceSummaries = [];
+
   Stream<DocumentSnapshot<Map<String, dynamic>>>? _cachedAccountStream;
   String? _cachedMembersSpaceId;
   Stream<QuerySnapshot<Map<String, dynamic>>>? _cachedMembersStream;
@@ -426,7 +429,9 @@ class _OnlineHomeState extends State<OnlineHome> {
   ) => StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
     stream: _spacesStream,
     builder: (context, snapshot) {
-      final refs = snapshot.data?.docs ?? [];
+      if (_summaryAccount != widget.user.uid) { _summaryAccount = widget.user.uid; _spaceSummaries = []; }
+      if (snapshot.hasData) _spaceSummaries = snapshot.data!.docs;
+      final refs = snapshot.data?.docs ?? _spaceSummaries;
       if (snapshot.hasData) {
         _hasSpaces = refs.isNotEmpty;
         if (!widget.spaceOnly && !_entryPromptsStarted) {
