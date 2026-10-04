@@ -8,7 +8,7 @@ import 'operator_review_sheet.dart';
 import 'space_map_sheet.dart';
 
 /// Task requests remain visible even if scheduled notifications are unavailable.
-class ActivityInboxSheet extends StatelessWidget {
+class ActivityInboxSheet extends StatefulWidget {
   const ActivityInboxSheet({
     super.key,
     required this.backend,
@@ -19,6 +19,7 @@ class ActivityInboxSheet extends StatelessWidget {
     this.onOpenOwnership,
     this.onOpenMoments,
     this.requests = const [],
+    this.requestsBySpace = const {},
   });
 
   final OnlineBackend backend;
@@ -29,12 +30,15 @@ class ActivityInboxSheet extends StatelessWidget {
   final Future<void> Function(String spaceId)? onOpenOwnership;
   final Future<void> Function(String spaceId)? onOpenMoments;
   final List<Widget> requests;
+  final Map<String, List<Widget>> requestsBySpace;
 
   static Future<void> show(
     BuildContext context, {
     required OnlineBackend backend,
     required Map<String, String> spaceNames,
     List<Widget> requests = const [],
+    Map<String, List<Widget>> requestsBySpace = const {},
+    Future<void> Function(String spaceId)? onSelectSpace,
   }) => showModalBottomSheet<void>(
     context: context,
     useRootNavigator: true,
@@ -45,14 +49,46 @@ class ActivityInboxSheet extends StatelessWidget {
       backend: backend,
       spaceNames: spaceNames,
       requests: requests,
+      requestsBySpace: requestsBySpace,
+      onSelectSpace: onSelectSpace,
     ),
   );
 
   @override
+  State<ActivityInboxSheet> createState() => _ActivityInboxSheetState();
+}
+
+class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
+  String? selectedSpace;
+  OnlineBackend get backend => widget.backend;
+  Map<String, String> get spaceNames => widget.spaceNames;
+  List<Widget> get requests => widget.requests;
+  Future<void> Function(String)? get onOpenSpace => widget.onOpenSpace;
+  Future<void> Function(String)? get onSelectSpace => widget.onSelectSpace;
+  Future<void> Function(String, String)? get onOpenTask => widget.onOpenTask;
+  Future<void> Function(String)? get onOpenOwnership => widget.onOpenOwnership;
+  Future<void> Function(String)? get onOpenMoments => widget.onOpenMoments;
+  late final summaryStream = backend.coreStore.watch(
+    () => backend.coreData.call('notificationSummary', {}),
+  );
+
+  @override
   Widget build(BuildContext context) {
+    if (OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator) {
+      return StreamBuilder<Map<String, dynamic>>(
+        stream: summaryStream,
+        builder: (context, snapshot) => _buildInbox(
+          context,
+          Map<String, dynamic>.from(snapshot.data?['spaces'] as Map? ?? {}),
+        ),
+      );
+    }
+    return _buildInbox(context, {});
+  }
+
+  Widget _buildInbox(BuildContext context, Map<String, dynamic> counts) {
     final uid = backend.auth.currentUser?.uid;
     if (uid == null) return const SizedBox.shrink();
-    String? selectedSpace;
     final collection = backend.firestore.collection('accounts/$uid/activity');
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * .65,
@@ -77,6 +113,13 @@ class ActivityInboxSheet extends StatelessWidget {
                   : items
                         .where((doc) => doc.data()['spaceId'] == selectedSpace)
                         .toList();
+              final shownRequests = selectedSpace == null
+                  ? [
+                      ...requests,
+                      for (final group in widget.requestsBySpace.values)
+                        ...group,
+                    ]
+                  : (widget.requestsBySpace[selectedSpace] ?? <Widget>[]);
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 children: [
@@ -109,7 +152,7 @@ class ActivityInboxSheet extends StatelessWidget {
                           leading: const Icon(Icons.notifications_rounded),
                           title: Text(entry.value),
                           subtitle: Text(
-                            '${items.where((doc) => doc.data()['spaceId'] == entry.key && doc.data()['readAt'] == null).length} unread notifications',
+                            '${counts[entry.key] ?? items.where((doc) => doc.data()['spaceId'] == entry.key && doc.data()['readAt'] == null).length} unread notifications',
                           ),
                           onTap: () async {
                             try {
@@ -131,12 +174,12 @@ class ActivityInboxSheet extends StatelessWidget {
                           },
                         ),
                       ),
-                  if (selectedSpace == null) ...requests,
+                  ...shownRequests,
                   if (visible.isEmpty &&
-                      requests.isEmpty &&
+                      shownRequests.isEmpty &&
                       !snapshot.hasError &&
                       snapshot.hasData)
-                    const ListTile(title: Text('Youâ€™re all caught up.')),
+                    const ListTile(title: Text('You’re all caught up.')),
                   for (final doc in visible) _historyItem(context, doc, uid),
                 ],
               );

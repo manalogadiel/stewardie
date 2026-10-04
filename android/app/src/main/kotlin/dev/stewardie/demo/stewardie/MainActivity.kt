@@ -36,6 +36,11 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "stewardie/client_config")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "geoapifyKey") result.success(getString(R.string.geoapify_api_key))
+                else result.notImplemented()
+            }
         pendingNotification = intent?.getStringExtra("stewardie_activity")
         intent?.removeExtra("stewardie_activity")
         notifications = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "stewardie/notifications")

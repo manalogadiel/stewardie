@@ -8,6 +8,7 @@ import 'package:sembast/sembast.dart';
 
 import '../features/media/media_library.dart';
 import '../core/place_pin.dart';
+import '../core/space_time.dart';
 import '../core/sound_feedback.dart';
 import '../features/timeline/domain/models.dart';
 import 'firebase_repository.dart';
@@ -147,12 +148,17 @@ class CloudMediaLibrary extends MediaLibrary {
         _remote[id] ?? super.items.where((p) => p.id == id).firstOrNull;
     final thumb =
         existing?.photo.thumbnail ??
+        _thumbCache.remove(id) ??
         (await _request({
           'action': 'download',
           'space': space,
           'id': id,
           'thumbnail': true,
         })).bodyBytes;
+    _thumbCache[id] = thumb;
+    while (_thumbCache.length > 64) {
+      _thumbCache.remove(_thumbCache.keys.first);
+    }
     final framingMap = row['framing'] is String
         ? jsonDecode(row['framing'] as String) as Map<String, dynamic>?
         : (row['framing'] is Map
@@ -172,6 +178,7 @@ class CloudMediaLibrary extends MediaLibrary {
           ? null
           : DateTime.parse(row['published_at']),
       cloud: true,
+      momentDate: row['moment_date'] as String?,
       framing: framing,
       pin: PlacePin.fromMap(row['pin']),
       photo: PhotoDraft(
@@ -185,55 +192,191 @@ class CloudMediaLibrary extends MediaLibrary {
     );
   }
 
+  final _feedCursors = <String, Map<String, Object?>?>{};
+  final _feedIds = <String, Set<String>>{};
+  final _feedHeadIds = <String, Set<String>>{};
+  final _feedDays = <String, String>{};
+  final _serverClockOffset = <String, Duration>{};
+  final _thumbCache = <String, Uint8List>{};
+  final _taskRefreshing = <String>{};
   @override
-  Future<void> refresh(String spaceId) async {
+  DateTime momentClock(String spaceId) =>
+      DateTime.now().add(_serverClockOffset[spaceId] ?? Duration.zero);
+  @override
+  String todayForSpace(String spaceId) {
+    final zone = timeline.spaces
+        .where((s) => s.id == spaceId)
+        .firstOrNull
+        ?.timeZone;
+    if (zone == null) return super.todayForSpace(spaceId);
+    return SpaceTime.localDate(zone, momentClock(spaceId));
+  }
+
+  @override
+  bool feedHasMore(String spaceId) => _feedCursors[spaceId] != null;
+
+  Future<Map<String, dynamic>> _page(
+    String space,
+    String mode,
+    Map<String, Object?> payload,
+  ) async {
+    if (!_allowed(space)) throw StateError('Space access ended.');
+    final result = Map<String, dynamic>.from(
+      jsonDecode(
+        (await _request({
+          'action': 'page',
+          'space': space,
+          'mode': mode,
+          ...payload,
+        })).body,
+      ) as Map,
+    );
+    if (!_allowed(space)) throw StateError('Space access ended.');
+    final serverTime = DateTime.tryParse(
+      result['serverTime']?.toString() ?? '',
+    );
+    if (serverTime != null) {
+      _serverClockOffset[space] = serverTime.difference(DateTime.now());
+    }
+    return result;
+  }
+
+  Future<MediaPage<MediaAttachment>> _photoPage(
+    String space,
+    String mode,
+    Map<String, Object?> payload,
+  ) async {
+    const limit = 30;
+    final data = await _page(space, mode, {'limit': limit, ...payload});
+    final raw = (data['items'] as List)
+        .cast<Map>()
+        .map((r) => Map<String, dynamic>.from(r))
+        .toList();
+    final shown = raw.take(limit).toList();
+    final photos = await Future.wait(shown.map(_decode));
+    if (!_allowed(space)) throw StateError('Space access ended.');
+    return MediaPage(
+      photos,
+      cursor: raw.length > limit
+          ? {
+              'beforeTime': shown.last['published_at'],
+              'beforeId': shown.last['id'],
+            }
+          : null,
+    );
+  }
+
+  @override
+  Future<void> refresh(String spaceId) => _refreshFeed(spaceId, more: false);
+  @override
+  Future<void> loadMoreFeed(String spaceId) =>
+      _refreshFeed(spaceId, more: true);
+  Future<void> _refreshFeed(String spaceId, {required bool more}) async {
     if (!_allowed(spaceId) || !_refreshing.add(spaceId)) return;
     final last = _lastRefresh[spaceId];
-    if (last != null && DateTime.now().difference(last).inSeconds < 8) {
+    if (!more &&
+        last != null &&
+        DateTime.now().difference(last).inSeconds < 8) {
       _refreshing.remove(spaceId);
       return;
     }
     _lastRefresh[spaceId] = DateTime.now();
     try {
-      final fetched = <String, MediaAttachment>{};
-      int? offset = 0;
-      while (offset != null && _allowed(spaceId)) {
-        final data = jsonDecode(
-          (await _request({
-            'action': 'list',
-            'space': spaceId,
-            'offset': offset,
-          })).body,
-        );
-        final rawItems = (data['items'] as List)
-            .map((raw) => Map<String, dynamic>.from(raw as Map))
-            .toList();
-        final decodedItems = await Future.wait(
-          rawItems.map((raw) => _decode(raw)),
-        );
-        for (final item in decodedItems) {
-          fetched[item.id] = item;
-        }
-        offset = data['nextOffset'] as int?;
+      final page = await _photoPage(
+        spaceId,
+        'feed',
+        more ? (_feedCursors[spaceId] ?? {}) : {},
+      );
+      final today = todayForSpace(spaceId);
+      final rollover = _feedDays[spaceId] != today;
+      final oldIds = _feedIds[spaceId] ?? <String>{};
+      final hadTail =
+          !rollover &&
+          oldIds.difference(_feedHeadIds[spaceId] ?? {}).isNotEmpty;
+      if (!more) {
+        final replaced = rollover
+            ? oldIds
+            : (_feedHeadIds[spaceId] ?? <String>{});
+        _remote.removeWhere((id, _) => replaced.contains(id));
+        oldIds.removeAll(replaced);
+        _feedHeadIds[spaceId] = page.items.map((p) => p.id).toSet();
       }
-      if (!_allowed(spaceId)) return;
-      _remote.removeWhere((_, p) => p.spaceId == spaceId);
-      _remote.addAll(fetched);
+      for (final photo in page.items) {
+        _remote[photo.id] = photo;
+        oldIds.add(photo.id);
+      }
+      _feedIds[spaceId] = oldIds;
+      _feedDays[spaceId] = today;
+      // A background head refresh must not discard pages the user already opened.
+      if (more || !hadTail) _feedCursors[spaceId] = page.cursor;
       _error = null;
-    } catch (e) {
-      if (e is StateError &&
-          (e.message.contains('access') ||
-              e.message.contains('permission') ||
-              e.message.contains('not a member'))) {
-        _remote.removeWhere((_, p) => p.spaceId == spaceId);
-      }
-      _error = e is StateError
-          ? e.message
+    } catch (error) {
+      _error = error is StateError
+          ? error.message
           : 'Could not refresh shared photos. Try again.';
     } finally {
       _refreshing.remove(spaceId);
       if (!_closed) notifyListeners();
     }
+  }
+
+  @override
+  Future<void> refreshTask(String spaceId, String taskId) async {
+    final key = '$spaceId/$taskId';
+    if (!_allowed(spaceId) || !_taskRefreshing.add(key)) return;
+    try {
+      final page = await _photoPage(spaceId, 'task', {'taskId': taskId});
+      _remote.removeWhere((_, p) => p.spaceId == spaceId && p.taskId == taskId);
+      for (final photo in page.items) {
+        _remote[photo.id] = photo;
+      }
+    } catch (error) {
+      _error = error is StateError
+          ? error.message
+          : 'Could not refresh task photos.';
+    } finally {
+      _taskRefreshing.remove(key);
+      if (!_closed) notifyListeners();
+    }
+  }
+
+  @override
+  Future<MediaPage<MomentDateSummary>> archiveDates(
+    String spaceId, {
+    Map<String, Object?>? cursor,
+  }) async {
+    const limit = 12;
+    final data = await _page(spaceId, 'dates', {'limit': limit, ...?cursor});
+    final raw = (data['dates'] as List).cast<Map>().toList();
+    final shown = raw.take(limit).toList();
+    final entries = await Future.wait(
+      shown.map(
+        (row) async => MomentDateSummary(
+          row['date'] as String,
+          (row['count'] as num).toInt(),
+          await _decode(Map<String, dynamic>.from(row['cover'] as Map)),
+        ),
+      ),
+    );
+    if (!_allowed(spaceId)) throw StateError('Space access ended.');
+    return MediaPage(
+      entries,
+      cursor: raw.length > limit ? {'beforeDate': shown.last['date']} : null,
+    );
+  }
+
+  @override
+  Future<MediaPage<MediaAttachment>> archiveDay(
+    String spaceId,
+    String date, {
+    Map<String, Object?>? cursor,
+  }) async {
+    final page = await _photoPage(spaceId, 'day', {'date': date, ...?cursor});
+    // Viewer downloads still recheck membership and media availability.
+    for (final photo in page.items) {
+      _remote[photo.id] = photo;
+    }
+    return page;
   }
 
   @override

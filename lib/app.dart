@@ -349,7 +349,17 @@ class AppShell extends ConsumerWidget {
                             ActivityInboxSheet.show(
                               context,
                               backend: backend,
-                              spaceNames: {space.id: space.name},
+                              spaceNames: {
+                                for (final item in repo.spaces)
+                                  item.id: item.name,
+                              },
+                              onSelectSpace: (id) async {
+                                if (repo.spaces.any((item) => item.id == id)) {
+                                  ref
+                                      .read(demoProvider.notifier)
+                                      .switchSpace(id);
+                                }
+                              },
                               requests: [
                                 for (final task in requests)
                                   ListTile(

@@ -123,22 +123,28 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
             )
             .toList()
           ..sort((a, b) => b.publishedAt!.compareTo(a.publishedAt!));
-    final today = SpaceTime.localDate(space.timeZone, DateTime.now().toUtc());
+    final today = ref.read(mediaLibraryProvider).todayForSpace(space.id);
     final midnightKey = '${space.id}/${space.timeZone}/$today';
     if (_midnightKey != midnightKey) {
       _midnightKey = midnightKey;
       _midnightTimer?.cancel();
-      final now = DateTime.now();
+      final now = ref.read(mediaLibraryProvider).momentClock(space.id);
       _midnightTimer = Timer(
         SpaceTime.nextMidnight(space.timeZone, now).difference(now),
         () {
-          if (mounted) setState(() => _midnightKey = null);
+          if (mounted) {
+            setState(() => _midnightKey = null);
+            unawaited(ref.read(mediaLibraryProvider).refresh(space.id));
+          }
         },
       );
     }
     final posts = allPosts
         .where(
-          (p) => SpaceTime.localDate(space.timeZone, p.publishedAt!) == today,
+          (p) =>
+              (p.momentDate ??
+                  SpaceTime.localDate(space.timeZone, p.publishedAt!)) ==
+              today,
         )
         .toList();
     final archived = allPosts
@@ -161,8 +167,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
         }
       });
     }
-    final newScope =
-        '${space.id}/${state.personId}/${posts.map((p) => p.id).join(',')}';
+    final newScope = '${space.id}/${state.personId}/$today';
     if (scope != newScope) {
       scope = newScope;
       index = 0;
@@ -236,6 +241,14 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
                     ),
               ),
             ),
+            if (library.feedHasMore(space.id))
+              TextButton.icon(
+                onPressed: library.syncing
+                    ? null
+                    : () => library.loadMoreFeed(space.id),
+                icon: const Icon(Icons.expand_more_rounded),
+                label: const Text('More moments'),
+              ),
             if (repo.isShared && !library.supportsSharing)
               const Text('Photos stay on this device.'),
             if (library.syncError != null)

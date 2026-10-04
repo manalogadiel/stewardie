@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import 'package:sembast/sembast.dart';
 
 import '../../core/demo_state.dart';
+import '../../core/space_time.dart';
 import '../../core/place_pin.dart';
 import '../timeline/domain/models.dart';
 import '../timeline/data/demo_repository.dart';
@@ -412,6 +413,7 @@ class MediaAttachment {
     this.taskTitle,
     this.completedBy,
     this.publishedAt,
+    this.momentDate,
     this.cloud = false,
     this.framing = FramingRect.full,
     this.pin,
@@ -420,6 +422,7 @@ class MediaAttachment {
   final String? taskId, taskTitle, completedBy;
   final DateTime createdAt;
   final DateTime? publishedAt;
+  final String? momentDate;
   final PhotoDraft photo;
   final bool cloud;
   final FramingRect framing;
@@ -438,6 +441,7 @@ class MediaAttachment {
     'taskTitle': taskTitle,
     'completedBy': completedBy,
     'publishedAt': publishedAt?.toIso8601String(),
+    'momentDate': momentDate,
     'bytes': base64Encode(photo.bytes),
     'thumbnail': base64Encode(photo.thumbnail),
     'width': photo.width,
@@ -463,6 +467,7 @@ class MediaAttachment {
       publishedAt: m['publishedAt'] == null
           ? null
           : DateTime.parse(m['publishedAt'] as String),
+      momentDate: m['momentDate'] as String?,
       framing: framing,
       pin: PlacePin.fromMap(m['pin']),
       photo: PhotoDraft(
@@ -475,6 +480,19 @@ class MediaAttachment {
       ),
     );
   }
+}
+
+class MediaPage<T> {
+  const MediaPage(this.items, {this.cursor});
+  final List<T> items;
+  final Map<String, Object?>? cursor;
+}
+
+class MomentDateSummary {
+  const MomentDateSummary(this.date, this.count, this.cover);
+  final String date;
+  final int count;
+  final MediaAttachment cover;
 }
 
 class MediaLibrary extends ChangeNotifier {
@@ -517,6 +535,55 @@ class MediaLibrary extends ChangeNotifier {
   String? get syncError => null;
   Set<String> get pendingIds => const {};
   Future<void> refresh(String spaceId) async {}
+  Future<void> refreshTask(String spaceId, String taskId) => refresh(spaceId);
+  bool feedHasMore(String spaceId) => false;
+  Future<void> loadMoreFeed(String spaceId) async {}
+  DateTime momentClock(String spaceId) => DateTime.now();
+
+  String todayForSpace(String spaceId) => SpaceTime.localDate(
+    timeline.spaces.firstWhere((s) => s.id == spaceId).timeZone,
+    momentClock(spaceId),
+  );
+  Future<MediaPage<MomentDateSummary>> archiveDates(
+    String spaceId, {
+    Map<String, Object?>? cursor,
+  }) async {
+    final zone = timeline.spaces.firstWhere((s) => s.id == spaceId).timeZone;
+    final groups = <String, List<MediaAttachment>>{};
+    for (final photo in items.where(
+      (p) => p.spaceId == spaceId && p.publishedAt != null,
+    )) {
+      final date =
+          photo.momentDate ?? SpaceTime.localDate(zone, photo.publishedAt!);
+      if (date.compareTo(todayForSpace(spaceId)) >= 0) continue;
+      (groups[date] ??= []).add(photo);
+    }
+    final dates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    return MediaPage([
+      for (final date in dates)
+        MomentDateSummary(date, groups[date]!.length, groups[date]!.first),
+    ]);
+  }
+
+  Future<MediaPage<MediaAttachment>> archiveDay(
+    String spaceId,
+    String date, {
+    Map<String, Object?>? cursor,
+  }) async {
+    final zone = timeline.spaces.firstWhere((s) => s.id == spaceId).timeZone;
+    return MediaPage(
+      items
+          .where(
+            (p) =>
+                p.spaceId == spaceId &&
+                p.publishedAt != null &&
+                (p.momentDate ?? SpaceTime.localDate(zone, p.publishedAt!)) ==
+                    date,
+          )
+          .toList(),
+    );
+  }
+
   Future<void> share(MediaAttachment photo) async {
     throw StateError('Photo sharing is not connected yet.');
   }
@@ -549,7 +616,9 @@ class MediaLibrary extends ChangeNotifier {
     _member(space, actor);
     final existing = _items.where((p) => p.id == attachmentId).firstOrNull;
     if (existing != null) {
-      if (existing.spaceId != space || existing.uploaderId != actor || existing.taskId != taskId) {
+      if (existing.spaceId != space ||
+          existing.uploaderId != actor ||
+          existing.taskId != taskId) {
         throw StateError('This photo ID belongs to a different draft.');
       }
       return existing;

@@ -1,3 +1,4 @@
+import groovy.json.JsonSlurper
 import java.io.FileInputStream
 import java.util.Properties
 
@@ -22,7 +23,13 @@ if (releaseRequested && !uploadKeyFile.exists()) {
     throw GradleException("Android release requires android/key.properties and a private upload keystore; debug signing is disabled for release.")
 }
 
+// Client map keys stay in the ignored local config; no service credentials here.
+val localMapConfig = rootProject.file("../.local/maptiler.json")
+val mapConfig = if (localMapConfig.exists()) JsonSlurper().parse(localMapConfig) as? Map<*, *> else null
+val geoapifyClientKey = mapConfig?.get("GEOAPIFY_API_KEY")?.toString().orEmpty()
+
 android {
+    buildFeatures { resValues = true }
     namespace = "dev.stewardie.demo.stewardie"
     compileSdk = 37
     ndkVersion = flutter.ndkVersion
@@ -35,6 +42,7 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "dev.stewardie.demo.stewardie"
+        resValue("string", "geoapify_api_key", geoapifyClientKey)
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

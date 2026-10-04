@@ -31,10 +31,13 @@ The recovered backend suite passed 60 tests; the new location-request SQL suite 
 
 ## Still required
 
-- Review the deployed schema/functions against the restored baseline before applying **only the new additive migration**. Never run all historical CREATE migrations over the active project or clear its data. Deploy the matching `core-data` and `scheduled-work` changes together. The new location-request client requires this rollout before it can work against cloud.
-- Archive server date snapshots, indexed keyset pagination and lazy date/day loading are unfinished. Existing photo refresh still traverses all pages, so the archive UI alone does not solve historical download growth.
-- Cross-space counts currently cover the newest 200 visible inbox entries; they are not an unbounded authoritative unread aggregate.
 - Test real FCM delivery, notification-slider routing, GPS permissions/grouped pins, iOS safe areas and two-device membership removal. No device/cloud success is claimed from local tests.
 - Confirm sender domain/SMTP ownership before changing verification email delivery. UI branding cannot guarantee inbox placement or configure DNS.
-- Geoapify is optional: add `GEOAPIFY_API_KEY` using the existing Flutter build configuration. Without it, map-pin selection continues to work. Provider accuracy, quota and commercial terms need operational verification.
+- Geoapify is configured and its autocomplete/Places APIs returned public Philippine results. Broader provider coverage and actual device selection still need verification; pin selection remains the fallback.
 - Storage cleanup/retention and usage measurements remain review gates. No new cloud deletion, billing change or old Firebase migration occurred.
+
+## Cloud deployment update — 2026-10-04
+
+The user connected the existing Supabase dashboard. Applied only additive migrations `202610040001_location_requests.sql`, `202610040002_media_archive.sql`, and `202610040003_notification_summary.sql`; deployed matching `core-data`, `media`, and `scheduled-work` functions. New SQL passed rollback-only live workflow checks. Invalid-token gateway checks returned 401. Geoapify public-place queries returned 200; the client key stays in ignored local configuration.
+
+The new archive APIs use cursor pagination and server date stamps. The notification bell now reads a summary rather than every space's tasks. Earlier "not deployed" items above are superseded for these three migrations/functions. Hardware FCM/GPS checks, verified email sender configuration, and cleanup/retention gates remain outstanding. No new test authentication accounts were created: automatic approval review rejected lasting live fixtures, so verification used rolled-back SQL fixtures instead.

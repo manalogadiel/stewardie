@@ -1,8 +1,22 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart';
 
-const geoapifyKey = String.fromEnvironment('GEOAPIFY_API_KEY');
+String geoapifyKey = const String.fromEnvironment('GEOAPIFY_API_KEY');
+Future<void> configurePlaceSearch() async {
+  if (geoapifyKey.isNotEmpty) return;
+  try {
+    geoapifyKey =
+        await const MethodChannel('stewardie/client_config')
+            .invokeMethod<String>('geoapifyKey') ??
+        '';
+  } on MissingPluginException {
+    // Non-Android builds use the same key through --dart-define-from-file.
+  } on PlatformException {
+    // Pin selection remains usable if optional search configuration is absent.
+  }
+}
 
 class PlaceSearchResult {
   const PlaceSearchResult(this.name, this.address, this.lat, this.lng);

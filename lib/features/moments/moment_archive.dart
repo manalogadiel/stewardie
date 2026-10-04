@@ -15,7 +15,8 @@ Map<String, List<MediaAttachment>> groupMomentDates(
   final grouped = <String, List<MediaAttachment>>{};
   for (final photo in photos) {
     if (photo.publishedAt == null) continue;
-    final date = SpaceTime.localDate(zone, photo.publishedAt!);
+    final date =
+        photo.momentDate ?? SpaceTime.localDate(zone, photo.publishedAt!);
     (grouped[date] ??= []).add(photo);
   }
   return grouped;
@@ -32,114 +33,170 @@ class MomentArchive extends ConsumerWidget {
   final List<MediaAttachment> photos;
   final String spaceName, timeZone, spaceId;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(demoProvider);
-    if (!ref
-        .read(repositoryProvider)
-        .spaces
-        .any((space) => space.id == spaceId)) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: Text('This space is no longer available.')),
-      );
-    }
-    final allowedIds = photos.map((p) => p.id).toSet();
-    final current = ref
-        .read(mediaLibraryProvider)
-        .items
-        .where((p) => p.spaceId == spaceId && allowedIds.contains(p.id));
-    final groups = groupMomentDates(current, timeZone);
-    final dates = groups.keys.toList()..sort((a, b) => b.compareTo(a));
-    return Scaffold(
-      backgroundColor: SoftPop.canvas,
-      appBar: AppBar(
-        title: Text(
-          '$spaceName archive',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      body: dates.isEmpty
-          ? const Center(child: Text('Your past moments will appear here.'))
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 260,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
+  Widget build(BuildContext context, WidgetRef ref) =>
+      _ArchivePages<MomentDateSummary>(
+        spaceId: spaceId,
+        title: '$spaceName archive',
+        empty: 'Your past moments will appear here.',
+        load: (cursor) => ref
+            .read(mediaLibraryProvider)
+            .archiveDates(spaceId, cursor: cursor),
+        tile: (context, entry) => _ArchiveTile(
+          photo: entry.cover,
+          label: entry.date,
+          count: entry.count,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => _ArchivePages<MediaAttachment>(
+                spaceId: spaceId,
+                title: entry.date,
+                empty: 'No moments on this date.',
+                load: (cursor) => ref
+                    .read(mediaLibraryProvider)
+                    .archiveDay(spaceId, entry.date, cursor: cursor),
+                tile: (context, photo) => _ArchiveTile(
+                  photo: photo,
+                  onTap: () => viewPhoto(context, photo),
+                ),
               ),
-              itemCount: dates.length,
-              itemBuilder: (context, index) {
-                final date = dates[index], items = groups[dates[index]]!;
-                return _ArchiveTile(
-                  photo: items.first,
-                  label: date,
-                  count: items.length,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => _ArchiveDay(
-                        spaceId: spaceId,
-                        date: date,
-                        timeZone: timeZone,
-                        allowedIds: allowedIds,
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
-    );
-  }
+          ),
+        ),
+      );
 }
 
-class _ArchiveDay extends ConsumerWidget {
-  const _ArchiveDay({
+class _ArchivePages<T> extends ConsumerStatefulWidget {
+  const _ArchivePages({
     required this.spaceId,
-    required this.date,
-    required this.timeZone,
-    required this.allowedIds,
+    required this.title,
+    required this.empty,
+    required this.load,
+    required this.tile,
   });
-  final String spaceId, date, timeZone;
-  final Set<String> allowedIds;
+  final String spaceId, title, empty;
+  final Future<MediaPage<T>> Function(Map<String, Object?>? cursor) load;
+  final Widget Function(BuildContext, T) tile;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ArchivePages<T>> createState() => _ArchivePagesState<T>();
+}
+
+class _ArchivePagesState<T> extends ConsumerState<_ArchivePages<T>> {
+  List<T> _items = [];
+  Map<String, Object?>? _cursor;
+  bool _busy = false;
+  String? _error;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load(reset: true));
+  }
+
+  Future<void> _load({bool reset = false}) async {
+    if (_busy || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.load(reset ? null : _cursor);
+      if (!mounted) return;
+      setState(() {
+        _items = reset ? result.items : [..._items, ...result.items];
+        _cursor = result.cursor;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is StateError
+              ? error.message
+              : 'Could not load the archive. Try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref.watch(demoProvider);
     final allowed = ref
         .read(repositoryProvider)
         .spaces
-        .any((space) => space.id == spaceId);
-    final items = allowed
-        ? ref
-              .read(mediaLibraryProvider)
-              .items
-              .where(
-                (p) =>
-                    p.spaceId == spaceId &&
-                    allowedIds.contains(p.id) &&
-                    p.publishedAt != null &&
-                    SpaceTime.localDate(timeZone, p.publishedAt!) == date,
-              )
-              .toList()
-        : <MediaAttachment>[];
+        .any((s) => s.id == widget.spaceId);
     return Scaffold(
       backgroundColor: SoftPop.canvas,
-      appBar: AppBar(title: Text(date)),
-      body: !allowed
-          ? const Center(child: Text('This space is no longer available.'))
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 240,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
+      appBar: AppBar(
+        title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh archive',
+            onPressed: _busy ? null : () => _load(reset: true),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: !allowed
+            ? const Center(child: Text('This space is no longer available.'))
+            : _busy && _items.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: () => _load(reset: true),
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    if (_items.isEmpty && _error == null)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(child: Text(widget.empty)),
+                      ),
+                    SliverPadding(
+                      padding: const EdgeInsets.all(16),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 260,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                            ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) =>
+                              widget.tile(context, _items[index]),
+                          childCount: _items.length,
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        child: Column(
+                          children: [
+                            if (_error != null)
+                              Text(_error!, textAlign: TextAlign.center),
+                            if (_error != null)
+                              TextButton(
+                                onPressed: () => _load(reset: _items.isEmpty),
+                                child: const Text('Try again'),
+                              ),
+                            if (_busy && _items.isNotEmpty)
+                              const CircularProgressIndicator(),
+                            if (_cursor != null && !_busy)
+                              ElevatedButton.icon(
+                                onPressed: () => _load(),
+                                icon: const Icon(Icons.expand_more_rounded),
+                                label: const Text('More memories'),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              itemCount: items.length,
-              itemBuilder: (context, index) => _ArchiveTile(
-                photo: items[index],
-                onTap: () => viewPhoto(context, items[index]),
-              ),
-            ),
+      ),
     );
   }
 }

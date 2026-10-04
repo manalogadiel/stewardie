@@ -2371,6 +2371,18 @@ class _OnlineHomeState extends State<OnlineHome> {
               for (final ref in refs)
                 ref.id: ref.data()['name'] as String? ?? 'Space',
             },
+            onSelectSpace: (spaceId) async {
+              final data =
+                  (await widget.backend.firestore.doc('spaces/$spaceId').get())
+                      .data();
+              if (data == null ||
+                  !(data['memberUids'] as List? ?? []).contains(
+                    widget.user.uid,
+                  )) {
+                throw StateError('Space access ended.');
+              }
+              if (mounted) _switchSpace(spaceId);
+            },
             onOpenSpace: (spaceId) =>
                 _openInboxSpace(sheet, spaceId, destination: 0),
             onOpenTask: (spaceId, taskId) =>
@@ -2378,24 +2390,26 @@ class _OnlineHomeState extends State<OnlineHome> {
             onOpenOwnership: (spaceId) => _openInboxSpace(sheet, spaceId),
             onOpenMoments: (spaceId) =>
                 _openInboxSpace(sheet, spaceId, destination: 1),
-            requests: [
-              for (final ref in refs) ...[
-                _SpaceTaskRequestsTile(
-                  backend: widget.backend,
-                  spaceId: ref.id,
-                  spaceName: ref.data()['name'] as String? ?? 'Space',
-                  userUid: widget.user.uid,
-                  onOpenTask: (taskId) => _openInboxTask(sheet, ref.id, taskId),
-                ),
-                _SpaceOwnershipOfferTile(
-                  backend: widget.backend,
-                  spaceId: ref.id,
-                  spaceName: ref.data()['name'] as String? ?? 'Space',
-                  userUid: widget.user.uid,
-                  onTap: () => _openInboxSpace(sheet, ref.id),
-                ),
-              ],
-            ],
+            requestsBySpace: {
+              for (final ref in refs)
+                ref.id: [
+                  _SpaceTaskRequestsTile(
+                    backend: widget.backend,
+                    spaceId: ref.id,
+                    spaceName: ref.data()['name'] as String? ?? 'Space',
+                    userUid: widget.user.uid,
+                    onOpenTask: (taskId) =>
+                        _openInboxTask(sheet, ref.id, taskId),
+                  ),
+                  _SpaceOwnershipOfferTile(
+                    backend: widget.backend,
+                    spaceId: ref.id,
+                    spaceName: ref.data()['name'] as String? ?? 'Space',
+                    userUid: widget.user.uid,
+                    onTap: () => _openInboxSpace(sheet, ref.id),
+                  ),
+                ],
+            },
           ),
         ),
       );

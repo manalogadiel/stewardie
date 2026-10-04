@@ -28,6 +28,7 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
   final subscriptions = <StreamSubscription<dynamic>>[];
   final requests = <String, Set<String>>{};
   final activity = <String, Set<String>>{};
+  int? cloudCount;
 
   @override
   void initState() {
@@ -51,7 +52,29 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
     subscriptions.clear();
     requests.clear();
     activity.clear();
+    cloudCount = null;
     if (widget.backend.auth.currentUser?.uid != widget.uid) return;
+    if (OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator) {
+      subscriptions.add(
+        widget.backend.coreStore
+            .watch(
+              () => widget.backend.coreData.call('notificationSummary', {}),
+            )
+            .listen(
+              (summary) {
+                if (mounted) {
+                  setState(
+                    () => cloudCount = (summary['total'] as num).toInt(),
+                  );
+                }
+              },
+              onError: (Object _) {
+                /* Keep the last confirmed badge during a retry. */
+              },
+            ),
+      );
+      return;
+    }
     final ids = widget.spaceIds.toSet().toList()..sort();
     for (final spaceId in ids) {
       subscriptions.add(
@@ -138,7 +161,8 @@ class _AccountNotificationBellState extends State<AccountNotificationBell> {
 
   @override
   Widget build(BuildContext context) {
-    final unread = uniqueNotificationCount(requests.values, activity.values);
+    final unread =
+        cloudCount ?? uniqueNotificationCount(requests.values, activity.values);
     return Stack(
       clipBehavior: Clip.none,
       children: [

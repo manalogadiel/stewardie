@@ -38,6 +38,68 @@ class _FakeUser extends Fake implements User {
 }
 
 void main() {
+  test('cloud archive is paged and reuses thumbnail bytes', () async {
+    final db = await databaseFactoryMemory.openDatabase('archive-pagination');
+    addTearDown(db.close);
+    final calls = <Map<String, dynamic>>[];
+    final thumb = img.encodeJpg(img.Image(width: 10, height: 10));
+    Map<String, dynamic> row(String id) => {
+      'id': id,
+      'space_id': 'space-1',
+      'uploader_uid': 'user-123',
+      'caption': 'Photo',
+      'created_at': '2026-10-01T10:00:00Z',
+      'published_at': '2026-10-01T10:00:00Z',
+      'moment_date': '2026-10-01',
+      'width': 10,
+      'height': 10,
+    };
+    final client = MockClient((request) async {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      calls.add(body);
+      if (body['action'] == 'download') return http.Response.bytes(thumb, 200);
+      if (body['mode'] == 'dates')
+        return http.Response(
+          jsonEncode({
+            'dates': [
+              {'date': '2026-10-01', 'count': 1, 'cover': row('same')},
+            ],
+            'serverTime': DateTime.now().toUtc().toIso8601String(),
+          }),
+          200,
+        );
+      return http.Response(
+        jsonEncode({
+          'items': [for (var i = 0; i < 31; i++) row('p$i')],
+        }),
+        200,
+      );
+    });
+    final library = CloudMediaLibrary(
+      _FakeTimelineRepository(),
+      user: _FakeUser(),
+      database: db,
+      records: stringMapStoreFactory.store('paged-photos'),
+      initial: [],
+      pending: {},
+      client: client,
+    );
+    addTearDown(library.dispose);
+    final first = await library.archiveDates('space-1');
+    await library.archiveDates('space-1');
+    expect(first.items.single.count, 1);
+    expect(calls.where((c) => c['action'] == 'download').length, 1);
+    final day = await library.archiveDay('space-1', '2026-10-01');
+    expect(day.items.length, 30);
+    expect(day.cursor?['beforeId'], 'p29');
+    expect(calls.where((c) => c['action'] == 'download').length, 31);
+    expect(
+      calls.where((c) => c['action'] == 'page').every((c) => c['limit'] <= 30),
+      isTrue,
+    );
+    expect(calls.any((c) => c['action'] == 'list'), isFalse);
+  });
+
   group('FramingRect robust bounds and presets', () {
     test('boundary and invalid coordinates deserialize safely', () {
       final boundary = FramingRect.fromMap({'x': 1.0, 'y': 0.0});

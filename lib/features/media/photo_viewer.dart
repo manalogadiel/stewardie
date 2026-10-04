@@ -365,13 +365,19 @@ class _TaskPhotosState extends ConsumerState<TaskPhotos> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
-    _timer = Timer.periodic(const Duration(seconds: 20), (_) => _refresh());
+    _timer = Timer.periodic(const Duration(seconds: 45), (_) => _refresh());
   }
 
   void _refresh() {
     if (mounted &&
-        WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused) {
-      unawaited(ref.read(mediaLibraryProvider).refresh(widget.task.spaceId));
+        (WidgetsBinding.instance.lifecycleState == null ||
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed)) {
+      unawaited(
+        ref
+            .read(mediaLibraryProvider)
+            .refreshTask(widget.task.spaceId, widget.task.id),
+      );
     }
   }
 

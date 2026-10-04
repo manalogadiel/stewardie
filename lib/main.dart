@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/theme.dart';
+import 'core/place_search.dart';
 import 'features/media/store.dart';
 import 'online/firebase_session.dart';
 import 'online/online_backend.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await configurePlaceSearch();
   // Paint edge to edge; each shell keeps interactive controls in safe areas.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
