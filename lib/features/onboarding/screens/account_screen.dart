@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
 import '../../../core/stewardie_notices.dart';
 import '../../../online/online_backend.dart';
+import '../../../online/verification_email.dart';
 import '../mascot_stage.dart';
 import '../staggered_entrance.dart';
 
@@ -100,7 +101,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
         // 3. Send email verification
         try {
-          await createdUser.sendEmailVerification();
+          await VerificationEmail.send(createdUser);
           emailSent = true;
         } catch (_) {
           // Email sending failed, but user was created.

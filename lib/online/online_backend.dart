@@ -17,6 +17,7 @@ import 'package:http/http.dart' as http;
 import '../core/invite_links.dart';
 import 'location_session_poll.dart';
 import 'core_data_client.dart';
+import 'verification_email.dart';
 import 'core_space_repository.dart';
 import 'core_task_repository.dart';
 import 'core_firestore.dart';
@@ -363,7 +364,7 @@ class OnlineBackend {
       password: password,
     );
     await credential.user!.updateDisplayName(name.trim());
-    await credential.user!.sendEmailVerification();
+    await VerificationEmail.send(credential.user!);
   }
 
   Future<void> signIn(String email, String password) async {

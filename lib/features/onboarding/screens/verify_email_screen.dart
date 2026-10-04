@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme.dart';
+import '../../../online/verification_email.dart';
 import '../mascot_stage.dart';
 import '../onboarding_store.dart';
 import '../staggered_entrance.dart';
@@ -178,7 +179,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
     });
 
     try {
-      await widget.user.sendEmailVerification();
+      await VerificationEmail.send(widget.user);
       await widget.store.recordResendTimestamp(widget.user.uid);
       if (mounted) {
         setState(() {

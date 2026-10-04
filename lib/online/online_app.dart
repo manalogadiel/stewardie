@@ -10,6 +10,7 @@ import '../core/theme.dart';
 import '../features/onboarding/onboarding_flow.dart';
 import '../features/onboarding/onboarding_store.dart';
 import 'online_backend.dart';
+import 'verification_email.dart';
 import 'online_home.dart';
 
 class OnlineApp extends StatefulWidget {
@@ -483,7 +484,7 @@ class _OnlineVerifyEmailState extends State<OnlineVerifyEmail> {
                       ? null
                       : () async {
                           try {
-                            await widget.user.sendEmailVerification();
+                            await VerificationEmail.send(widget.user);
                             if (mounted) {
                               setState(
                                 () => _message = 'Another link is ready.',
