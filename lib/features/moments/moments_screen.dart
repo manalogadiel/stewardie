@@ -223,24 +223,6 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
                 const ClayArt('moments-selfie-group', height: 88, width: 100),
               ],
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ClayAction(
-                icon: const Icon(Icons.inventory_2_rounded),
-                label: const Text('Archive'),
-                onPressed: () =>
-                    Navigator.of(context, rootNavigator: true).push(
-                      MaterialPageRoute(
-                        builder: (_) => MomentArchive(
-                          photos: archived,
-                          spaceId: space.id,
-                          spaceName: space.name,
-                          timeZone: space.timeZone,
-                        ),
-                      ),
-                    ),
-              ),
-            ),
             if (library.feedHasMore(space.id))
               TextButton.icon(
                 onPressed: library.syncing
@@ -313,11 +295,34 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen>
                   ],
                 ),
               ),
-            FilledButton.icon(
-              key: TutorialTargetRegistry.momentsTabTarget,
-              onPressed: () => showPhotoComposer(context, space),
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: const Text('Add moment'),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    key: TutorialTargetRegistry.momentsTabTarget,
+                    onPressed: () => showPhotoComposer(context, space),
+                    icon: const Icon(Icons.add_a_photo_outlined),
+                    label: const Text('Add moment'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton.filledTonal(
+                  tooltip: 'Archive',
+                  style: IconButton.styleFrom(minimumSize: const Size(52, 52)),
+                  icon: const Icon(Icons.inventory_2_rounded),
+                  onPressed: () =>
+                      Navigator.of(context, rootNavigator: true).push(
+                        MaterialPageRoute(
+                          builder: (_) => MomentArchive(
+                            photos: archived,
+                            spaceId: space.id,
+                            spaceName: space.name,
+                            timeZone: space.timeZone,
+                          ),
+                        ),
+                      ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             if (photo == null)
