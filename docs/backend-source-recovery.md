@@ -41,3 +41,15 @@ The recovered backend suite passed 60 tests; the new location-request SQL suite 
 The user connected the existing Supabase dashboard. Applied only additive migrations `202610040001_location_requests.sql`, `202610040002_media_archive.sql`, and `202610040003_notification_summary.sql`; deployed matching `core-data`, `media`, and `scheduled-work` functions. New SQL passed rollback-only live workflow checks. Invalid-token gateway checks returned 401. Geoapify public-place queries returned 200; the client key stays in ignored local configuration.
 
 The new archive APIs use cursor pagination and server date stamps. The notification bell now reads a summary rather than every space's tasks. Earlier "not deployed" items above are superseded for these three migrations/functions. Hardware FCM/GPS checks, verified email sender configuration, and cleanup/retention gates remain outstanding. No new test authentication accounts were created: automatic approval review rejected lasting live fixtures, so verification used rolled-back SQL fixtures instead.
+
+## Final follow-up — 2026-10-04
+
+Deployed migrations 004–007: atomic task-photo publication/late finalization, private avatar receipts and cleanup RPCs, indexed inbox keyset pages, and private usage reporting. Matching core/media/worker sources were deployed and copied from the editors to verify they match local source. New client avatars use Storage while legacy avatars remain readable; cache notifications/retry guards prevent mounted copies staying on placeholders. Inbox groups load server-filtered pages and cap counts at 99+.
+
+Final validation: 44 backend tests, 26 focused Flutter tests, clean Dart analysis, Android debug APK build, live rollback-only publication/avatar/inbox/privacy checks, and invalid-token HTTP 401 checks. Cloud storage measured 8,239,056 bytes and database 14,576,787 bytes, confirmed by the automatic worker at 01:25 UTC. Device tests and before/after sessions are still required. New removed-file cleanup remains preview-only pending confirmation; arbitrary retention and legacy Firebase deletion are not enabled. [Email sender rollout](verification-email-rollout.md) needs an owned domain/provider before custom delivery can be claimed.
+
+## Configuration handoff — 2026-10-04
+
+The user explicitly approved **Enable cleanup**. Saved `STEW_MEDIA_CLEANUP_ENABLED=true` in the existing Supabase project and verified its new dashboard row at 01:59:34 UTC; evidence: `build/review/cleanup-enabled.png`. This supersedes the preview-only status above. No manual worker invocation or new retention rule was added. Scheduled cleanup outcome is not yet observed.
+
+Firebase rejected a sender/subject update with **Email template updates are currently unavailable for this project**; the existing template remains unchanged. Evidence: `build/review/verification-email-branding.png`. Full custom delivery also still needs an owned domain/provider. The user will run the app themselves; see [device test handoff](device-test-handoff.md).

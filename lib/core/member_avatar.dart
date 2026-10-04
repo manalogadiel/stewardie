@@ -1,4 +1,5 @@
 import '../online/online_backend.dart';
+import '../online/avatar_storage.dart';
 
 import 'dart:typed_data';
 
@@ -64,16 +65,40 @@ class MemberAvatar extends StatefulWidget {
 class _MemberAvatarState extends State<MemberAvatar> {
   // Reuse decoded bytes across routes, bounded and scoped to the signed-in UID.
   static final Map<String, Uint8List?> _photos = {};
-  static final Set<String> _pendingFetches = {};
+  static final Map<String, DateTime> _fetchedAt = {};
+  static final Map<String, DateTime> _retryAt = {};
+  static final Map<String, Future<Uint8List?>> _pendingFetches = {};
+  static final ValueNotifier<int> _updates = ValueNotifier(0);
   static String? _cacheAccount;
+  static int _generation = 0;
 
   static void updateCache(String uid, Uint8List? bytes) {
+    final account = Firebase.apps.isEmpty
+        ? null
+        : FirebaseAuth.instance.currentUser?.uid;
+    if (_cacheAccount != account) {
+      _photos.clear();
+      _fetchedAt.clear();
+      _retryAt.clear();
+      _pendingFetches.clear();
+      _cacheAccount = account;
+      _generation++;
+    }
     _photos[uid] = bytes;
+    _retryAt.remove(uid);
+    _fetchedAt[uid] = DateTime.now();
+    _updates.value++;
   }
 
   static void clearCache() {
+    AvatarStorage.clearPending();
     _photos.clear();
+    _fetchedAt.clear();
+    _retryAt.clear();
     _pendingFetches.clear();
+    _generation++;
+    _cacheAccount = null;
+    _updates.value++;
   }
 
   String? _identity;
@@ -83,17 +108,51 @@ class _MemberAvatarState extends State<MemberAvatar> {
   double get radius => widget.radius;
   bool get selected => widget.selected;
 
+  @override
+  void initState() {
+    super.initState();
+    _updates.addListener(_cacheChanged);
+  }
+
+  void _cacheChanged() {
+    if (mounted) {
+      setState(() {
+        _bytes = _photos[uid];
+        if (!_photos.containsKey(uid)) _identity = null;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _updates.removeListener(_cacheChanged);
+    super.dispose();
+  }
+
   void _bind() {
     final account = Firebase.apps.isEmpty
         ? null
         : FirebaseAuth.instance.currentUser?.uid;
     if (_cacheAccount != account) {
       _photos.clear();
+      _fetchedAt.clear();
+      _retryAt.clear();
       _pendingFetches.clear();
+      _generation++;
       _cacheAccount = account;
     }
     final identity = '$account/$uid';
-    if (_identity == identity) return;
+    if (_identity == identity) {
+      final fetched = _fetchedAt[uid];
+      final retry = _retryAt[uid];
+      if (account != null &&
+          ((retry != null && DateTime.now().isAfter(retry)) ||
+              (fetched != null &&
+                  DateTime.now().difference(fetched).inMinutes >= 15))) {
+        _fetchPhoto(account, uid);
+      }
+      return;
+    }
     _identity = identity;
 
     if (account == null) {
@@ -110,21 +169,34 @@ class _MemberAvatarState extends State<MemberAvatar> {
   }
 
   void _fetchPhoto(String account, String targetUid) {
-    if (_pendingFetches.contains(targetUid)) return;
-    _pendingFetches.add(targetUid);
-
-    OnlineBackend.database
-        .doc('profiles/$targetUid')
-        .get(const GetOptions(source: Source.serverAndCache))
-        .then((doc) {
-          _pendingFetches.remove(targetUid);
-          if (_cacheAccount != account) return;
-          final encoded = doc.data()?['imageBase64'] as String?;
-          final bytes = ProfilePhoto.decode(encoded);
+    if (_retryAt[targetUid]?.isAfter(DateTime.now()) == true) return;
+    final key = '$account/$targetUid';
+    final generation = _generation;
+    final previousFetch = _fetchedAt[targetUid];
+    final future = _pendingFetches.putIfAbsent(key, () async {
+      if (OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator) {
+        return AvatarStorage.load(targetUid);
+      }
+      final doc = await OnlineBackend.database
+          .doc('profiles/$targetUid')
+          .get(const GetOptions(source: Source.serverAndCache));
+      return ProfilePhoto.decode(doc.data()?['imageBase64'] as String?);
+    });
+    future
+        .then((bytes) {
+          if (identical(_pendingFetches[key], future)) {
+            _pendingFetches.remove(key);
+          }
+          if (_cacheAccount != account || _generation != generation) return;
+          if (_fetchedAt[targetUid] != previousFetch) return;
           if (_photos.length >= 100 && !_photos.containsKey(targetUid)) {
             _photos.remove(_photos.keys.first);
+            _fetchedAt.removeWhere((key, _) => !_photos.containsKey(key));
           }
           _photos[targetUid] = bytes;
+          _retryAt.remove(targetUid);
+          _fetchedAt[targetUid] = DateTime.now();
+          _updates.value++;
           if (mounted && uid == targetUid) {
             setState(() {
               _bytes = bytes;
@@ -132,7 +204,15 @@ class _MemberAvatarState extends State<MemberAvatar> {
           }
         })
         .catchError((_) {
-          _pendingFetches.remove(targetUid);
+          if (identical(_pendingFetches[key], future)) {
+            _pendingFetches.remove(key);
+          }
+          if (_cacheAccount == account && _generation == generation) {
+            if (_retryAt.length >= 100) _retryAt.remove(_retryAt.keys.first);
+            _retryAt[targetUid] = DateTime.now().add(
+              const Duration(seconds: 45),
+            );
+          }
         });
   }
 

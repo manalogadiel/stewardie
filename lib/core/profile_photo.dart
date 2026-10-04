@@ -1,4 +1,5 @@
 import '../online/online_backend.dart';
+import '../online/avatar_storage.dart';
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -12,7 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'member_avatar.dart';
 import 'theme.dart';
 
-/// Small metadata-free square avatars fit safely in a single profile document.
+/// Metadata-free square avatars; production bytes live in private Storage.
 class ProfilePhoto {
   ProfilePhoto._();
 
@@ -83,6 +84,14 @@ class ProfilePhoto {
         (base64.length > 160000 || decode(base64) == null)) {
       throw StateError('Choose a smaller photo.');
     }
+    if (OnlineBackend.useSupabaseCore &&
+        !OnlineBackend.useEmulator &&
+        base64.isNotEmpty) {
+      final bytes = decode(base64)!;
+      await AvatarStorage.save(bytes);
+      MemberAvatar.updateCache(user.uid, bytes);
+      return;
+    }
     final data = <String, dynamic>{
       if (base64.isNotEmpty) 'imageBase64': base64,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -97,7 +106,11 @@ class ProfilePhoto {
   static Future<void> remove() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      await OnlineBackend.database.doc('profiles/$uid').delete();
+      if (OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator) {
+        await AvatarStorage.remove();
+      } else {
+        await OnlineBackend.database.doc('profiles/$uid').delete();
+      }
       MemberAvatar.updateCache(uid, null);
     }
   }

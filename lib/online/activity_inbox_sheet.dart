@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'online_backend.dart';
+import 'core_firestore.dart';
 import '../core/member_avatar.dart';
 import '../core/theme.dart';
 import 'operator_review_sheet.dart';
@@ -60,6 +61,87 @@ class ActivityInboxSheet extends StatefulWidget {
 
 class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
   String? selectedSpace;
+  bool get _cloud =>
+      OnlineBackend.useSupabaseCore && !OnlineBackend.useEmulator;
+  final _inboxItems = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+  Map<String, dynamic>? _inboxCursor;
+  bool _loadingMore = false;
+  bool _hasLoadedMore = false;
+  String? _pageError;
+  int _inboxGeneration = 0;
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _pagedStream;
+
+  void _selectFilter(String? space) {
+    selectedSpace = space;
+    _inboxGeneration++;
+    _inboxItems.clear();
+    _inboxCursor = null;
+    _pageError = null;
+    _loadingMore = false;
+    _hasLoadedMore = false;
+    _pagedStream = null;
+  }
+
+  Future<QuerySnapshot<Map<String, dynamic>>> _loadPage({
+    bool more = false,
+  }) async {
+    final generation = _inboxGeneration;
+    final uid = backend.auth.currentUser!.uid;
+    final data = await backend.coreData.call('inboxPage', {
+      'limit': 30,
+      if (selectedSpace != null) 'space': selectedSpace,
+      if (more && _inboxCursor != null) ..._inboxCursor!,
+    });
+    if (!mounted ||
+        generation != _inboxGeneration ||
+        backend.auth.currentUser?.uid != uid) {
+      return CoreQuerySnapshot(List.of(_inboxItems));
+    }
+    final rows = (data['rows'] as List? ?? []).cast<Map>();
+    final docs = rows
+        .take(30)
+        .map(
+          (row) => CoreQueryDocument(
+            backend.coreStore.doc(row['path'] as String),
+            Map<String, dynamic>.from(coreDecode(row['data']) as Map),
+          ),
+        )
+        .toList();
+    if (!more) {
+      final headIds = docs.map((doc) => doc.id).toSet();
+      final tail = _hasLoadedMore
+          ? _inboxItems.where((doc) => !headIds.contains(doc.id)).toList()
+          : <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      _inboxItems
+        ..clear()
+        ..addAll(docs)
+        ..addAll(tail);
+    } else {
+      final known = _inboxItems.map((doc) => doc.id).toSet();
+      _inboxItems.addAll(docs.where((doc) => !known.contains(doc.id)));
+      _hasLoadedMore = true;
+    }
+    if (more || !_hasLoadedMore) {
+      _inboxCursor = rows.length > 30
+          ? {'beforeTime': rows[29]['time'], 'beforeId': rows[29]['path']}
+          : null;
+    }
+    _pageError = null;
+    return CoreQuerySnapshot(List.of(_inboxItems));
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || _inboxCursor == null) return;
+    setState(() => _loadingMore = true);
+    try {
+      await _loadPage(more: true);
+    } catch (_) {
+      _pageError = 'Could not load older activity. Try again.';
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
   OnlineBackend get backend => widget.backend;
   Map<String, String> get spaceNames => widget.spaceNames;
   List<Widget> get requests => widget.requests;
@@ -71,6 +153,9 @@ class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
   late final summaryStream = backend.coreStore.watch(
     () => backend.coreData.call('notificationSummary', {}),
   );
+
+  String _countLabel(int count) =>
+      '${count > 99 ? '99+' : count} unread notifications';
 
   @override
   Widget build(BuildContext context) {
@@ -93,12 +178,14 @@ class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * .65,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: collection
-            .orderBy('createdAt', descending: true)
-            .limit(200)
-            .snapshots(),
+        stream: _cloud
+            ? (_pagedStream ??= backend.coreStore.watch(() => _loadPage()))
+            : collection
+                  .orderBy('createdAt', descending: true)
+                  .limit(200)
+                  .snapshots(),
         builder: (context, snapshot) {
-          final items = (snapshot.data?.docs ?? [])
+          final items = (_cloud ? _inboxItems : snapshot.data?.docs ?? [])
               .where(
                 (doc) =>
                     doc.data()['pushState'] != 'cancelled' &&
@@ -136,7 +223,7 @@ class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
                     const LinearProgressIndicator(),
                   if (selectedSpace != null)
                     TextButton.icon(
-                      onPressed: () => setFilter(() => selectedSpace = null),
+                      onPressed: () => setState(() => _selectFilter(null)),
                       icon: const Icon(Icons.arrow_back_rounded),
                       label: const Text('All spaces'),
                     ),
@@ -152,13 +239,23 @@ class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
                           leading: const Icon(Icons.notifications_rounded),
                           title: Text(entry.value),
                           subtitle: Text(
-                            '${counts[entry.key] ?? items.where((doc) => doc.data()['spaceId'] == entry.key && doc.data()['readAt'] == null).length} unread notifications',
+                            _countLabel(
+                              (counts[entry.key] as num?)?.toInt() ??
+                                  items
+                                      .where(
+                                        (doc) =>
+                                            doc.data()['spaceId'] ==
+                                                entry.key &&
+                                            doc.data()['readAt'] == null,
+                                      )
+                                      .length,
+                            ),
                           ),
                           onTap: () async {
                             try {
                               await onSelectSpace?.call(entry.key);
                               if (context.mounted) {
-                                setFilter(() => selectedSpace = entry.key);
+                                setState(() => _selectFilter(entry.key));
                               }
                             } catch (_) {
                               if (context.mounted) {
@@ -181,6 +278,15 @@ class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
                       snapshot.hasData)
                     const ListTile(title: Text('You’re all caught up.')),
                   for (final doc in visible) _historyItem(context, doc, uid),
+                  if (_pageError != null) Text(_pageError!),
+                  if (_cloud && _inboxCursor != null)
+                    TextButton.icon(
+                      onPressed: _loadingMore ? null : _loadMore,
+                      icon: const Icon(Icons.expand_more_rounded),
+                      label: Text(
+                        _loadingMore ? 'Loading…' : 'Older notifications',
+                      ),
+                    ),
                 ],
               );
             },
@@ -257,7 +363,7 @@ class _ActivityInboxSheetState extends State<ActivityInboxSheet> {
           if (doc.data()['createdAt'] is Timestamp)
             '${MaterialLocalizations.of(context).formatMediumDate((doc.data()['createdAt'] as Timestamp).toDate().toLocal())} '
                 '${TimeOfDay.fromDateTime((doc.data()['createdAt'] as Timestamp).toDate().toLocal()).format(context)}',
-        ].where((text) => text.isNotEmpty).join(' Â· '),
+        ].where((text) => text.isNotEmpty).join(' · '),
       ),
       onTap: () async {
         if ((doc.data()['reportId'] is String ||
